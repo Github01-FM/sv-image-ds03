@@ -1,0 +1,18 @@
+[Unit]
+Description=PulseAudio Sound Server
+Requires=dbus.service  systemd-udevd.service
+After=dbus.service  systemd-udevd.service alsa-restore.service
+
+[Service]
+Type=simple
+# The device permission are supposed to be handled properly by udev-trigger.
+# Since udev-trigger had been removed we have to do it manually and statically.
+ExecStartPre=/bin/chown root:audio /dev/snd -R
+ExecStartPre=/bin/chmod a+rw /dev/snd/ -R
+ExecStart=/usr/bin/pulseaudio --system --disallow-exit
+Restart=always
+RestartSec=5
+TimeoutSec=5
+
+[Install]
+WantedBy=multi-user.target

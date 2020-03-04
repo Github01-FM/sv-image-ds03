@@ -1,0 +1,148 @@
+From 0888e7a69815bfd7ad200135704c5b9bebff180c Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Thu, 10 Mar 2016 16:01:18 +0800
+Subject: [PATCH 57/67] Add Linux Foundation Copyright
+
+Change-Id: I8e3a46709f763ab2952bf21eeeea9e3abb15ee10
+Signed-off-by: Xiaofeng Fei <xfei@codeaurora.org>
+---
+ omx/gstomx.c                | 3 +++
+ omx/gstomx.h                | 3 +++
+ omx/gstomxvideodec.c        | 3 +++
+ omx/gstomxvideodec.h        | 3 +++
+ omx/gstomxvideoenc.c        | 3 +++
+ omx/openmax/OMX_IVCommon.h  | 3 +++
+ omx/openmax/OMX_Index.h     | 3 +++
+ omx/openmax/OMX_RoleNames.h | 3 +++
+ omx/openmax/OMX_Video.h     | 3 +++
+ 9 files changed, 27 insertions(+)
+
+diff --git a/omx/gstomx.c b/omx/gstomx.c
+index e262ab5..bc4c58c 100644
+--- a/omx/gstomx.c
++++ b/omx/gstomx.c
+@@ -19,6 +19,9 @@
+  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA
+  *
+  */
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
+ 
+ #ifdef HAVE_CONFIG_H
+ #include "config.h"
+diff --git a/omx/gstomx.h b/omx/gstomx.h
+index a42690d..f8f8afe 100644
+--- a/omx/gstomx.h
++++ b/omx/gstomx.h
+@@ -19,6 +19,9 @@
+  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA
+  *
+  */
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
+ 
+ #ifndef __GST_OMX_H__
+ #define __GST_OMX_H__
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 96bf67b..b95f46a 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -19,6 +19,9 @@
+  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA
+  *
+  */
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
+ 
+ #ifdef HAVE_CONFIG_H
+ #include "config.h"
+diff --git a/omx/gstomxvideodec.h b/omx/gstomxvideodec.h
+index 20b436e..85224df 100644
+--- a/omx/gstomxvideodec.h
++++ b/omx/gstomxvideodec.h
+@@ -17,6 +17,9 @@
+  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA
+  *
+  */
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
+ 
+ #ifndef __GST_OMX_VIDEO_DEC_H__
+ #define __GST_OMX_VIDEO_DEC_H__
+diff --git a/omx/gstomxvideoenc.c b/omx/gstomxvideoenc.c
+index 1dd7c83..4e9310c 100644
+--- a/omx/gstomxvideoenc.c
++++ b/omx/gstomxvideoenc.c
+@@ -17,6 +17,9 @@
+  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301 USA
+  *
+  */
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
+ 
+ #ifdef HAVE_CONFIG_H
+ #include "config.h"
+diff --git a/omx/openmax/OMX_IVCommon.h b/omx/openmax/OMX_IVCommon.h
+index aba6d8b..d93d3c1 100644
+--- a/omx/openmax/OMX_IVCommon.h
++++ b/omx/openmax/OMX_IVCommon.h
+@@ -20,6 +20,9 @@
+  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
+  *
+  */
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
+ 
+ /*
+  *  OMX_IVCommon.h - OpenMax IL version 1.2.0
+diff --git a/omx/openmax/OMX_Index.h b/omx/openmax/OMX_Index.h
+index 05ca662..56ea518 100644
+--- a/omx/openmax/OMX_Index.h
++++ b/omx/openmax/OMX_Index.h
+@@ -20,6 +20,9 @@
+  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
+  *
+  */
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
+ 
+ /*
+  *  OMX_Index.h - OpenMax IL version 1.2.0
+diff --git a/omx/openmax/OMX_RoleNames.h b/omx/openmax/OMX_RoleNames.h
+index 1d9364d..099222b 100644
+--- a/omx/openmax/OMX_RoleNames.h
++++ b/omx/openmax/OMX_RoleNames.h
+@@ -20,6 +20,9 @@
+  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
+  *
+  */
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
+ 
+ /*
+  *  OMX_RoleNames.h - OpenMax IL version 1.2.0
+diff --git a/omx/openmax/OMX_Video.h b/omx/openmax/OMX_Video.h
+index 40c0412..f361412 100644
+--- a/omx/openmax/OMX_Video.h
++++ b/omx/openmax/OMX_Video.h
+@@ -20,6 +20,9 @@
+  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
+  *
+  */
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
+ 
+ /*
+  *  OMX_Video.h - OpenMax IL version 1.2.0
+-- 
+1.9.1
+

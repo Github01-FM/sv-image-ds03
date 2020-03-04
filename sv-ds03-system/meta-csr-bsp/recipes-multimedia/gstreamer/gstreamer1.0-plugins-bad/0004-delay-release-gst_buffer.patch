@@ -1,0 +1,105 @@
+From 93f4381b7d42f65f6aa2939c7ea45f587e3f85c5 Mon Sep 17 00:00:00 2001
+From: Laisheng Hu <laisheng@codeaurora.org>
+Date: Tue, 15 Dec 2015 11:09:38 +0800
+Subject: [PATCH 04/10] delay release gst_buffer
+
+Change-Id: I9ef8406fd9f693c5cf1460787ea2aec3a37cd722
+Signed-off-by: Laisheng Hu <laisheng@codeaurora.org>
+---
+ ext/wayland/wlbuffer.c  | 17 ++++++++++++-----
+ ext/wayland/wlbuffer.h  |  3 +++
+ ext/wayland/wldisplay.c | 14 ++++++++++++++
+ ext/wayland/wldisplay.h |  3 +++
+ 4 files changed, 32 insertions(+), 5 deletions(-)
+
+diff --git a/ext/wayland/wlbuffer.c b/ext/wayland/wlbuffer.c
+index 4ac99ef..267079c 100644
+--- a/ext/wayland/wlbuffer.c
++++ b/ext/wayland/wlbuffer.c
+@@ -135,11 +135,18 @@ buffer_release (void *data, struct wl_buffer *wl_buffer)
+   GstWlBuffer *self = data;
+ 
+   GST_LOG_OBJECT (self, "wl_buffer::release (GstBuffer: %p)", self->gstbuffer);
+-
+-  self->used_by_compositor = FALSE;
+-
+-  /* unref should be last, because it may end up destroying the GstWlBuffer */
+-  gst_buffer_unref (self->gstbuffer);
++  /* add to the last */
++  wl_list_insert(self->display->defer_list.prev, &self->link);
++  if (wl_list_length(&self->display->defer_list) >= 2) {
++     struct wl_list *first = self->display->defer_list.next;
++     /* fetch the first defer free buffer and release it */
++     self = wl_container_of(first, self, link);
++     self->used_by_compositor = FALSE;
++     wl_list_remove(first);
++
++     /* unref should be last, because it may end up destroying the GstWlBuffer */
++     gst_buffer_unref (self->gstbuffer);
++  }
+ }
+ 
+ static const struct wl_buffer_listener buffer_listener = {
+diff --git a/ext/wayland/wlbuffer.h b/ext/wayland/wlbuffer.h
+index cbb50f7..a13132f 100644
+--- a/ext/wayland/wlbuffer.h
++++ b/ext/wayland/wlbuffer.h
+@@ -42,6 +42,9 @@ struct _GstWlBuffer
+   struct wl_buffer * wlbuffer;
+   GstBuffer *gstbuffer;
+ 
++  /* for defer free */
++  struct wl_list link;
++
+   GstWlDisplay *display;
+ 
+   gboolean used_by_compositor;
+diff --git a/ext/wayland/wldisplay.c b/ext/wayland/wldisplay.c
+index 8c5eeaf..7d3420f 100644
+--- a/ext/wayland/wldisplay.c
++++ b/ext/wayland/wldisplay.c
+@@ -58,6 +58,18 @@ gst_wl_display_finalize (GObject * gobject)
+   gst_poll_set_flushing (self->wl_fd_poll, TRUE);
+   g_thread_join (self->thread);
+ 
++   /* free all deferred release buffer */
++  if(!wl_list_empty(&self->defer_list))
++  {
++    GstWlBuffer *defer_buf, *tmp;
++    wl_list_for_each_safe(defer_buf, tmp, &self->defer_list, link)
++    {
++      defer_buf->used_by_compositor = FALSE;
++      wl_list_remove(&defer_buf->link);
++      /* unref should be last, because it may end up destroying the GstWlBuffer */
++      gst_buffer_unref (defer_buf->gstbuffer);
++    }
++  }
+   /* to avoid buffers being unregistered from another thread
+    * at the same time, take their ownership */
+   g_mutex_lock (&self->buffers_mutex);
+@@ -236,6 +248,8 @@ gst_wl_display_new_existing (struct wl_display * display,
+   self->display = display;
+   self->own_display = take_ownership;
+ 
++  wl_list_init(&self->defer_list);
++
+   self->queue = wl_display_create_queue (self->display);
+   self->registry = wl_display_get_registry (self->display);
+   wl_proxy_set_queue ((struct wl_proxy *) self->registry, self->queue);
+diff --git a/ext/wayland/wldisplay.h b/ext/wayland/wldisplay.h
+index 5505d60..f894d6b 100644
+--- a/ext/wayland/wldisplay.h
++++ b/ext/wayland/wldisplay.h
+@@ -62,6 +62,9 @@ struct _GstWlDisplay
+   GMutex buffers_mutex;
+   GHashTable *buffers;
+   gboolean shutting_down;
++
++  /* deferred free list for buffer release. */
++  struct wl_list defer_list;
+ };
+ 
+ struct _GstWlDisplayClass
+-- 
+1.9.1
+

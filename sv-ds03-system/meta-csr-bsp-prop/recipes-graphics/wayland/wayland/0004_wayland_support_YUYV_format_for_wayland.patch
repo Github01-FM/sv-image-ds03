@@ -1,0 +1,28 @@
+commit 4d4413bb137b4a45f04d8b63ab14fa51cfce61ac
+Author: Flame Chen <Flame.Chen@csr.com>
+Date:   Mon Jun 1 10:45:38 2015 +0800
+
+    wayland support YUYV sormat for wayland
+    
+    Signed-off-by: Flame Chen <Flame.Chen@csr.com>
+
+diff --git a/protocol/wayland.xml b/protocol/wayland.xml
+index 6f422a0..ecfd912 100644
+--- a/protocol/wayland.xml
++++ b/protocol/wayland.xml
+@@ -287,6 +287,7 @@
+       <entry name="argb8888" value="0" summary="32-bit ARGB format"/>
+       <entry name="xrgb8888" value="1" summary="32-bit RGB format"/>
+       <entry name="nv12_vxd" value="2" summary="csr nv12 vxd format"/>
++      <entry name="yuyv" value="3" summary="YUYV format for csr carmera"/>
+       <!-- The drm format codes match the #defines in drm_fourcc.h.
+            The formats actually supported by the compositor will be
+            reported by the format event. -->
+@@ -327,7 +328,6 @@
+       <entry name="abgr2101010" value="0x30334241"/>
+       <entry name="rgba1010102" value="0x30334152"/>
+       <entry name="bgra1010102" value="0x30334142"/>
+-      <entry name="yuyv" value="0x56595559"/>
+       <entry name="yvyu" value="0x55595659"/>
+       <entry name="uyvy" value="0x59565955"/>
+       <entry name="vyuy" value="0x59555956"/>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hello">Hello World, TSCalibration!</string>
+    <string name="app_name">Telink Calibration v2</string>
+    <string name="activity_name">Telink Calibration v2</string>
+    <string name="activity_name1">notification</string>
+    <string name="adjust_touch_screen">Touch Panel Calibration</string>
+    <string name="adjust_touch_screen_summary">Do touch screen calibration</string>
+    <string name="adjust_touch_screen_finish">Calibration is successful</string>
+    <string name="adjust_touch_screen_finish_data">Saving calibrated parameters ...</string>
+    <string name="adjust_touch_screen_fail">Calibration is failed, please try again!</string>
+	<string name="alert_dialog">Touch Panel Calibration Failed</string>
+	<string name="alert_dialog_message">We can do this in settings.Enter home screen immediatly or try again?</string>
+	<string name="home_screen">Enter Home Screen</string>
+	<string name="try_again">Try Again</string>
+</resources>

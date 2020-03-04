@@ -1,0 +1,26 @@
+From d7ac5e06ed474d2a1bbc6fa5bc494c45def998ed Mon Sep 17 00:00:00 2001
+From: Nancy Zou <Nancy.Zou@csr.com>
+Date: Tue, 18 Aug 2015 11:24:42 +0800
+Subject: [PATCH] ivi-shell: add screenshot function
+
+Signed-off-by: Nancy Zou <Nancy.Zou@csr.com>
+---
+ ivi-shell/ivi-shell.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ivi-shell/ivi-shell.c b/ivi-shell/ivi-shell.c
+index 4a688cc..625a4de 100644
+--- a/ivi-shell/ivi-shell.c
++++ b/ivi-shell/ivi-shell.c
+@@ -429,7 +429,7 @@ module_init(struct weston_compositor *compositor,
+ 		goto out_settings;
+ 
+ 	ivi_layout_init_with_compositor(compositor);
+-
++	screenshooter_create(compositor);
+ 	/* Call module_init of ivi-modules which are defined in weston.ini */
+ 	if (load_controller_modules(compositor, setting.ivi_module,
+ 				    argc, argv) < 0)
+-- 
+1.9.1
+

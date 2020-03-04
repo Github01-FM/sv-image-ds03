@@ -1,0 +1,9 @@
+# mount point	fstype		device		[device2]	length
+
+/boot		emmc		/dev/mmcblk0p2	/dev/nandblk0p2	length=33554432
+/root		ext4		/dev/mmcblk0p3	/dev/nandblk0p3	length=268435456
+/svp		ext4		/dev/mmcblk0p5	/dev/nandblk0p5	length=335544320
+/storage	ext4		/dev/mmcblk0p6	/dev/nandblk0p6	length=33554432
+/data		ext4		/dev/mmcblk0p7	/dev/nandblk0p7	length=33554432
+/sdcard		vfat		/dev/mmcblk0p8	/dev/nandblk0p8	length=0
+/user 		ext4		/dev/mmcblk0p10	/dev/nandblk0p10	length=0

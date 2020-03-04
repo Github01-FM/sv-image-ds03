@@ -1,0 +1,133 @@
+From b7b9fca83eb33cea7d8d978953a81764a9d0658a Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Fri, 21 Aug 2015 10:51:02 +0800
+Subject: [PATCH 46/67] APBU-10729: MPEG2 video crash reported by Desay
+
+  1. Check if the size of allocated buffer is smaller than required size
+  2. Add interlaced flags to gstbuffer, so that v4l2 can show right video.
+
+Change-Id: I56a9680c3c8138e8f3100119b7ba3eee75a9db6d
+Signed-off-by: Xiaofeng Fei <xfei@codeaurora.org>
+---
+ omx/gstomx.c         |  7 +++++++
+ omx/gstomx.h         |  1 +
+ omx/gstomxvideodec.c | 36 +++++++++++++++++++++++++++---------
+ 3 files changed, 35 insertions(+), 9 deletions(-)
+
+diff --git a/omx/gstomx.c b/omx/gstomx.c
+index d1ebce0..cdf6907 100644
+--- a/omx/gstomx.c
++++ b/omx/gstomx.c
+@@ -603,6 +603,12 @@ EventHandler (OMX_HANDLETYPE hComponent, OMX_PTR pAppData, OMX_EVENTTYPE eEvent,
+               GST_OMX_HACK_EVENT_PORT_SETTINGS_CHANGED_PORT_0_TO_1))
+         index = 1;
+ 
++      if (nData2 == OMX_IndexConfigStreamInterlaceFormats) {
++        comp->interlaced = OMX_TRUE;
++      }
++      else {
++        comp->interlaced = OMX_FALSE;
++      }
+ 
+       msg->type = GST_OMX_MESSAGE_PORT_SETTINGS_CHANGED;
+       msg->content.port_settings_changed.port = index;
+@@ -755,6 +761,7 @@ gst_omx_component_new (GstObject * parent, const gchar * core_name,
+       component_name, core_name);
+   comp->parent = gst_object_ref (parent);
+   comp->hacks = hacks;
++  comp->interlaced = FALSE;
+ 
+   comp->ports = g_ptr_array_new ();
+   comp->n_in_ports = 0;
+diff --git a/omx/gstomx.h b/omx/gstomx.h
+index 5850d13..86805ba 100644
+--- a/omx/gstomx.h
++++ b/omx/gstomx.h
+@@ -249,6 +249,7 @@ struct _GstOMXComponent {
+   GstOMXCore *core;
+ 
+   guint64 hacks; /* Flags, GST_OMX_HACK_* */
++  gboolean interlaced;
+ 
+   /* Added once, never changed. No locks necessary */
+   GPtrArray *ports; /* Contains GstOMXPort* */
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index b8088a4..723cf52 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -192,8 +192,13 @@ _omx_out_buffer_create (GstOMXVideoDec * dec, const GstBuffer * buf,
+           OMX_TICKS_PER_SECOND);
+ 
+     GST_DEBUG_OBJECT (dec,
+-	  "v4l2 out time: %" GST_TIME_FORMAT ", omx time: %" G_GINT64_FORMAT,
+-	  GST_TIME_ARGS (out_buf->pts), pBuffer->omx_buf->nTimeStamp);
++      "v4l2 out time: %" GST_TIME_FORMAT ", omx time: %" G_GINT64_FORMAT,
++      GST_TIME_ARGS (out_buf->pts), pBuffer->omx_buf->nTimeStamp);
++
++    if (dec->dec->interlaced) {
++      GST_BUFFER_FLAG_SET (out_buf, GST_VIDEO_BUFFER_FLAG_INTERLACED);
++      GST_BUFFER_FLAG_SET (out_buf, GST_VIDEO_BUFFER_FLAG_TFF);
++    }
+   }
+   else {
+     g_slice_free (OMX_DECODER_OUT_BUFFER, pOutBuf);
+@@ -356,10 +361,10 @@ gst_omx_video_dec_init (GstOMXVideoDec * self)
+ #ifdef _OMX_ASYNC_FILL_BUFFER_
+   self->omx_outbuf_quark = g_quark_from_static_string ("omx_out_buffer");
+ #endif
+- self->x_scale = DEFAULT_X_SCALE;
++  self->x_scale = DEFAULT_X_SCALE;
+   self->y_scale = DEFAULT_Y_SCALE;
+   self->rotation = DEFAULT_ROTATION;
+-   g_mutex_init (&self->drain_lock);
++  g_mutex_init (&self->drain_lock);
+   g_cond_init (&self->drain_cond);
+ }
+ 
+@@ -1084,9 +1089,20 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
+ 		 err = OMX_ErrorUndefined;
+ 		 goto done;
+       }
+-	  
++
+       buffers = g_list_append (buffers, buffer);
+ 
++      if (gst_buffer_get_size(buffer) < port->port_def.nBufferSize) {
++        GST_ERROR_OBJECT (self,
++          "Allocated buffer size %d is smaller than required buffer size %d",
++          gst_buffer_get_size(buffer), port->port_def.nBufferSize);
++
++        g_list_free_full (buffers, (GDestroyNotify) gst_buffer_unref);
++        buffers = NULL;
++        err = OMX_ErrorUndefined;
++        goto done;
++      }
++
+       {
+         GstMapInfo info;
+         gst_buffer_map (buffer, &info, GST_MAP_READ);
+@@ -2473,15 +2489,17 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+   GST_DEBUG_OBJECT (self, "Setting new caps %" GST_PTR_FORMAT, state->caps);
+ 
+   gst_omx_port_get_port_definition (self->dec_in_port, &port_def);
+-  
++
+   if(!info->fps_n)
+   {
+      info->fps_d = 800000;
+      info->fps_n = 20000000;
+   }
+- 
+-  /* currently v4l2 driver do not support interlace mode */
+-  info->interlace_mode = GST_VIDEO_INTERLACE_MODE_PROGRESSIVE; 
++
++  if (GST_VIDEO_INFO_IS_INTERLACED(info))
++    self->dec->interlaced = TRUE;
++  else
++    self->dec->interlaced = FALSE;
+ 
+   /* Check if the caps change is a real format change or if only irrelevant
+    * parts of the caps have changed or nothing at all.
+-- 
+1.9.1
+

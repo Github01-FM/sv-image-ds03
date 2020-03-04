@@ -1,0 +1,221 @@
+From 2dfdfc7afcb9935561487bc1c268fad3c31ea344 Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Fri, 3 Jun 2016 15:40:57 +0800
+Subject: [PATCH 62/67] APBU-12094 Design IMG MJPEG playback
+
+Add a new video format Q420 for IMG MJPEG playback
+
+Change-Id: I6e1637447d7e0790ddc6321816ca0e415495ec1a
+Signed-off-by: Xiaofeng Fei <xfei@codeaurora.org>
+---
+ omx/gstomx.c              | 12 ++++++------
+ omx/gstomx.h              |  4 +++-
+ omx/gstomxvideodec.c      | 33 ++++++++++++++++++++++++---------
+ parsed_data_gstomx.conf   |  7 +++----
+ unparsed_data_gstomx.conf |  7 +++----
+ 5 files changed, 39 insertions(+), 24 deletions(-)
+
+diff --git a/omx/gstomx.c b/omx/gstomx.c
+index bc4c58c..e662afa 100644
+--- a/omx/gstomx.c
++++ b/omx/gstomx.c
+@@ -315,6 +315,7 @@ gst_omx_component_handle_messages (GstOMXComponent * comp)
+       case GST_OMX_MESSAGE_PORT_SETTINGS_CHANGED:{
+         gint i, n;
+         OMX_U32 index = msg->content.port_settings_changed.port;
++        gboolean interlaced = msg->content.port_settings_changed.interlaced;
+         GList *outports = NULL, *l, *k;
+ 
+         GST_DEBUG_OBJECT (comp->parent, "%s settings changed (port %u)",
+@@ -329,6 +330,7 @@ gst_omx_component_handle_messages (GstOMXComponent * comp)
+ 
+           if (index == OMX_ALL || index == port->index) {
+             port->settings_cookie++;
++            port->interlaced_pending = interlaced;
+             gst_omx_port_update_port_definition (port, NULL);
+             if (port->port_def.eDir == OMX_DirOutput && !port->tunneled)
+               outports = g_list_prepend (outports, port);
+@@ -606,15 +608,14 @@ EventHandler (OMX_HANDLETYPE hComponent, OMX_PTR pAppData, OMX_EVENTTYPE eEvent,
+               GST_OMX_HACK_EVENT_PORT_SETTINGS_CHANGED_PORT_0_TO_1))
+         index = 1;
+ 
++      msg->type = GST_OMX_MESSAGE_PORT_SETTINGS_CHANGED;
++      msg->content.port_settings_changed.port = index;
+       if (nData2 == OMX_IndexConfigStreamInterlaceFormats) {
+-        comp->interlaced = OMX_TRUE;
++        msg->content.port_settings_changed.interlaced = OMX_TRUE;
+       }
+       else {
+-        comp->interlaced = OMX_FALSE;
++        msg->content.port_settings_changed.interlaced = OMX_FALSE;
+       }
+-
+-      msg->type = GST_OMX_MESSAGE_PORT_SETTINGS_CHANGED;
+-      msg->content.port_settings_changed.port = index;
+       GST_DEBUG_OBJECT (comp->parent, "%s settings changed (port index: %u)",
+           comp->name, (guint) msg->content.port_settings_changed.port);
+       }
+@@ -764,7 +765,6 @@ gst_omx_component_new (GstObject * parent, const gchar * core_name,
+       component_name, core_name);
+   comp->parent = gst_object_ref (parent);
+   comp->hacks = hacks;
+-  comp->interlaced = FALSE;
+ 
+   comp->ports = g_ptr_array_new ();
+   comp->n_in_ports = 0;
+diff --git a/omx/gstomx.h b/omx/gstomx.h
+index f8f8afe..57d7002 100644
+--- a/omx/gstomx.h
++++ b/omx/gstomx.h
+@@ -197,6 +197,7 @@ struct _GstOMXMessage {
+     } port_enable;
+     struct {
+       OMX_U32 port;
++      gboolean interlaced;
+     } port_settings_changed;
+     struct {
+       OMX_U32 port;
+@@ -241,6 +242,8 @@ struct _GstOMXPort {
+   guint32 pending_buf_before_res_change; 
+ 
+   OMX_CONFIG_RECTTYPE crop_rect;
++  gboolean interlaced;
++  gboolean interlaced_pending;
+ };
+ 
+ struct _GstOMXComponent {
+@@ -252,7 +255,6 @@ struct _GstOMXComponent {
+   GstOMXCore *core;
+ 
+   guint64 hacks; /* Flags, GST_OMX_HACK_* */
+-  gboolean interlaced;
+ 
+   /* Added once, never changed. No locks necessary */
+   GPtrArray *ports; /* Contains GstOMXPort* */
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 7767628..8823dd4 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -230,7 +230,7 @@ _omx_out_buffer_create (GstOMXVideoDec * dec, const GstBuffer * buf,
+       "v4l2 out time: %" GST_TIME_FORMAT ", omx time: %" G_GINT64_FORMAT,
+       GST_TIME_ARGS (out_buf->pts), pBuffer->omx_buf->nTimeStamp);
+ 
+-    if (dec->dec->interlaced) {
++    if (dec->dec_out_port->interlaced) {
+       GST_BUFFER_FLAG_SET (out_buf, GST_VIDEO_BUFFER_FLAG_INTERLACED);
+       GST_BUFFER_FLAG_SET (out_buf, GST_VIDEO_BUFFER_FLAG_TFF);
+     }
+@@ -1605,8 +1605,24 @@ gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self,OMX_CONFIG_RECT
+ 
+   in_port = self->dec_in_port;
+   gst_omx_port_get_port_definition (in_port, &in_port_def);
+-  if (in_port_def.format.video.eCompressionFormat == OMX_VIDEO_CodingMJPEG && format == GST_VIDEO_FORMAT_UYVY)
+-    format= GST_VIDEO_FORMAT_YVYU;
++  if (in_port_def.format.video.eCompressionFormat == OMX_VIDEO_CodingMJPEG) {
++    switch(format)
++    {
++    case GST_VIDEO_FORMAT_UYVY:
++      format= GST_VIDEO_FORMAT_YVYU;
++      break;
++    case GST_VIDEO_FORMAT_I420:
++      format= GST_VIDEO_FORMAT_Q420;
++      break;
++    default:
++      break;
++    }
++    self->dec_out_port->interlaced = self->dec_in_port->interlaced;
++  }
++  else {
++    self->dec_out_port->interlaced = self->dec_out_port->interlaced_pending;
++  }
++
+   if (format == GST_VIDEO_FORMAT_UNKNOWN) {
+     GST_ERROR_OBJECT (self, "Unsupported color format: %d",
+         port_def.format.video.eColorFormat);
+@@ -1635,8 +1651,7 @@ gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self,OMX_CONFIG_RECT
+         }
+     }
+ 
+-    //Check interlace mode, update caps if needed
+-    if (self->dec->interlaced) {
++    if (self->dec_out_port->interlaced) {
+       if (self->input_state->info.interlace_mode == GST_VIDEO_INTERLACE_MODE_PROGRESSIVE)
+         self->input_state->info.interlace_mode = GST_VIDEO_INTERLACE_MODE_INTERLEAVED;
+     }
+@@ -1939,7 +1954,7 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+       }
+ 
+       // Check interlace mode, update caps if needed
+-      if (self->dec->interlaced) {
++      if (self->dec_out_port->interlaced) {
+         if (self->input_state->info.interlace_mode == GST_VIDEO_INTERLACE_MODE_PROGRESSIVE)
+           self->input_state->info.interlace_mode = GST_VIDEO_INTERLACE_MODE_INTERLEAVED;
+       }
+@@ -2671,9 +2686,9 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+   }
+ 
+   if (GST_VIDEO_INFO_IS_INTERLACED(info))
+-    self->dec->interlaced = TRUE;
++    self->dec_in_port->interlaced = TRUE;
+   else
+-    self->dec->interlaced = FALSE;
++    self->dec_in_port->interlaced = FALSE;
+ 
+   /* Check if the caps change is a real format change or if only irrelevant
+    * parts of the caps have changed or nothing at all.
+@@ -3703,7 +3718,7 @@ gst_omx_video_dec_decide_allocation (GstVideoDecoder * bdec, GstQuery * query)
+         height = GST_VIDEO_INFO_HEIGHT (&info);
+         aligned_width = ALIGN (width, VXD_NV12_WIDTH_ALIGNMENT);
+         aligned_height = ALIGN (height,
+-            self->dec->interlaced ? VXD_NV12_ITRL_HEIGHT_ALIGNMENT : VXD_NV12_HEIGHT_ALIGNMENT);
++            self->dec_out_port->interlaced ? VXD_NV12_ITRL_HEIGHT_ALIGNMENT : VXD_NV12_HEIGHT_ALIGNMENT);
+ 
+         align.padding_top = 0;
+         align.padding_left = 0;
+diff --git a/parsed_data_gstomx.conf b/parsed_data_gstomx.conf
+index fa34ebf..a472252 100755
+--- a/parsed_data_gstomx.conf
++++ b/parsed_data_gstomx.conf
+@@ -50,14 +50,13 @@ rank=260
+ in-port-index=0
+ out-port-index=1
+ 
+-[omxmjpegvideodec]
+-type-name=GstOMXMJPEGVIDEODec
++[omxmjpegdec]
++type-name=GstOMXMJPEGDec
+ core-name=libomxcore.so
+-component-name=OMX.CSR.MJPEG.Decoder
++component-name=OMX.IMG.MSVDX.Decoder.JPEG
+ rank=260
+ in-port-index=0
+ out-port-index=1
+-sink-template-caps=image/jpeg; video/x-jpeg
+ 
+ [omxmjpegvideoenc]
+ type-name=GstOMXMJPEGVIDEOEnc
+diff --git a/unparsed_data_gstomx.conf b/unparsed_data_gstomx.conf
+index e209b91..635879b 100755
+--- a/unparsed_data_gstomx.conf
++++ b/unparsed_data_gstomx.conf
+@@ -51,14 +51,13 @@ rank=260
+ in-port-index=0
+ out-port-index=1
+ 
+-[omxmjpegvideodec]
+-type-name=GstOMXMJPEGVIDEODec
++[omxmjpegdec]
++type-name=GstOMXMJPEGDec
+ core-name=libomxcore.so
+-component-name=OMX.CSR.MJPEG.Decoder
++component-name=OMX.IMG.MSVDX.Decoder.JPEG
+ rank=260
+ in-port-index=0
+ out-port-index=1
+-sink-template-caps=image/jpeg; video/x-jpeg
+ 
+ [omxmjpegvideoenc]
+ type-name=GstOMXMJPEGVIDEOEnc
+-- 
+1.9.1
+

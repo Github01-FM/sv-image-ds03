@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+    <item type="id" name="widget64">false</item>
+    <item type="id" name="LAYOUT_RELAT">false</item>
+    <item type="id" name="BTN_START">false</item>
+    <item type="id" name="BTN_HELP">false</item>
+    <item type="id" name="VIEW_CALIBRATE">false</item>
+    <item type="id" name="LAYOUT_LINE">false</item>
+    <item type="id" name="CALI_PROGRESS">false</item>
+    <item type="id" name="CALI_MSG">false</item>
+</resources>

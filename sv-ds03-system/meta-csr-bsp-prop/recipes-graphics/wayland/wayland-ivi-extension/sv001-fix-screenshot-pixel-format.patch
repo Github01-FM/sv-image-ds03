@@ -1,0 +1,19 @@
+diff --git a/weston-ivi-shell/src/ivi-controller-impl.c b/weston-ivi-shell/src/ivi-controller-impl.c
+index f4e29ce..3755e0e 100644
+--- a/weston-ivi-shell/src/ivi-controller-impl.c
++++ b/weston-ivi-shell/src/ivi-controller-impl.c
+@@ -878,6 +878,14 @@ controller_screen_screenshot(struct wl_client *client,
+             width,
+             height);
+ 
++    int32_t i = 0;
++    for (; i < stride * height; i += 4)
++    {
++        uint8_t tmp = readpixs[i+0];
++        readpixs[i+0] = readpixs[i+2];
++        readpixs[i+2] = tmp;
++    }
++
+     save_as_bitmap(filename, (const char*)readpixs, stride * height, width, height,
+                    PIXMAN_FORMAT_BPP(output->compositor->read_format));
+     free(readpixs);

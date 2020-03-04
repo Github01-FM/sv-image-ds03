@@ -1,0 +1,57 @@
+From 99ec627ad3af5370f7de621cde2ed65c1e60a942 Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Thu, 19 May 2016 10:34:58 +0800
+Subject: [PATCH 60/67] APBU-11988 [A7DA]Cpu loading is higher than before for
+ some video concurrency cases
+
+Remove older frames when timestamp is 0
+
+Change-Id: I1f5bce2121d21934529852a0ae48876f3d6ab89e
+Signed-off-by: Xiaofeng Fei <xfei@codeaurora.org>
+---
+ omx/gstomxvideodec.c | 15 +++++++++++++--
+ 1 file changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index b95f46a..be02761 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -89,6 +89,7 @@ typedef struct _OMX_IMG_METADATA {
+ #define VXD_NV12_HEIGHT_ALIGNMENT 16
+ #define VXD_NV12_ITRL_HEIGHT_ALIGNMENT 32
+ #define ALIGN(a, b) (((a)+(b)-1)&~((b)-1))
++#define GST_OMX_FRAMEBUFFER_NUM 60
+ 
+ // as of now this is present in pPlatformPrivate.
+ #define GST_OMX_EXTRADATA(psBuffhdr) (((OMX_IMG_METADATA*)(psBuffhdr->pPlatformPrivate))->pui8ExtraData)
+@@ -1703,15 +1704,25 @@ gst_omx_video_dec_clean_older_frames (GstOMXVideoDec * self,
+   if (GST_CLOCK_TIME_IS_VALID (timestamp)) {
+     /* We could release all frames stored with pts < timestamp since the
+      * decoder will likely output frames in display order */
++    /* For some raw streamer, the decoded timestamp will be 0, so we will
++     * release all frames that stored in the list more than 2s (2*30=60) */
++    gint numframes = 0;
++    if (timestamp == 0) {
++      numframes = g_list_length (frames);
++      if (numframes > GST_OMX_FRAMEBUFFER_NUM)
++        numframes = numframes - GST_OMX_FRAMEBUFFER_NUM;
++      else
++        numframes = 0;
++    }
+     for (l = frames; l; l = l->next) {
+       GstVideoCodecFrame *tmp = l->data;
+-
+-      if (tmp->pts < timestamp) {
++      if (tmp->pts < timestamp || (timestamp == 0 && numframes > 0)) {
+         gst_video_decoder_release_frame (GST_VIDEO_DECODER (self), tmp);
+         GST_LOG_OBJECT (self,
+             "discarding ghost frame %p (#%d) PTS:%" GST_TIME_FORMAT " DTS:%"
+             GST_TIME_FORMAT, tmp, tmp->system_frame_number,
+             GST_TIME_ARGS (tmp->pts), GST_TIME_ARGS (tmp->dts));
++        if (numframes) numframes--;
+       } else {
+         gst_video_codec_frame_unref (tmp);
+       }
+-- 
+1.9.1
+

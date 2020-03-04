@@ -1,0 +1,229 @@
+From 26c9fb6c980cfaf33afb2505279c9adfe46bd7f4 Mon Sep 17 00:00:00 2001
+From: Hugh Guan <hhguan@codeaurora.org>
+Date: Fri, 11 Mar 2016 14:21:13 +0800
+Subject: [PATCH 1/2] add command --single-user to enable shared memory
+
+Signed-off-by: Hugh Guan <hhguan@codeaurora.org>
+---
+ configure.ac                      |  4 ++++
+ src/daemon/cmdline.c              | 22 +++++++++++++++++++++-
+ src/daemon/daemon-conf.h          |  4 ++++
+ src/daemon/main.c                 | 27 +++++++++++++++++++++++++++
+ src/daemon/pulseaudio-system.conf |  7 +++++++
+ 5 files changed, 63 insertions(+), 1 deletion(-)
+
+diff --git a/configure.ac b/configure.ac
+index 6e0cf56..d41b245 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -5,6 +5,7 @@
+ #
+ # Copyright 2004-2008 Lennart Poettering
+ # Copyright 2006-2007 Pierre Ossman <ossman@cendio.se> for Cendio AB
++# Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ #
+ # PulseAudio is free software; you can redistribute it and/or modify it
+ # under the terms of the GNU Lesser General Public License as published by
+@@ -177,6 +178,9 @@ AX_APPEND_COMPILE_FLAGS(
+     [-Wall -W -Wextra -pipe -Wno-long-long -Wno-overlength-strings -Wunsafe-loop-optimizations -Wundef -Wformat=2 -Wlogical-op -Wsign-compare -Wformat-security -Wmissing-include-dirs -Wformat-nonliteral -Wold-style-definition -Wpointer-arith -Winit-self -Wdeclaration-after-statement -Wfloat-equal -Wmissing-prototypes -Wstrict-prototypes -Wredundant-decls -Wmissing-declarations -Wmissing-noreturn -Wshadow -Wendif-labels -Wcast-align -Wstrict-aliasing -Wwrite-strings -Wno-unused-parameter -ffast-math -fno-common -fdiagnostics-show-option],
+     [], [-pedantic -Werror])
+ 
++# For csr atlas7 platform
++AX_APPEND_FLAG(["-DCSR_IVI_AM"], [CPPFLAGS])
++
+ # Only enable fastpath asserts when doing a debug build, e.g. from bootstrap.sh.
+ AS_CASE([" $CFLAGS "], [*" -O0 "*], [], [AX_APPEND_FLAG(["-DFASTPATH"], [CPPFLAGS])])
+ 
+diff --git a/src/daemon/cmdline.c b/src/daemon/cmdline.c
+index 147c160..f6cff79 100644
+--- a/src/daemon/cmdline.c
++++ b/src/daemon/cmdline.c
+@@ -2,6 +2,7 @@
+   This file is part of PulseAudio.
+ 
+   Copyright 2004-2006 Lennart Poettering
++  Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ 
+   PulseAudio is free software; you can redistribute it and/or modify
+   it under the terms of the GNU Lesser General Public License as published
+@@ -68,7 +69,10 @@ enum {
+     ARG_DUMP_RESAMPLE_METHODS,
+     ARG_SYSTEM,
+     ARG_CLEANUP_SHM,
+-    ARG_START
++    ARG_START,
++#ifdef CSR_IVI_AM
++    ARG_SINGLE_USER,
++#endif
+ };
+ 
+ /* Table for getopt_long() */
+@@ -104,6 +108,9 @@ static const struct option long_options[] = {
+     {"disable-shm",                 2, 0, ARG_DISABLE_SHM},
+     {"dump-resample-methods",       2, 0, ARG_DUMP_RESAMPLE_METHODS},
+     {"cleanup-shm",                 2, 0, ARG_CLEANUP_SHM},
++#ifdef CSR_IVI_AM
++    {"single-user",                 2, 0, ARG_SINGLE_USER},
++#endif
+     {NULL, 0, 0, 0}
+ };
+ 
+@@ -124,6 +131,9 @@ void pa_cmdline_help(const char *argv0) {
+ 
+            "OPTIONS:\n"
+            "      --system[=BOOL]                   Run as system-wide instance\n"
++#ifdef CSR_IVI_AM
++           "      --single-user[=BOOL]              Run on a single user platform\n\n"
++#endif
+            "  -D, --daemonize[=BOOL]                Daemonize after startup\n"
+            "      --fail[=BOOL]                     Quit when startup fails\n"
+            "      --high-priority[=BOOL]            Try to set high nice level\n"
+@@ -381,6 +391,16 @@ int pa_cmdline_parse(pa_daemon_conf *conf, int argc, char *const argv [], int *d
+                 conf->system_instance = !!b;
+                 break;
+ 
++#ifdef CSR_IVI_AM
++            case ARG_SINGLE_USER:
++                if ((b = optarg ? pa_parse_boolean(optarg) : 1) < 0) {
++                    pa_log(_("--single-user expects boolean argument"));
++                    goto fail;
++                }
++                conf->single_user = !!b;
++                break;
++#endif
++
+             case ARG_NO_CPU_LIMIT:
+                 if ((b = optarg ? pa_parse_boolean(optarg) : 1) < 0) {
+                     pa_log(_("--no-cpu-limit expects boolean argument"));
+diff --git a/src/daemon/daemon-conf.h b/src/daemon/daemon-conf.h
+index 20225c0..607bcf3 100644
+--- a/src/daemon/daemon-conf.h
++++ b/src/daemon/daemon-conf.h
+@@ -6,6 +6,7 @@
+ 
+   Copyright 2004-2006 Lennart Poettering
+   Copyright 2006 Pierre Ossman <ossman@cendio.se> for Cendio AB
++  Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ 
+   PulseAudio is free software; you can redistribute it and/or modify
+   it under the terms of the GNU Lesser General Public License as published
+@@ -68,6 +69,9 @@ typedef struct pa_daemon_conf {
+         system_instance,
+         no_cpu_limit,
+         disable_shm,
++#ifdef CSR_IVI_AM
++        single_user,
++#endif
+         disable_remixing,
+         disable_lfe_remixing,
+         load_default_script_file,
+diff --git a/src/daemon/main.c b/src/daemon/main.c
+index 329ca3b..46ac004 100644
+--- a/src/daemon/main.c
++++ b/src/daemon/main.c
+@@ -3,6 +3,7 @@
+ 
+   Copyright 2004-2006 Lennart Poettering
+   Copyright 2006 Pierre Ossman <ossman@cendio.se> for Cendio AB
++  Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ 
+   PulseAudio is free software; you can redistribute it and/or modify
+   it under the terms of the GNU Lesser General Public License as published
+@@ -178,7 +179,11 @@ static void signal_callback(pa_mainloop_api*m, pa_signal_event *e, int sig, void
+ 
+ #if defined(HAVE_PWD_H) && defined(HAVE_GRP_H)
+ 
++#ifdef CSR_IVI_AM
++static int change_user(bool single_user) {
++#else
+ static int change_user(void) {
++#endif
+     struct passwd *pw;
+     struct group * gr;
+     int r;
+@@ -226,6 +231,11 @@ static int change_user(void) {
+         return -1;
+     }
+ 
++#ifdef CSR_IVI_AM
++    if (single_user)
++        goto skip_setuid;
++#endif
++
+ #if defined(HAVE_SETRESGID)
+     r = setresgid(gr->gr_gid, gr->gr_gid, gr->gr_gid);
+ #elif defined(HAVE_SETEGID)
+@@ -263,6 +273,11 @@ static int change_user(void) {
+     pa_set_env("USER", PA_SYSTEM_USER);
+     pa_set_env("USERNAME", PA_SYSTEM_USER);
+     pa_set_env("LOGNAME", PA_SYSTEM_USER);
++
++#ifdef CSR_IVI_AM
++skip_setuid:
++#endif
++
+     pa_set_env("HOME", PA_SYSTEM_RUNTIME_PATH);
+ 
+     /* Relevant for pa_runtime_path() */
+@@ -282,7 +297,11 @@ static int change_user(void) {
+ 
+ #else /* HAVE_PWD_H && HAVE_GRP_H */
+ 
++#ifdef CSR_IVI_AM
++static int change_user(bool single_user) {
++#else
+ static int change_user(void) {
++#endif
+     pa_log(_("System wide mode unsupported on this platform."));
+     return -1;
+ }
+@@ -753,7 +772,11 @@ int main(int argc, char *argv[]) {
+     if (conf->system_instance && !conf->disallow_module_loading)
+         pa_log_warn(_("Running in system mode, but --disallow-module-loading not set!"));
+ 
++#ifdef CSR_IVI_AM
++    if (conf->system_instance && !conf->disable_shm && !conf->single_user) {
++#else
+     if (conf->system_instance && !conf->disable_shm) {
++#endif
+         pa_log_notice(_("Running in system mode, forcibly disabling SHM mode!"));
+         conf->disable_shm = true;
+     }
+@@ -933,7 +956,11 @@ int main(int argc, char *argv[]) {
+         pa_raise_priority(conf->nice_level);
+ 
+     if (conf->system_instance)
++#ifdef CSR_IVI_AM
++        if (change_user(conf->single_user) < 0)
++#else
+         if (change_user() < 0)
++#endif
+             goto finish;
+ 
+     pa_set_env_and_record("PULSE_SYSTEM", conf->system_instance ? "1" : "0");
+diff --git a/src/daemon/pulseaudio-system.conf b/src/daemon/pulseaudio-system.conf
+index 1eee879..ab1a67f 100644
+--- a/src/daemon/pulseaudio-system.conf
++++ b/src/daemon/pulseaudio-system.conf
+@@ -5,6 +5,8 @@
+ <!--
+ This file is part of PulseAudio.
+ 
++Copyright (c) 2015, The Linux Foundation. All rights reserved.
++
+ PulseAudio is free software; you can redistribute it and/or modify it
+ under the terms of the GNU Lesser General Public License as
+ published by the Free Software Foundation; either version 2.1 of the
+@@ -30,4 +32,9 @@ USA.
+     <allow own="org.pulseaudio.Server"/>
+   </policy>
+ 
++  <!--For csr atlas7 platform-->
++  <policy user="root">
++    <allow own="org.pulseaudio.Server"/>
++  </policy>
++
+ </busconfig>
+-- 
+1.9.1
+

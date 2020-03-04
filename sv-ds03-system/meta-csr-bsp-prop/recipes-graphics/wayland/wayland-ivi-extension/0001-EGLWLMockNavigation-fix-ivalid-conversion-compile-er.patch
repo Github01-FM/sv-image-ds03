@@ -1,0 +1,27 @@
+diff --git a/ivi-layermanagement-examples/EGLWLMockNavigation/src/OpenGLES2App.cpp b/ivi-layermanagement-examples/EGLWLMockNavigation/src/OpenGLES2App.cpp
+index 2e65864..9b03880 100644
+--- a/ivi-layermanagement-examples/EGLWLMockNavigation/src/OpenGLES2App.cpp
++++ b/ivi-layermanagement-examples/EGLWLMockNavigation/src/OpenGLES2App.cpp
+@@ -17,6 +17,13 @@
+  * limitations under the License.
+  *
+  ****************************************************************************/
++/****************************************************************************
++* Copyright (c) 2015-2016 Qualcomm Technologies International, Ltd.
++* All Rights Reserved.
++* Qualcomm Technologies International, Ltd. Confidential and Proprietary.
++* Not a Contribution. Notifications and licenses are retained for attribution purposes only
+++****************************************************************************/
++
+ #include "OpenGLES2App.h"
+ #include "LayerScene.h"
+ #include <ilm_common.h>
+@@ -244,7 +251,7 @@ bool OpenGLES2App::createEGLContext()
+     m_eglContextStruct.eglSurface = NULL;
+     m_eglContextStruct.eglContext = NULL;
+ 
+-    m_eglContextStruct.eglDisplay = eglGetDisplay(m_wlContextStruct.wlDisplay);
++    m_eglContextStruct.eglDisplay = eglGetDisplay((EGLNativeDisplayType)m_wlContextStruct.wlDisplay);
+     eglstatus = eglGetError();
+     if (!m_eglContextStruct.eglDisplay)
+     {

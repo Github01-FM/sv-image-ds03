@@ -1,0 +1,36 @@
+From 2bee329237b6f1c70d8490c32b8576f0a9962533 Mon Sep 17 00:00:00 2001
+From: Laisheng Hu <laisheng@codeaurora.org>
+Date: Thu, 9 Apr 2015 10:20:41 +0800
+Subject: [PATCH 28/67] set interlace mode to progressive(APBU-10245,
+ APBU-10246)
+
+Change-Id: I7fd0f408d56f8a50f0b7bc8826d4b00f46f57894
+Signed-off-by: Laisheng Hu <laisheng@codeaurora.org>
+---
+ omx/gstomxvideodec.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 57800a9..b1ae695 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -2380,11 +2380,16 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+   GST_DEBUG_OBJECT (self, "Setting new caps %" GST_PTR_FORMAT, state->caps);
+ 
+   gst_omx_port_get_port_definition (self->dec_in_port, &port_def);
++  
+   if(!info->fps_n)
+   {
+      info->fps_d = 800000;
+      info->fps_n = 20000000;
+   }
++ 
++  /* currently v4l2 driver do not support interlace mode */
++  info->interlace_mode = GST_VIDEO_INTERLACE_MODE_PROGRESSIVE; 
++
+   /* Check if the caps change is a real format change or if only irrelevant
+    * parts of the caps have changed or nothing at all.
+    */
+-- 
+1.9.1
+

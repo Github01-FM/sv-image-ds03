@@ -1,0 +1,36 @@
+From 1d4635ea58b26ce3f85f097dd9e0313056d05aff Mon Sep 17 00:00:00 2001
+From: Laisheng Hu <laisheng@codeaurora.org>
+Date: Tue, 18 Aug 2015 16:39:53 +0800
+Subject: [PATCH 44/67] change log info for waylandsink checking
+
+Change-Id: Ic107d4d529e939e27419d92361f238864c4aae47
+Signed-off-by: Laisheng Hu <laisheng@codeaurora.org>
+---
+ omx/gstomxvideodec.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index bce634a..a6ce3ef 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -3425,7 +3425,7 @@ gst_omx_video_dec_decide_allocation (GstVideoDecoder * bdec, GstQuery * query)
+     GstAllocator *allocator;
+     gst_query_parse_nth_allocation_param (query, 0, &allocator, NULL);
+     OMX_EXT_PARAM_ENABLEWLIONBUFFERTYPE enable_wlionbuf;
+-    GST_DEBUG_OBJECT (self, "TEST gstomx pool allocator name %s %s", GST_OBJECT_NAME (pool),GST_OBJECT_NAME (allocator));
++
+     if ((allocator != NULL) && g_str_has_prefix (GST_OBJECT_NAME (allocator), "wlshmallocator"))
+     {
+       GST_OMX_INIT_STRUCT (&enable_wlionbuf);
+@@ -3436,7 +3436,7 @@ gst_omx_video_dec_decide_allocation (GstVideoDecoder * bdec, GstQuery * query)
+       self->wl_ion_buffer = TRUE;
+     }
+     else
+-      GST_DEBUG_OBJECT (self,"we use default v4l2 sink !");
++      GST_DEBUG_OBJECT (self,"we do not use wayland sink !");
+   }
+ #endif
+ 
+-- 
+1.9.1
+

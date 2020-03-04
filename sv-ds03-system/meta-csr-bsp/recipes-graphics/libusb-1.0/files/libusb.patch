@@ -1,0 +1,465 @@
+diff --git a/.gitignore b/.gitignore
+index c630c55..7eab69a 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,6 +1,5 @@
+ .deps
+ .libs
+-Makefile
+ Makefile.in
+ *.la
+ *.lo
+@@ -17,7 +16,7 @@ configure
+ aclocal.m4
+ compile
+ config.guess
+-config.h*
++config.h.*
+ !msvc/config.h
+ config.log
+ config.status
+diff --git a/Makefile b/Makefile
+new file mode 100644
+index 0000000..936673a
+--- /dev/null
++++ b/Makefile
+@@ -0,0 +1,19 @@
++all: libusb-1.0.so.1.0
++
++CFLAGS	+=  -fpic -shared
++
++PWD = $(shell pwd)
++
++OBJS :=		\
++	libusb/core.c		\
++	libusb/descriptor.c	\
++	libusb/io.c		\
++	libusb/sync.c		\
++	libusb/os/linux_usbfs.c \
++	libusb/os/threads_posix.c
++
++INCLUDES := -I$(PWD)/libusb -I$(PWD)/libusb/os
++LLIBS := -lc
++
++libusb-1.0.so.1.0 : $(OBJS)
++	$(CC) $(CFLAGS) $(LDFLAGS) $(INCLUDES) $(LLIBS) $^ -Wl,-soname -Wl,libusb-1.0.so.1 -o libusb-1.0.so.1.0
+diff --git a/config.h b/config.h
+new file mode 100644
+index 0000000..2a5b1c0
+--- /dev/null
++++ b/config.h
+@@ -0,0 +1,119 @@
++/* config.h.  Generated from config.h.in by configure.  */
++/* config.h.in.  Generated from configure.ac by autoheader.  */
++
++/* Default visibility */
++#define DEFAULT_VISIBILITY __attribute__((visibility("default")))
++
++/* Debug message logging */
++#define ENABLE_DEBUG_LOGGING 1
++
++/* Message logging */
++#define ENABLE_LOGGING 1
++
++/* Define to 1 if you have the <dlfcn.h> header file. */
++#define HAVE_DLFCN_H 1
++
++/* Define to 1 if you have the `gettimeofday' function. */
++#define HAVE_GETTIMEOFDAY 1
++
++/* Define to 1 if you have the <inttypes.h> header file. */
++#define HAVE_INTTYPES_H 1
++
++/* Define to 1 if you have the <memory.h> header file. */
++#define HAVE_MEMORY_H 1
++
++/* Define to 1 if you have the <poll.h> header file. */
++#define HAVE_POLL_H 1
++
++/* Define to 1 if you have the <stdint.h> header file. */
++#define HAVE_STDINT_H 1
++
++/* Define to 1 if you have the <stdlib.h> header file. */
++#define HAVE_STDLIB_H 1
++
++/* Define to 1 if you have the <strings.h> header file. */
++#define HAVE_STRINGS_H 1
++
++/* Define to 1 if you have the <string.h> header file. */
++#define HAVE_STRING_H 1
++
++/* Define to 1 if the system has the type `struct timespec'. */
++#define HAVE_STRUCT_TIMESPEC 1
++
++/* Define to 1 if you have the <sys/stat.h> header file. */
++#define HAVE_SYS_STAT_H 1
++
++/* Define to 1 if you have the <sys/time.h> header file. */
++#define HAVE_SYS_TIME_H 1
++
++/* Define to 1 if you have the <sys/types.h> header file. */
++#define HAVE_SYS_TYPES_H 1
++
++/* Define to 1 if you have the <unistd.h> header file. */
++#define HAVE_UNISTD_H 1
++
++/* Define to the sub-directory in which libtool stores uninstalled libraries.
++   */
++#define LT_OBJDIR ".libs/"
++
++/* Define to 1 if your C compiler doesn't accept -c and -o together. */
++/* #undef NO_MINUS_C_MINUS_O */
++
++/* Darwin backend */
++/* #undef OS_DARWIN */
++
++/* Linux backend */
++#define OS_LINUX 1
++
++/* OpenBSD backend */
++/* #undef OS_OPENBSD */
++
++/* Windows backend */
++/* #undef OS_WINDOWS */
++
++/* Name of package */
++#define PACKAGE "libusb"
++
++/* Define to the address where bug reports for this package should be sent. */
++#define PACKAGE_BUGREPORT "libusb-devel@lists.sourceforge.net"
++
++/* Define to the full name of this package. */
++#define PACKAGE_NAME "libusb"
++
++/* Define to the full name and version of this package. */
++#define PACKAGE_STRING "libusb 1.0.9"
++
++/* Define to the one symbol short name of this package. */
++#define PACKAGE_TARNAME "libusb"
++
++/* Define to the home page for this package. */
++#define PACKAGE_URL "http://www.libusb.org/"
++
++/* Define to the version of this package. */
++#define PACKAGE_VERSION "1.0.9"
++
++/* type of second poll() argument */
++#define POLL_NFDS_TYPE nfds_t
++
++/* Define to 1 if you have the ANSI C header files. */
++#define STDC_HEADERS 1
++
++/* Use POSIX Threads */
++#define THREADS_POSIX 1
++
++/* timerfd headers available */
++/*#define USBI_TIMERFD_AVAILABLE 1*/
++
++/* Version number of package */
++#define VERSION "1.0.9"
++
++#define LIBUSB_DESCRIBE "for Android"
++
++/* Use GNU extensions */
++#define _GNU_SOURCE 1
++
++/* Define to `__inline__' or `__inline' if that's what the C compiler
++   calls it, or to nothing if 'inline' is not supported under any name.  */
++#ifndef __cplusplus
++/* #undef inline */
++#endif
+diff --git a/libusb/io.c b/libusb/io.c
+index 3e72604..fd5e9ac 100644
+--- a/libusb/io.c
++++ b/libusb/io.c
+@@ -2,6 +2,7 @@
+  * I/O functions for libusb
+  * Copyright (C) 2007-2009 Daniel Drake <dsd@gentoo.org>
+  * Copyright (c) 2001 Johannes Erdfelt <johannes@erdfelt.com>
++ * Copyright (c) 2014 The Linux Foundation. All rights reserved.
+  *
+  * This library is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU Lesser General Public
+@@ -17,6 +18,7 @@
+  * License along with this library; if not, write to the Free Software
+  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+  */
++#define MTPLOG
+ 
+ #include <config.h>
+ #include <errno.h>
+@@ -36,6 +38,14 @@
+ 
+ #include "libusbi.h"
+ 
++#ifndef TIMESPEC_TO_TIMEVAL
++#define TIMESPEC_TO_TIMEVAL(tv, ts)                 \
++        do {                                          \
++                (tv)->tv_sec = (ts)->tv_sec;          \
++                (tv)->tv_usec = (ts)->tv_nsec / 1000; \
++        } while (0)
++#endif
++
+ /**
+  * \page io Synchronous and asynchronous device I/O
+  *
+@@ -1502,12 +1512,16 @@ int usbi_handle_transfer_completion(struct usbi_transfer *itransfer,
+ int usbi_handle_transfer_cancellation(struct usbi_transfer *transfer)
+ {
+ 	/* if the URB was cancelled due to timeout, report timeout to the user */
++    MTPLOG("usbi_handle_transfer_cancellation: Entering usbi_handle_transfer_cancellation");
+ 	if (transfer->flags & USBI_TRANSFER_TIMED_OUT) {
+ 		usbi_dbg("detected timeout cancellation");
++        MTPLOG("usbi_handle_transfer_cancellation: Before entering usbi_handle_transfer_completion when USBI_TRANSFER_TIMED_OUT");
+ 		return usbi_handle_transfer_completion(transfer, LIBUSB_TRANSFER_TIMED_OUT);
++        MTPLOG("usbi_handle_transfer_cancellation: Leaving usbi_handle_transfer_cancellation, set LIBUSB_TRANSFER_TIMED_OUT");
+ 	}
+ 
+ 	/* otherwise its a normal async cancel */
++    MTPLOG("usbi_handle_transfer_cancellation: Before entering usbi_handle_transfer_completion");
+ 	return usbi_handle_transfer_completion(transfer, LIBUSB_TRANSFER_CANCELLED);
+ }
+ 
+@@ -1763,6 +1777,7 @@ static void handle_timeout(struct usbi_transfer *itransfer)
+ 		USBI_TRANSFER_TO_LIBUSB_TRANSFER(itransfer);
+ 	int r;
+ 
++    MTPLOG("handle_timeout: itransfer->flags |= USBI_TRANSFER_TIMED_OUT");
+ 	itransfer->flags |= USBI_TRANSFER_TIMED_OUT;
+ 	r = libusb_cancel_transfer(transfer);
+ 	if (r < 0)
+@@ -1807,6 +1822,7 @@ static int handle_timeouts_locked(struct libusb_context *ctx)
+ 			return 0;
+ 
+ 		/* otherwise, we've got an expired timeout to handle */
++        MTPLOG("handle_timeouts_locked: Before entering handle_timeout");
+ 		handle_timeout(transfer);
+ 	}
+ 	return 0;
+@@ -1890,6 +1906,7 @@ static int handle_events(struct libusb_context *ctx, struct timeval *tv)
+ 	usbi_dbg("poll() returned %d", r);
+ 	if (r == 0) {
+ 		free(fds);
++        MTPLOG("handle_events: Before entering handle_timeouts");
+ 		return handle_timeouts(ctx);
+ 	} else if (r == -1 && errno == EINTR) {
+ 		free(fds);
+@@ -2014,6 +2031,7 @@ int API_EXPORTED libusb_handle_events_timeout_completed(libusb_context *ctx,
+ 	r = get_next_timeout(ctx, tv, &poll_timeout);
+ 	if (r) {
+ 		/* timeout already expired */
++        MTPLOG("libusb_handle_events_timeout_completed: Before entering handle_timeouts");
+ 		return handle_timeouts(ctx);
+ 	}
+ 
+@@ -2022,6 +2040,7 @@ retry:
+ 		if (completed == NULL || !*completed) {
+ 			/* we obtained the event lock: do our own event handling */
+ 			usbi_dbg("doing our own event handling");
++            MTPLOG("libusb_handle_events_timeout_completed: retry: before entering handle_events");
+ 			r = handle_events(ctx, &poll_timeout);
+ 		}
+ 		libusb_unlock_events(ctx);
+@@ -2051,8 +2070,10 @@ already_done:
+ 
+ 	if (r < 0)
+ 		return r;
+-	else if (r == 1)
++	else if (r == 1){
++        MTPLOG("libusb_handle_events_timeout_completed: already_done: before entering handle_timeouts");
+ 		return handle_timeouts(ctx);
++    }
+ 	else
+ 		return 0;
+ }
+@@ -2151,9 +2172,11 @@ int API_EXPORTED libusb_handle_events_locked(libusb_context *ctx,
+ 	r = get_next_timeout(ctx, tv, &poll_timeout);
+ 	if (r) {
+ 		/* timeout already expired */
++        MTPLOG("libusb_handle_events_locked: Before entering handle_timeouts");
+ 		return handle_timeouts(ctx);
+ 	}
+ 
++    MTPLOG("libusb_handle_events_locked: Before entering handle_events");
+ 	return handle_events(ctx, &poll_timeout);
+ }
+ 
+diff --git a/libusb/os/linux_usbfs.c b/libusb/os/linux_usbfs.c
+index 0717fa0..0fefff1 100644
+--- a/libusb/os/linux_usbfs.c
++++ b/libusb/os/linux_usbfs.c
+@@ -2,6 +2,7 @@
+  * Linux usbfs backend for libusb
+  * Copyright (C) 2007-2009 Daniel Drake <dsd@gentoo.org>
+  * Copyright (c) 2001 Johannes Erdfelt <johannes@erdfelt.com>
++ * Copyright (c) 2014 The Linux Foundation. All rights reserved.
+  *
+  * This library is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU Lesser General Public
+@@ -17,6 +18,7 @@
+  * License along with this library; if not, write to the Free Software
+  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+  */
++#define MTPLOG
+ 
+ #include <config.h>
+ #include <ctype.h>
+@@ -1881,8 +1883,10 @@ static int submit_control_transfer(struct usbi_transfer *itransfer)
+ 
+ 	r = ioctl(dpriv->fd, IOCTL_USBFS_SUBMITURB, urb);
+ 	if (r < 0) {
+-		free(urb);
+-		tpriv->urbs = NULL;
++		if (tpriv->urbs != NULL) {
++			free(urb);
++			tpriv->urbs = NULL;
++		}
+ 		if (errno == ENODEV)
+ 			return LIBUSB_ERROR_NO_DEVICE;
+ 
+@@ -1947,11 +1951,20 @@ static void op_clear_transfer_priv(struct usbi_transfer *itransfer)
+ 	struct libusb_transfer *transfer =
+ 		USBI_TRANSFER_TO_LIBUSB_TRANSFER(itransfer);
+ 	struct linux_transfer_priv *tpriv = usbi_transfer_get_os_priv(itransfer);
++	int lock_ret;
+ 
+ 	/* urbs can be freed also in submit_transfer so lock mutex first */
+ 	switch (transfer->type) {
+ 	case LIBUSB_TRANSFER_TYPE_CONTROL:
+ 	case LIBUSB_TRANSFER_TYPE_BULK:
++		lock_ret = usbi_mutex_trylock(&itransfer->lock);
++		if (lock_ret == 0) {
++			if (tpriv->urbs)
++				free(tpriv->urbs);
++			tpriv->urbs = NULL;
++			usbi_mutex_unlock(&itransfer->lock);
++		}
++		break;
+ 	case LIBUSB_TRANSFER_TYPE_INTERRUPT:
+ 		usbi_mutex_lock(&itransfer->lock);
+ 		if (tpriv->urbs)
+@@ -2102,9 +2115,13 @@ completed:
+ 	free(tpriv->urbs);
+ 	tpriv->urbs = NULL;
+ 	usbi_mutex_unlock(&itransfer->lock);
+-	return CANCELLED == tpriv->reap_action ?
+-		usbi_handle_transfer_cancellation(itransfer) :
+-		usbi_handle_transfer_completion(itransfer, tpriv->reap_status);
++	if (CANCELLED == tpriv->reap_action){
++        MTPLOG("handle_bulk_completion: Before entering usbi_handle_transfer_cancellation");
++        return usbi_handle_transfer_cancellation(itransfer);
++    } else {
++        MTPLOG("handle_bulk_completion: Before entering usbi_handle_transfer_completion");
++        return usbi_handle_transfer_completion(itransfer, tpriv->reap_status);
++    }
+ }
+ 
+ static int handle_iso_completion(struct usbi_transfer *itransfer,
+diff --git a/libusb/sync.c b/libusb/sync.c
+index ac3ab7e..57d5e79 100644
+--- a/libusb/sync.c
++++ b/libusb/sync.c
+@@ -1,6 +1,7 @@
+ /*
+  * Synchronous I/O functions for libusb
+  * Copyright (C) 2007-2008 Daniel Drake <dsd@gentoo.org>
++ * Copyright (c) 2014 The Linux Foundation. All rights reserved.
+  *
+  * This library is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU Lesser General Public
+@@ -16,6 +17,7 @@
+  * License along with this library; if not, write to the Free Software
+  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+  */
++#define MTPLOG
+ 
+ #include <config.h>
+ #include <errno.h>
+@@ -168,8 +170,16 @@ static int do_sync_bulk_transfer(struct libusb_device_handle *dev_handle,
+ 	if (!transfer)
+ 		return LIBUSB_ERROR_NO_MEM;
+ 
+-	libusb_fill_bulk_transfer(transfer, dev_handle, endpoint, buffer, length,
+-		bulk_transfer_cb, &completed, timeout);
++	if(type == LIBUSB_TRANSFER_TYPE_BULK){
++
++        libusb_fill_bulk_transfer(transfer, dev_handle, endpoint, buffer, length, bulk_transfer_cb, &completed, timeout);
++
++    }else if (type == LIBUSB_TRANSFER_TYPE_INTERRUPT){
++        MTPLOG("Sync.c: do_sync_bulk_transfer: type is LIBUSB_TRANSFER_TYPE_INTERRUPT");
++        MTPLOG("Sync.c: do_sync_bulk_transfer: Before entering libusb_fill_interrupt_transfer");
++        libusb_fill_interrupt_transfer(transfer, dev_handle, endpoint, buffer, length, bulk_transfer_cb, &completed, timeout);
++        MTPLOG("Sync.c: do_sync_bulk_transfer: libusb_fill_interrupt_transfer has returned");
++    }
+ 	transfer->type = type;
+ 
+ 	r = libusb_submit_transfer(transfer);
+@@ -179,15 +189,25 @@ static int do_sync_bulk_transfer(struct libusb_device_handle *dev_handle,
+ 	}
+ 
+ 	while (!completed) {
++        MTPLOG("Sync.c: do_sync_bulk_transfer: Before entering libusb_handle_events_completed: type == %s",type == LIBUSB_TRANSFER_TYPE_BULK?"BULK":"INTERRUPT");
+ 		r = libusb_handle_events_completed(HANDLE_CTX(dev_handle), &completed);
++        MTPLOG("Sync.c: do_sync_bulk_transfer: libusb_handle_events_completed has returned, r == %d", r);
+ 		if (r < 0) {
+ 			if (r == LIBUSB_ERROR_INTERRUPTED)
+ 				continue;
++            MTPLOG("Sync.c: do_sync_bulk_transfer: Before entering libusb_cancel_transfer");
+ 			libusb_cancel_transfer(transfer);
+-			while (!completed)
+-				if (libusb_handle_events_completed(HANDLE_CTX(dev_handle), &completed) < 0)
++            MTPLOG("Sync.c: do_sync_bulk_transfer: libusb_cancel_transfer has returned");
++			while (!completed){
++                MTPLOG("Sync.c: do_sync_bulk_transfer: Before entering libusb_handle_events_completed 2nd time: type == %s",type == LIBUSB_TRANSFER_TYPE_BULK?"BULK":"INTERRUPT");
++				if (libusb_handle_events_completed(HANDLE_CTX(dev_handle), &completed) < 0){
++                    MTPLOG("Sync.c: do_sync_bulk_transfer: libusb_handle_events_completed has returned, ret < 0");
+ 					break;
++                }
++                MTPLOG("Sync.c: do_sync_bulk_transfer: libusb_handle_events_completed has returned, ret >= 0");
++            }
+ 			libusb_free_transfer(transfer);
++            MTPLOG("Sync.c: do_sync_bulk_transfer: while (!completed) terminated, return r == %d", r);
+ 			return r;
+ 		}
+ 	}
+@@ -198,6 +218,7 @@ static int do_sync_bulk_transfer(struct libusb_device_handle *dev_handle,
+ 		r = 0;
+ 		break;
+ 	case LIBUSB_TRANSFER_TIMED_OUT:
++        MTPLOG("Sync.c: do_sync_bulk_transfer: case LIBUSB_TRANSFER_TIMED_OUT");
+ 		r = LIBUSB_ERROR_TIMEOUT;
+ 		break;
+ 	case LIBUSB_TRANSFER_STALL:
+@@ -220,6 +241,7 @@ static int do_sync_bulk_transfer(struct libusb_device_handle *dev_handle,
+ 	}
+ 
+ 	libusb_free_transfer(transfer);
++    MTPLOG("Sync.c: do_sync_bulk_transfer: Leaving do_sync_bulk_transfer, return r == %d", r);
+ 	return r;
+ }
+ 
+@@ -267,8 +289,10 @@ int API_EXPORTED libusb_bulk_transfer(struct libusb_device_handle *dev_handle,
+ 	unsigned char endpoint, unsigned char *data, int length, int *transferred,
+ 	unsigned int timeout)
+ {
+-	return do_sync_bulk_transfer(dev_handle, endpoint, data, length,
+-		transferred, timeout, LIBUSB_TRANSFER_TYPE_BULK);
++    MTPLOG("libusb_bulk_transfer: Before entering do_sync_bulk_transfer");
++	int ret = do_sync_bulk_transfer(dev_handle, endpoint, data, length, transferred, timeout, LIBUSB_TRANSFER_TYPE_BULK);
++    MTPLOG("libusb_bulk_transfer: do_sync_bulk_transfer has returned, ret == %d", ret);
++    return ret;
+ }
+ 
+ /** \ingroup syncio
+@@ -316,7 +340,10 @@ int API_EXPORTED libusb_interrupt_transfer(
+ 	struct libusb_device_handle *dev_handle, unsigned char endpoint,
+ 	unsigned char *data, int length, int *transferred, unsigned int timeout)
+ {
+-	return do_sync_bulk_transfer(dev_handle, endpoint, data, length,
++    MTPLOG("sync.c: libusb_interrupt_transfer: Entering libusb_interrupt_transfer");
++	int ret = do_sync_bulk_transfer(dev_handle, endpoint, data, length,
+ 		transferred, timeout, LIBUSB_TRANSFER_TYPE_INTERRUPT);
++	MTPLOG("sync.c: libusb_interrupt_transfer: do_sync_bulk_transfer has returned, ret == %d", ret);
++	return ret;
+ }
+ 

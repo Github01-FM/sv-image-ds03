@@ -1,0 +1,93 @@
+From df4c89c4b2f6c01b7e6127ae9805a2e351d451c1 Mon Sep 17 00:00:00 2001
+From: Alan Wang <wbo@codeaurora.org>
+Date: Thu, 2 Jul 2015 15:01:39 +0800
+Subject: [PATCH 42/67] Support ION in gst-omx
+
+1, Don't check buffer alignment for ION cases
+2, setParameter enableAndroidNativeBuffer for H/W codec
+
+Change-Id: Iade345ccbe6ad83581e5da30dccdd22d3c968d8a
+Signed-off-by: Alan Wang <wbo@codeaurora.org>
+---
+ omx/gstomxvideodec.c    | 22 ++++++++++++++++++++++
+ omx/openmax/OMX_Video.h | 17 +++++++++++++++++
+ 2 files changed, 39 insertions(+)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 858d699..9f5c08c 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -1090,6 +1090,8 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
+       {
+         GstMapInfo info;
+         gst_buffer_map (buffer, &info, GST_MAP_READ);
++
++#ifndef ANDROID
+         if (!self->wl_ion_buffer && ((guint32) (info.data) & 0xFFF)) {
+           gst_buffer_unmap (buffer, &info);
+ 
+@@ -1104,6 +1106,7 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
+           GST_ERROR_OBJECT (self, "Failed to allocate aligned output buffer");
+           goto done;
+         }
++#endif
+ 
+         g_hash_table_insert (self->omx_buffer_map, info.data, buffer);
+         GST_DEBUG_OBJECT(self, "acquire buffer info.data = %p %p",buffer,info.data);
+@@ -2398,6 +2401,25 @@ gst_omx_video_dec_negotiate (GstOMXVideoDec * self)
+         gst_omx_error_to_string (err), err);
+   }
+ 
++#ifdef ANDROID
++  // Enable enableAndroidNativeBuffers if component support
++  OMX_INDEXTYPE index;
++  err =
++      gst_omx_get_extension_index(self->dec,
++              "OMX.google.android.index.enableAndroidNativeBuffers",
++              &index);
++
++  if (err == OMX_ErrorNone) {
++    OMX_EXT_PARAM_ENABLENATIVEBUFFERTYPE enable_nativeBuffer;
++    GST_OMX_INIT_STRUCT (&enable_nativeBuffer);
++    enable_nativeBuffer.enable = 1;
++    enable_nativeBuffer.nPortIndex = self->dec_out_port->index;
++    gst_omx_component_set_parameter (self->dec, index, &enable_nativeBuffer);
++  } else {
++    GST_WARNING_OBJECT (self, "Component can't enableAndroidNativeBuffers");
++  }
++#endif
++
+   gst_caps_unref (intersection);
+   return (err == OMX_ErrorNone);
+ }
+diff --git a/omx/openmax/OMX_Video.h b/omx/openmax/OMX_Video.h
+index f1f29eb..cfa3cb4 100644
+--- a/omx/openmax/OMX_Video.h
++++ b/omx/openmax/OMX_Video.h
+@@ -748,6 +748,23 @@ typedef struct EnableWaylandIonBuffersParams {
+     OMX_BOOL enable;
+ }OMX_EXT_PARAM_ENABLEWLIONBUFFERTYPE;
+ 
++/*!
++ ******************************************************************************
++
++ Used with 'OMX.google.android.index.enableAndroidNativeBuffers'.
++ The corresponding IMG index is OMX_IndexImgEnableAndroidNativeBuffers
++
++ *****************************************************************************/
++
++#ifdef ANDROID
++typedef struct EnableAndroidNativeBuffersParams {
++    OMX_U32 nSize;
++    OMX_VERSIONTYPE nVersion;
++    OMX_U32 nPortIndex;
++    OMX_BOOL enable;
++}OMX_EXT_PARAM_ENABLENATIVEBUFFERTYPE;
++#endif
++
+ #ifdef __cplusplus
+ }
+ #endif /* __cplusplus */
+-- 
+1.9.1
+

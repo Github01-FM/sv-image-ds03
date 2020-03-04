@@ -1,0 +1,64 @@
+From 61c0fe7fd1e14168adf98b379f697f42ae2df22f Mon Sep 17 00:00:00 2001
+From: Flame Chen <Flame.Chen@csr.com>
+Date: Wed, 2 Sep 2015 11:18:30 +0800
+Subject: [PATCH 1/2] support overlay: add sync event...
+
+Signed-off-by: Flame Chen <Flame.Chen@csr.com>
+---
+ src/event-loop.c          |  9 +++++++++
+ src/wayland-server-core.h | 15 ++++++++-------
+ src/wayland-server.h      |  2 +-
+ 3 files changed, 18 insertions(+), 8 deletions(-)
+
+diff --git a/src/event-loop.c b/src/event-loop.c
+index d257d78..a2e6cb2 100644
+--- a/src/event-loop.c
++++ b/src/event-loop.c
+@@ -32,6 +32,7 @@
+ #include <sys/epoll.h>
+ #include <sys/signalfd.h>
+ #include <sys/timerfd.h>
++#include <sys/time.h>
+ #include <unistd.h>
+ #include <assert.h>
+ #include "wayland-private.h"
+@@ -110,6 +111,10 @@ add_source(struct wl_event_loop *loop,
+ 		ep.events |= EPOLLIN;
+ 	if (mask & WL_EVENT_WRITABLE)
+ 		ep.events |= EPOLLOUT;
++	if (mask & WL_EVENT_PRI)
++		ep.events |= EPOLLPRI;
++	if (mask & WL_EVENT_ONESHOT)
++		ep.events |= EPOLLONESHOT;
+ 	ep.data.ptr = source;
+ 
+ 	if (epoll_ctl(loop->epoll_fd, EPOLL_CTL_ADD, source->fd, &ep) < 0) {
+@@ -152,6 +157,10 @@ wl_event_source_fd_update(struct wl_event_source *source, uint32_t mask)
+ 		ep.events |= EPOLLIN;
+ 	if (mask & WL_EVENT_WRITABLE)
+ 		ep.events |= EPOLLOUT;
++	if (mask & WL_EVENT_PRI)
++		ep.events |= EPOLLPRI;
++	if (mask & WL_EVENT_ONESHOT)
++		ep.events |= EPOLLONESHOT;
+ 	ep.data.ptr = source;
+ 
+ 	return epoll_ctl(loop->epoll_fd, EPOLL_CTL_MOD, source->fd, &ep);
+diff --git a/src/wayland-server-core.h b/src/wayland-server-core.h
+index 2d911ed..4553b2e 100644
+--- a/src/wayland-server-core.h
++++ b/src/wayland-server-core.h
+@@ -36,7 +36,9 @@ enum {
+ 	WL_EVENT_READABLE = 0x01,
+ 	WL_EVENT_WRITABLE = 0x02,
+ 	WL_EVENT_HANGUP   = 0x04,
+-	WL_EVENT_ERROR    = 0x08
++	WL_EVENT_ERROR    = 0x08,
++	WL_EVENT_PRI      = 0x10,
++	WL_EVENT_ONESHOT  = 0x20
+ };
+ 
+ struct wl_event_loop;
+--
+1.9.1
+

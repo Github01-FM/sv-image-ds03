@@ -1,0 +1,30 @@
+From 2042473e3db63575925e1339f48c278891df8c81 Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Mon, 22 Dec 2014 15:51:41 +0800
+Subject: [PATCH 04/67] Change include patch to SYSROOT
+
+Change-Id: Ifef76900b4a4e1fffdc47a17806798689655696d
+---
+ omx/makefile.am | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/omx/makefile.am b/omx/makefile.am
+index 8fb66b1..296f90b 100644
+--- a/omx/makefile.am
++++ b/omx/makefile.am
+@@ -27,9 +27,9 @@ libGST_OMXincludedir = -I gst-omx/include	\
+ 		-I $(TOP_DIR)/../../../libglib2-2.38.2/glib \
+ 		-I $(TOP_DIR)/../../../libglib2-2.38.2/gmodule \
+ 		-I openmax \
+-		-I/home/xf02/workspace/a7_yocto/poky/build/tmp/sysroots/atlas7-arm/usr/include/gstreamer-1.0 \
+-		-I/home/xf02/workspace/a7_yocto/poky/build/tmp/sysroots/atlas7-arm/usr/include/glib-2.0 \
+-		-I/home/xf02/workspace/a7_yocto/poky/build/tmp/sysroots/atlas7-arm/usr/lib/glib-2.0/include
++		-I $(SYSROOT_DIR)/usr/include/gstreamer-1.0 \
++		-I $(SYSROOT_DIR)/usr/include/glib-2.0 \
++		-I $(SYSROOT_DIR)/usr/lib/glib-2.0/include
+ 
+ libGST_OMX_la_SOURCES=	\
+ 			gstomx.c	\
+-- 
+1.9.1
+

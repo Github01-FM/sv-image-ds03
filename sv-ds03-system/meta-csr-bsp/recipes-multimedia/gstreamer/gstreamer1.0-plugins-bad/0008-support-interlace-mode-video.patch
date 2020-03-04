@@ -1,0 +1,98 @@
+From 04f426185e58ed3263917d52394fdc0ddea508d7 Mon Sep 17 00:00:00 2001
+From: Laisheng Hu <laisheng@codeaurora.org>
+Date: Tue, 26 Jan 2016 17:24:28 +0800
+Subject: [PATCH 08/10] support interlace mode video
+
+Change-Id: I45aeaff0ee00793920629ad13acc4345bda1a68a
+Signed-off-by: Laisheng Hu <laisheng@codeaurora.org>
+---
+ ext/wayland/gstwaylandsink.c |  2 +-
+ ext/wayland/wlshmallocator.c |  9 +++++++--
+ ext/wayland/wlvideoformat.c  | 13 ++++++++++---
+ ext/wayland/wlvideoformat.h  |  2 +-
+ 4 files changed, 19 insertions(+), 7 deletions(-)
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index c4e009d..ec85e38 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -461,7 +461,7 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
+   if (!gst_video_info_from_caps (&info, caps))
+     goto invalid_format;
+ 
+-  format = gst_video_format_to_wl_shm_format (GST_VIDEO_INFO_FORMAT (&info));
++  format = gst_video_format_to_wl_shm_format (GST_VIDEO_INFO_FORMAT (&info),info.interlace_mode);
+   if ((gint) format == -1)
+     goto invalid_format;
+ 
+diff --git a/ext/wayland/wlshmallocator.c b/ext/wayland/wlshmallocator.c
+index 63aa2a8..4e0fdbc 100644
+--- a/ext/wayland/wlshmallocator.c
++++ b/ext/wayland/wlshmallocator.c
+@@ -59,7 +59,12 @@ gst_wl_shm_allocator_alloc (GstAllocator * allocator, gsize size,
+   pFdData = g_slice_new0 (struct ion_fd_data);
+   /* allocate ion buffer */
+   if(size > PAGESIZE)
+-    size = AL(info->width,64) * AL(info->height,16) * 3 / 2;
++  {
++    if(info->interlace_mode == GST_VIDEO_INTERLACE_MODE_PROGRESSIVE)
++       size = AL(info->width,64) * AL(info->height,32) * 3 / 2;
++    else
++       size = AL(info->width,64) * AL(info->height,32) * 3 / 2;
++  }
+   size = AL(size,PAGESIZE);
+ 
+   sAllocInfo.len          = size;
+@@ -232,7 +237,7 @@ gst_wl_shm_memory_construct_wl_buffer (GstMemory * mem, GstWlDisplay * display,
+   stride = AL(info->width,64); /* wl buffer stride should be aligned to 64 byte*/
+ 
+   size = GST_VIDEO_INFO_SIZE (info);
+-  format = gst_video_format_to_wl_shm_format (GST_VIDEO_INFO_FORMAT (info));
++  format = gst_video_format_to_wl_shm_format (GST_VIDEO_INFO_FORMAT (info),info->interlace_mode);
+ 
+   g_return_val_if_fail (gst_is_wl_shm_memory (mem), NULL);
+   g_return_val_if_fail (size <= mem->size, NULL);
+diff --git a/ext/wayland/wlvideoformat.c b/ext/wayland/wlvideoformat.c
+index ffb8de1..d1e988a 100644
+--- a/ext/wayland/wlvideoformat.c
++++ b/ext/wayland/wlvideoformat.c
+@@ -78,13 +78,20 @@ static const wl_VideoFormat formats[] = {
+ };
+ 
+ enum wl_shm_format
+-gst_video_format_to_wl_shm_format (GstVideoFormat format)
++gst_video_format_to_wl_shm_format (GstVideoFormat format,GstVideoInterlaceMode interlace_mode)
+ {
+   guint i;
+-
+   for (i = 0; i < G_N_ELEMENTS (formats); i++)
+     if (formats[i].gst_format == format)
+-      return formats[i].wl_format;
++    {
++       if(format == GST_VIDEO_FORMAT_NV21)
++          return interlace_mode == GST_VIDEO_INTERLACE_MODE_PROGRESSIVE ?
++            WL_SHM_FORMAT_NV12_VXD:WL_SHM_FORMAT_NV12_VXD_INTERLACED;
++       else if(format == GST_VIDEO_FORMAT_YUY2)
++            GST_WARNING ("does wayland sink support this format?\n");
++       else
++         return formats[i].wl_format;
++    }
+ 
+   GST_WARNING ("wayland shm video format not found");
+   return -1;
+diff --git a/ext/wayland/wlvideoformat.h b/ext/wayland/wlvideoformat.h
+index e8ec7ae..b5ec253 100644
+--- a/ext/wayland/wlvideoformat.h
++++ b/ext/wayland/wlvideoformat.h
+@@ -29,7 +29,7 @@
+ 
+ G_BEGIN_DECLS
+ 
+-enum wl_shm_format gst_video_format_to_wl_shm_format (GstVideoFormat format);
++enum wl_shm_format gst_video_format_to_wl_shm_format (GstVideoFormat format,GstVideoInterlaceMode interlace_mode);
+ GstVideoFormat gst_wl_shm_format_to_video_format (enum wl_shm_format wl_format);
+ 
+ const gchar *gst_wl_shm_format_to_string (enum wl_shm_format wl_format);
+-- 
+1.9.1
+

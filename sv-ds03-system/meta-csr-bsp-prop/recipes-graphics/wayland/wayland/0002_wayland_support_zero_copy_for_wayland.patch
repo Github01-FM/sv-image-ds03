@@ -1,0 +1,94 @@
+From 897e76dcc00d69e6bdab29d0ea3663840b79033c Mon Sep 17 00:00:00 2001
+From: Nancy Zou <Nancy.Zou@csr.com>
+Date: Mon, 6 Jul 2015 10:55:10 +0800
+Subject: [PATCH 1/2] wayland support zero copy for wayland
+
+Signed-off-by: Nancy Zou <Nancy.Zou@csr.com>
+---
+ src/wayland-server-core.h |  5 +++++
+ src/wayland-shm.c         | 18 +++++++++++++++++-
+ 2 files changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/src/wayland-server-core.h b/src/wayland-server-core.h
+index 7d03789..b25a8b0 100644
+--- a/src/wayland-server-core.h
++++ b/src/wayland-server-core.h
+@@ -397,6 +397,11 @@ wl_shm_buffer_create(struct wl_client *client,
+ 		     int32_t stride, uint32_t format);
+ 
+ void wl_log_set_handler_server(wl_log_func_t handler);
++int32_t
++wl_shm_buffer_get_fd(struct wl_shm_buffer *buffer);
++
++uint32_t
++wl_shm_buffer_get_offset(struct wl_shm_buffer *buffer);
+ 
+ #ifdef  __cplusplus
+ }
+diff --git a/src/wayland-shm.c b/src/wayland-shm.c
+index b6b31d6..8a70c1e 100644
+--- a/src/wayland-shm.c
++++ b/src/wayland-shm.c
+@@ -52,6 +52,7 @@ struct wl_shm_pool {
+ 	int refcount;
+ 	char *data;
+ 	int32_t size;
++	int32_t fd;
+ };
+ 
+ struct wl_shm_buffer {
+@@ -60,6 +61,7 @@ struct wl_shm_buffer {
+ 	int32_t stride;
+ 	uint32_t format;
+ 	int offset;
++	void *egl_image;
+ 	struct wl_shm_pool *pool;
+ };
+ 
+@@ -77,6 +79,7 @@ shm_pool_unref(struct wl_shm_pool *pool)
+ 		return;
+ 
+ 	munmap(pool->data, pool->size);
++	close(pool->fd);
+ 	free(pool);
+ }
+ 
+@@ -159,6 +162,7 @@ shm_pool_create_buffer(struct wl_client *client, struct wl_resource *resource,
+ 	buffer->stride = stride;
+ 	buffer->offset = offset;
+ 	buffer->pool = pool;
++	buffer->egl_image = NULL;
+ 	pool->refcount++;
+ 
+ 	buffer->resource =
+@@ -250,7 +254,7 @@ shm_create_pool(struct wl_client *client, struct wl_resource *resource,
+ 				       "failed mmap fd %d", fd);
+ 		goto err_close;
+ 	}
+-	close(fd);
++	pool->fd = fd;
+ 
+ 	pool->resource =
+ 		wl_resource_create(client, &wl_shm_pool_interface, 1, id);
+@@ -409,6 +413,18 @@ wl_shm_buffer_get_height(struct wl_shm_buffer *buffer)
+ 	return buffer->height;
+ }
+ 
++WL_EXPORT int32_t
++wl_shm_buffer_get_fd(struct wl_shm_buffer *buffer)
++{
++	return buffer->pool->fd;
++}
++
++WL_EXPORT uint32_t
++wl_shm_buffer_get_offset(struct wl_shm_buffer *buffer)
++{
++	return buffer->offset;
++}
++
+ static void
+ reraise_sigbus(void)
+ {
+-- 
+1.9.1
+

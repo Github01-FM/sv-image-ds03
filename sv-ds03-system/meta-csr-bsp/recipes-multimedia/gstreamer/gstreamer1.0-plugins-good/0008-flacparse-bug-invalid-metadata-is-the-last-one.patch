@@ -1,0 +1,30 @@
+From 5c56745707f8c089c7629c8edb6d33c441acc508 Mon Sep 17 00:00:00 2001
+From: Tony Han <xiahan@codeaurora.org>
+Date: Wed, 4 Nov 2015 16:35:24 +0800
+Subject: [PATCH 8/8] flacparse bug: invalid metadata is the last one
+
+When the invalid metadata is the last one, it
+should also change the state from GST_FLAC_PARSE_STATE_HEADERS
+to GST_FLAC_PARSE_STATE_DATA.
+
+Change-Id: I073dd952571c1bb3c38c49f287b88e9efdf0fed5
+Signed-off-by: Tony Han <xiahan@codeaurora.org>
+---
+ gst/audioparsers/gstflacparse.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/gst/audioparsers/gstflacparse.c b/gst/audioparsers/gstflacparse.c
+index bf598c7..036271e 100644
+--- a/gst/audioparsers/gstflacparse.c
++++ b/gst/audioparsers/gstflacparse.c
+@@ -1527,7 +1527,6 @@ gst_flac_parse_parse_frame (GstBaseParse * parse, GstBaseParseFrame * frame,
+     if (type == 127) {
+       GST_WARNING_OBJECT (flacparse, "Invalid metadata block type");
+       res = GST_BASE_PARSE_FLOW_DROPPED;
+-      goto cleanup;
+     }
+ 
+     GST_DEBUG_OBJECT (flacparse, "Handling metadata block of type %u", type);
+-- 
+1.9.1
+

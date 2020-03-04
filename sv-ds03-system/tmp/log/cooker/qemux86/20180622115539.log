@@ -1,0 +1,2 @@
+ERROR: Nothing PROVIDES 'u-boot'
+ERROR: u-boot was skipped: Either UBOOT_MACHINE or UBOOT_CONFIG must be set in the qemux86 machine configuration.

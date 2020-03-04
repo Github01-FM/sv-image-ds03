@@ -1,0 +1,42 @@
+From d2e625c590884e156bc54f6b0e67ae724a63bfce Mon Sep 17 00:00:00 2001
+From: Laisheng Hu <laisheng@codeaurora.org>
+Date: Tue, 22 Dec 2015 10:06:33 +0800
+Subject: [PATCH 06/10] enable overlay rendering
+
+Change-Id: I00273dfe0fcd5b6f993ebd6ee71a4f0f43fb2e3c
+Signed-off-by: Laisheng Hu <laisheng@codeaurora.org>
+---
+ ext/wayland/wlwindow.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/ext/wayland/wlwindow.c b/ext/wayland/wlwindow.c
+index 985955f..f934876 100644
+--- a/ext/wayland/wlwindow.c
++++ b/ext/wayland/wlwindow.c
+@@ -289,6 +289,8 @@ void
+ gst_wl_window_render (GstWlWindow * window, GstWlBuffer * buffer,
+     const GstVideoInfo * info)
+ {
++  struct wl_region *region;
++
+   if (G_UNLIKELY (info)) {
+     window->video_width =
+         gst_util_uint64_scale_int_round (info->width, info->par_n, info->par_d);
+@@ -305,6 +307,14 @@ gst_wl_window_render (GstWlWindow * window, GstWlBuffer * buffer,
+ 
+   wl_surface_damage (window->video_surface, 0, 0, window->surface_width,
+       window->surface_height);
++
++  /* support overlay rendering */
++  region = wl_compositor_create_region(window->display->compositor);
++  wl_region_add(region, 0, 0,
++    window->surface_width,window->surface_height);
++  wl_surface_set_opaque_region(window->video_surface, region);
++  wl_region_destroy(region);
++
+   wl_surface_commit (window->video_surface);
+ 
+   if (G_UNLIKELY (info)) {
+-- 
+1.9.1
+

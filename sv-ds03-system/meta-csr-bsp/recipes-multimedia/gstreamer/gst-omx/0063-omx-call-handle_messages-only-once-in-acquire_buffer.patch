@@ -1,0 +1,73 @@
+From d103886c55a7a9162b010c946fd99746d78342a1 Mon Sep 17 00:00:00 2001
+From: George Kiagiadakis <george.kiagiadakis@collabora.com>
+Date: Fri, 19 Dec 2014 11:19:55 +0200
+Subject: [PATCH 63/67] omx: call handle_messages() only once in
+ acquire_buffer() to avoid potential deadlock
+
+There is one rare case where calling handle_messages() more than once can cause a deadlock
+in the video decoder element:
+
+- sink pad thread starts the src pad task (gst_omx_video_dec_loop())
+- _video_dec_loop() calls gst_omx_port_acquire_buffer() on dec_out_port
+- blocks in gst_omx_component_wait_message() releasing comp->lock and comp->messages_lock
+  (initially, there are no buffers configured on that port, so it waits for OMX_EventPortSettingsChanged)
+- the sink pad thread pushes a buffer to the decoder with gst_omx_port_release_buffer()
+- _release_buffer() grabs comp->lock and sends the buffer to OMX, which consumes it immediately
+- EmptyBufferDone gets called at this point, which signals _wait_message() to unblock
+- the message from EmptyBufferDone is processed in gst_omx_component_handle_messages()
+  called from gst_omx_port_release_buffer()
+- gst_omx_port_release_buffer releases comp->lock
+- the src pad thread now gets to run, grabbing comp->lock while it exits from _wait_message()
+- _acquire_buffer() calls the _handle_messages() on the next line after _wait_message(),
+  which does nothing (no pending messages)
+- then it goes to "retry:" and calls _handle_messages() again, which also does nothing
+  (still no pending messages)
+- scheduler switches to a videocore thread that calls EventHandler, informing us about the
+  OMX_EventPortSettingsChanged event that just arrived
+- EventHandler graps comp->messages_lock, but not comp->lock, so it can run in parallel at
+  this point just fine.
+- scheduler switches back to the src pad thread (which is in the middle of _acquire_buffer())
+- the next _handle_messages() which is right before if (g_queue_is_empty (&port->pending_buffers))
+  processes the OMX_EventPortSettingsChanged
+- the buffer queue is still empty, so that thread blocks again in _wait_message()
+- the sink pad thread tries to acquire the next input port buffer
+- _acquire_buffer() also blocks this thread in:
+   if (comp->pending_reconfigure_outports) { ... _wait_message() ... }
+- DEADLOCK. gstreamer is waiting for omx to do something, omx waits for gstreamer to do something.
+
+By removing those extra _handle_messages() calls, we can ensure that all the checks of
+_acquire_buffer() will re-run. In the above case, after the scheduler switches back to
+the middle of _acquire_buffer(), the code will enter _wait_message(), which will see that
+there are pending messages and will return immediately, going back to "retry:" and
+re-doing all the checks properly.
+
+https://bugzilla.gnome.org/show_bug.cgi?id=741854
+
+Cherry-pick this patch from official development git
+
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+Change-Id: Idf4a3c5ae0b1141b4996811d6a64a10f8b6764a9
+---
+ omx/gstomx.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/omx/gstomx.c b/omx/gstomx.c
+index e662afa..14db083 100644
+--- a/omx/gstomx.c
++++ b/omx/gstomx.c
+@@ -1431,12 +1431,10 @@ retry:
+    * arrives, an error happens, the port is flushing
+    * or the port needs to be reconfigured.
+    */
+-  gst_omx_component_handle_messages (comp);
+   if (g_queue_is_empty (&port->pending_buffers)) {
+     GST_DEBUG_OBJECT (comp->parent, "Queue of %s port %u is empty",
+         comp->name, port->index);
+     gst_omx_component_wait_message (comp, GST_CLOCK_TIME_NONE);
+-    gst_omx_component_handle_messages (comp);
+ 
+     /* And now check everything again and maybe get a buffer */
+     goto retry;
+-- 
+1.9.1
+

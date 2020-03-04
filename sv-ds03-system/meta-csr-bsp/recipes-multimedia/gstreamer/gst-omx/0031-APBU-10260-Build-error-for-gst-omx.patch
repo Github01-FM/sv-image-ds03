@@ -1,0 +1,36 @@
+From 3fb4045b935b18d29b1dd8f503a27256f467027e Mon Sep 17 00:00:00 2001
+From: xf02 <xfei@codeaurora.org>
+Date: Fri, 10 Apr 2015 18:23:36 +0800
+Subject: [PATCH 31/67] APBU-10260: Build error for gst-omx
+
+Add LT_INIT to configure.ac
+
+Change-Id: I288ebff3fd164af9232a9c0870542c6cb1ad0e31
+---
+ configure.ac | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/configure.ac b/configure.ac
+index 56874bf..adb6748 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -51,6 +51,8 @@ AC_SUBST(GST_API_VERSION)
+ AC_DEFINE_UNQUOTED(GST_API_VERSION, "$GST_API_VERSION",
+   [GStreamer API Version])
+ 
++LT_INIT
++
+ AG_GST_LIBTOOL_PREPARE
+ AS_LIBTOOL(GST, 0, 0, 0)
+ 
+@@ -58,7 +60,6 @@ dnl *** required versions of GStreamer stuff ***
+ GST_REQ=1.2.2
+ 
+ dnl *** autotools stuff ****
+-LT_INIT
+ 
+ dnl allow for different autotools
+ AS_AUTOTOOLS_ALTERNATE
+-- 
+1.9.1
+

@@ -1,0 +1,133 @@
+From bad6f6e534792c0458c0f7ac9f45cda905cb0f1c Mon Sep 17 00:00:00 2001
+From: Yiming Cao <cyiming@codeaurora.org>
+Date: Thu, 19 Mar 2015 15:50:40 +0800
+Subject: [PATCH 22/67] omxvideodec: set needed buffers to config pool
+
+1, For android, the sink needs know how much buffers are needed by decoder,
+and set it as buffercount to bufferqueue.
+
+2, Workaround for "Timeout waiting for XXX port 1 to be disabled" by retry
+until port is disabled for android.
+
+Change-Id: I8baca6b55f56117dc942d093dd9628d6686cf5de
+Signed-off-by: Yiming Cao <cyiming@codeaurora.org>
+---
+ omx/gstomxvideodec.c | 63 +++++++++++++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 57 insertions(+), 6 deletions(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 507f49e..99b1256 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -1010,7 +1010,19 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
+     gboolean was_enabled = TRUE;
+     GstBufferPoolAcquireParams params = { 0, };
+      
+-    min += GST_OMX_MIN_RENDERING_LATENCY; //for render latency
++    /* update the actual buffer count of port according to the negotiated
++     * buffer count with pool
++     */
++    if (pool) {
++      config = gst_buffer_pool_get_config (pool);
++      if (!gst_buffer_pool_config_get_params (config, NULL, NULL, &min, &max)) {
++        GST_ERROR_OBJECT (self, "Can't get buffer pool params");
++        gst_structure_free (config);
++        err = OMX_ErrorUndefined;
++        goto done;
++      }
++      gst_structure_free (config);
++    }
+ 
+     GST_DEBUG_OBJECT (self, "Trying to allocate %d v4l2 buffers", min);
+     if (min != port->port_def.nBufferCountActual) {
+@@ -1973,7 +1985,7 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+ 				OMX_TICKS_PER_SECOND);
+ 				GST_DEBUG_OBJECT (self,
+ 				"v4l2 out time: %" GST_TIME_FORMAT ", omx time: %" G_GINT64_FORMAT,
+-				frame->output_buffer->pts, buf->omx_buf->nTimeStamp) ;
++				GST_TIME_ARGS (frame->output_buffer->pts), buf->omx_buf->nTimeStamp) ;
+ 			}
+ 			flow_ret =
+ 			gst_video_decoder_finish_frame (GST_VIDEO_DECODER (self), frame);
+@@ -2642,9 +2654,13 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+       if (gst_omx_port_set_enabled (self->dec_out_port, FALSE) != OMX_ErrorNone)
+         return FALSE;
+ 
++retry:
+       if (gst_omx_port_wait_enabled (self->dec_out_port,
+-              1 * GST_SECOND) != OMX_ErrorNone)
+-        return FALSE;
++              1 * GST_SECOND) != OMX_ErrorNone) {
++        GST_WARNING_OBJECT (self, "Retry for timeout of operation on Port!!!");
++        goto retry;
++//        return FALSE;
++      }
+ 
+       if (gst_omx_component_set_state (self->dec,
+               OMX_StateIdle) != OMX_ErrorNone)
+@@ -3195,10 +3211,10 @@ gst_omx_video_dec_decide_allocation (GstVideoDecoder * bdec, GstQuery * query)
+ {
+   GstBufferPool *pool;
+   GstStructure *config;
++  GstCaps *caps;
+ 
+ #if defined (USE_OMX_TARGET_RPI) && defined (HAVE_GST_GL)
+   {
+-    GstCaps *caps;
+     gint i, n;
+     GstVideoInfo info;
+ 
+@@ -3240,14 +3256,49 @@ gst_omx_video_dec_decide_allocation (GstVideoDecoder * bdec, GstQuery * query)
+       (gst_omx_video_dec_parent_class)->decide_allocation (bdec, query))
+     return FALSE;
+ 
++  /** set the min buffer count to bufferpool config for the
++   * video sink for android needs know how much of buffers are
++   * requested by video decoder in order to set the right
++   * buffercount to the bufferqueue.
++   */
++  guint size, min, max;
++  GstOMXVideoDec *self = GST_OMX_VIDEO_DEC (bdec);
++  GstOMXPort *port = self->dec_out_port;
++
+   g_assert (gst_query_get_n_allocation_pools (query) > 0);
+-  gst_query_parse_nth_allocation_pool (query, 0, &pool, NULL, NULL, NULL);
++  gst_query_parse_nth_allocation_pool (query, 0, &pool, NULL, &min, &max);
+   g_assert (pool != NULL);
+ 
+   config = gst_buffer_pool_get_config (pool);
++  if (!gst_buffer_pool_config_get_params (config, &caps, &size, &min, &max)) {
++    GST_ERROR_OBJECT (self , "Can't get buffer pool params");
++    gst_structure_free (config);
++    gst_object_unref (pool);
++    return FALSE;
++  }
++
++  /* Need at least 2 buffers for anything meaningful */
++  min = MAX (MAX (min, port->port_def.nBufferCountMin +
++                 GST_OMX_MIN_RENDERING_LATENCY), 4);
++  if (max == 0 || max < min) {
++    max = min;
++  } else if (max < port->port_def.nBufferCountMin || max < 2) {
++    /* Can't use pool because can't have enough buffers */
++    gst_caps_replace (&caps, NULL);
++  }
++
++  GST_DEBUG_OBJECT (self, "min =%d max=%d", min, max);
++
++  if (caps)
++    gst_buffer_pool_config_set_params (config, caps,
++        size, min, max);
++
+   if (gst_query_find_allocation_meta (query, GST_VIDEO_META_API_TYPE, NULL)) {
+     gst_buffer_pool_config_add_option (config,
+         GST_BUFFER_POOL_OPTION_VIDEO_META);
++    /* TODO: we should set alignment here.
++     * Now the alignment is ensured by allocator of driver
++     */
+   }
+   gst_buffer_pool_set_config (pool, config);
+   gst_object_unref (pool);
+-- 
+1.9.1
+

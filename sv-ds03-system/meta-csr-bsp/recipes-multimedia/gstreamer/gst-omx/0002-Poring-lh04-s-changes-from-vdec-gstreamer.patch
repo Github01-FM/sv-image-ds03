@@ -1,0 +1,96 @@
+From 95527368ef4cbde20ac051518895e71420662e70 Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Fri, 19 Dec 2014 15:18:09 +0800
+Subject: [PATCH 02/67] Poring lh04's changes from vdec/gstreamer
+
+Change-Id: I1001c21e3dc90097e6c09a10cb84412cd15f12a6
+---
+ omx/gstomxvideodec.c | 28 ++++++++++++++++++++++------
+ omx/gstomxvideodec.h |  2 +-
+ 2 files changed, 23 insertions(+), 7 deletions(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index d93f278..31e7a03 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -178,6 +178,7 @@ gst_omx_video_dec_class_init (GstOMXVideoDecClass * klass)
+       "RGBA") "; "
+ #endif
+       "video/x-raw, "
++      "format = NV12, "
+       "width = " GST_VIDEO_SIZE_RANGE ", "
+       "height = " GST_VIDEO_SIZE_RANGE ", " "framerate = " GST_VIDEO_FPS_RANGE;
+ }
+@@ -663,12 +664,22 @@ gst_omx_video_dec_fill_buffer (GstOMXVideoDec * self,
+       guint8 *dst;
+       guint h;
+ 
+-      dst = GST_VIDEO_FRAME_PLANE_DATA (&frame, p);
+-      data = src;
++      /*
++      BRN46142: Corruption with rotation with non-multiple of 16 resolution stream
++      Cluttersink doesnt pick up crop rectangle metadata. Making adjustments needed for
++      crop_rect->nTop and crop_rect->nLeft 
++      */
++      src += crop_rect->nTop/(p+1) * port_def->format.video.nStride;
++
++      dst = GST_VIDEO_FRAME_PLANE_DATA (&frame, p) + p *(0x40 - dst_height[p>>1]&0x3f)*GST_VIDEO_FRAME_PLANE_STRIDE (&frame, p>>1);/*only for NV12 ,others cases are not verified */
++	  GST_DEBUG_OBJECT (self,"dst comp data = %p plane data = %p",GST_VIDEO_FRAME_COMP_DATA (&frame, p),GST_VIDEO_FRAME_PLANE_DATA (&frame, p));
++
++	  data = src;
+       for (h = 0; h < dst_height[p]; h++) {
++        data += crop_rect->nLeft;
+         GSTOMX_MEMCPY (dst, data, dst_width[p]);
+-        dst += GST_VIDEO_INFO_PLANE_STRIDE (vinfo, p);
+-        data += src_stride[p];
++        dst += GST_VIDEO_FRAME_PLANE_STRIDE (&frame, p);
++        data += src_stride[p] - crop_rect->nLeft;
+       }
+       src += src_size[p];
+     }
+@@ -782,6 +793,11 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
+   }
+ #endif
+ 
++#ifndef USE_V4L2_BUFFER 
++  // TODO.
++  gst_caps_replace (&caps, NULL);
++#endif
++
+   if (caps)
+     self->out_port_pool =
+         gst_omx_buffer_pool_new (GST_ELEMENT_CAST (self), self->dec, port);
+@@ -1458,7 +1474,7 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+       if (err != OMX_ErrorNone)
+         goto reconfigure_error;
+     }
+-
++    gst_omx_component_get_config(self->dec_out_port->comp, OMX_IndexConfigCommonOutputCrop, crop_rect);
+     if (acq_return == GST_OMX_ACQUIRE_BUFFER_RECONFIGURE) {
+       /* We have the possibility to reconfigure everything now */
+       err = gst_omx_video_dec_reconfigure_output_port (self);
+@@ -1468,7 +1484,7 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+       /* Just update caps */
+       GST_VIDEO_DECODER_STREAM_LOCK (self);
+ 
+-      gst_omx_component_get_config(self->dec_out_port->comp, OMX_IndexConfigCommonOutputCrop, crop_rect);
++
+       gst_omx_port_get_port_definition (port, &port_def);
+       g_assert (port_def.format.video.eCompressionFormat ==
+           OMX_VIDEO_CodingUnused);
+diff --git a/omx/gstomxvideodec.h b/omx/gstomxvideodec.h
+index 2d16a69..a3883d9 100644
+--- a/omx/gstomxvideodec.h
++++ b/omx/gstomxvideodec.h
+@@ -60,7 +60,7 @@ struct _GstOMXVideoDec
+   /* < protected > */
+   GstOMXComponent *dec;
+   GstOMXPort *dec_in_port, *dec_out_port;
+-  
++
+   GstBufferPool *in_port_pool, *out_port_pool;
+ 
+   /* < private > */
+-- 
+1.9.1
+

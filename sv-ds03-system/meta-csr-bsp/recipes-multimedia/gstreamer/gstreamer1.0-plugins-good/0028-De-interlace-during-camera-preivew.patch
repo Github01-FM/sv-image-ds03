@@ -1,0 +1,91 @@
+From f244e54b0099fbe82ce983d86c54691ca4e72939 Mon Sep 17 00:00:00 2001
+From: Alan Wang <wbo@codeaurora.org>
+Date: Thu, 23 Jun 2016 20:43:37 +0800
+Subject: [PATCH 28/31] De-interlace during camera preivew
+
+Copy buffer flag when v4l2sink use dma buffer import.
+In this case, we can set field vaule properly for vpp to do de-interlace
+if needed.
+
+Change-Id: I4ddec68f716d7b82227d33e83ec7cb463d8c68bb
+Signed-off-by: Alan Wang <wbo@codeaurora.org>
+---
+ sys/v4l2/gstv4l2bufferpool.c | 26 +++++++++++++++++++++-----
+ 1 file changed, 21 insertions(+), 5 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2bufferpool.c b/sys/v4l2/gstv4l2bufferpool.c
+index 33728cf..35a5493 100644
+--- a/sys/v4l2/gstv4l2bufferpool.c
++++ b/sys/v4l2/gstv4l2bufferpool.c
+@@ -365,6 +365,9 @@ gst_v4l2_buffer_pool_import_dmabuf (GstV4l2BufferPool * pool,
+           dma_mem))
+     goto import_failed;
+ 
++  gst_buffer_copy_into (dest, src,
++      GST_BUFFER_COPY_FLAGS, 0, -1);
++
+   gst_mini_object_set_qdata (GST_MINI_OBJECT (dest), GST_V4L2_IMPORT_QUARK,
+       gst_buffer_ref (src), (GDestroyNotify) gst_buffer_unref);
+ 
+@@ -1102,7 +1105,7 @@ gst_v4l2_buffer_pool_qbuf (GstV4l2BufferPool * pool, GstBuffer * buf)
+   pool->buffers[index] = buf;
+ 
+   if (V4L2_TYPE_IS_OUTPUT (obj->type)) {
+-    enum v4l2_field field;
++    enum v4l2_field field = V4L2_FIELD_ANY;
+ #if 0
+     /* Except when field is set to alternate, buffer field is the same as
+      * the one defined in format */
+@@ -1124,12 +1127,19 @@ gst_v4l2_buffer_pool_qbuf (GstV4l2BufferPool * pool, GstBuffer * buf)
+     if (GST_BUFFER_FLAG_IS_SET(buf, GST_VIDEO_BUFFER_FLAG_INTERLACED)) {
+       if (GST_BUFFER_FLAG_IS_SET(buf, GST_VIDEO_BUFFER_FLAG_TFF)) {
+         field = V4L2_FIELD_INTERLACED_TB;
+-      }
+-      else {
++      } else {
+         field = V4L2_FIELD_INTERLACED_BT;
+       }
+     }
+ 
++    if (GST_BUFFER_FLAG_IS_SET (buf, GST_VIDEO_BUFFER_FLAG_TWOFIELDS)) {
++      if (GST_BUFFER_FLAG_IS_SET (buf, GST_VIDEO_BUFFER_FLAG_SEQ_TB)) {
++        field = V4L2_FIELD_SEQ_TB;
++      } else {
++        field = V4L2_FIELD_SEQ_BT;
++      }
++    }
++
+     group->buffer.field = field;
+   }
+ 
+@@ -1251,12 +1261,10 @@ gst_v4l2_buffer_pool_dqbuf (GstV4l2BufferPool * pool, GstBuffer ** buffer)
+       GST_BUFFER_FLAG_UNSET (outbuf, GST_VIDEO_BUFFER_FLAG_INTERLACED);
+       GST_BUFFER_FLAG_UNSET (outbuf, GST_VIDEO_BUFFER_FLAG_TFF);
+       break;
+-    case V4L2_FIELD_SEQ_TB:
+     case V4L2_FIELD_INTERLACED_TB:
+       GST_BUFFER_FLAG_SET (outbuf, GST_VIDEO_BUFFER_FLAG_INTERLACED);
+       GST_BUFFER_FLAG_SET (outbuf, GST_VIDEO_BUFFER_FLAG_TFF);
+       break;
+-    case V4L2_FIELD_SEQ_BT:
+     case V4L2_FIELD_INTERLACED_BT:
+       GST_BUFFER_FLAG_SET (outbuf, GST_VIDEO_BUFFER_FLAG_INTERLACED);
+       GST_BUFFER_FLAG_UNSET (outbuf, GST_VIDEO_BUFFER_FLAG_TFF);
+@@ -1271,6 +1279,14 @@ gst_v4l2_buffer_pool_dqbuf (GstV4l2BufferPool * pool, GstBuffer ** buffer)
+         GST_BUFFER_FLAG_SET (outbuf, GST_VIDEO_BUFFER_FLAG_TFF);
+       }
+       break;
++    case V4L2_FIELD_SEQ_TB:
++      GST_BUFFER_FLAG_SET (outbuf, GST_VIDEO_BUFFER_FLAG_TWOFIELDS);
++      GST_BUFFER_FLAG_SET (outbuf, GST_VIDEO_BUFFER_FLAG_SEQ_TB);
++      break;
++    case V4L2_FIELD_SEQ_BT:
++      GST_BUFFER_FLAG_SET (outbuf, GST_VIDEO_BUFFER_FLAG_TWOFIELDS);
++      GST_BUFFER_FLAG_UNSET (outbuf, GST_VIDEO_BUFFER_FLAG_SEQ_TB);
++      break;
+     default:
+       GST_BUFFER_FLAG_UNSET (outbuf, GST_VIDEO_BUFFER_FLAG_INTERLACED);
+       GST_BUFFER_FLAG_UNSET (outbuf, GST_VIDEO_BUFFER_FLAG_TFF);
+-- 
+1.9.1
+

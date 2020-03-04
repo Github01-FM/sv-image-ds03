@@ -1,0 +1,27 @@
+From 1f69a68e04f8ab8c7ac3d8aa4b533b3b7c6329aa Mon Sep 17 00:00:00 2001
+From: Jingtao Cen <jingtaoc@codeaurora.org>
+Date: Tue, 27 Sep 2016 13:44:16 +0800
+Subject: [PATCH] Should use absolute path to avoid confusion
+
+Change-Id: I99888b60b8012cd1edd6022f6f0a9cf43eb1c115
+Signed-off-by: Jingtao Cen <jingtaoc@codeaurora.org>
+---
+ omx/Makefile.am | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/omx/Makefile.am b/omx/Makefile.am
+index 0b2ea7c..f520a03 100644
+--- a/omx/Makefile.am
++++ b/omx/Makefile.am
+@@ -25,7 +25,7 @@ libgstomx_la_SOURCES = gstomx.c  \
+       gstomxmjpegvideoenc.c 
+ 
+ 
+-libgstomx_la_CFLAGS = $(GST_PLUGINS_BASE_CFLAGS) $(GST_BASE_CFLAGS) $(GST_CFLAGS) -DHAS_GSTREAMER -I openmax
++libgstomx_la_CFLAGS = $(GST_PLUGINS_BASE_CFLAGS) $(GST_BASE_CFLAGS) $(GST_CFLAGS) -DHAS_GSTREAMER -I $(top_srcdir)/omx/openmax
+ libgstomx_la_CXXFLAGS = $(GST_PLUGINS_BASE_CFLAGS) $(GST_BASE_CFLAGS) $(GST_CXXFLAGS) -DHAS_GSTREAMER
+ libgstomx_la_LIBADD = \
+ 	$(GST_PLUGINS_BASE_LIBS) \
+-- 
+1.9.1
+

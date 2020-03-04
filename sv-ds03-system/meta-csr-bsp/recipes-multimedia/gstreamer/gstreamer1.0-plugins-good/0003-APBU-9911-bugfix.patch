@@ -1,0 +1,32 @@
+From 88c70cad082607f4149f7143d610459e08d4fd6c Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Thu, 2 Apr 2015 10:52:42 +0800
+Subject: [PATCH 3/8] APBU-9911 bugfix
+
+From 1.0 branch, 728a84984028bc4ab89472d9ab7e81c23cf772ae
+Cherry-pick failed, re-commit it.
+
+Fix the bug for wrong timestamp in avi
+
+Change-Id: I71f026196e3ee21b1192da6e8ec9eb5841bcb307
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ gst/avi/gstavidemux.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/gst/avi/gstavidemux.c b/gst/avi/gstavidemux.c
+index aaac6cb..65a4d37 100644
+--- a/gst/avi/gstavidemux.c
++++ b/gst/avi/gstavidemux.c
+@@ -5216,6 +5216,8 @@ gst_avi_demux_loop_data (GstAviDemux * avi)
+       GST_BUFFER_PTS (buf) = GST_CLOCK_TIME_NONE;
+     }
+ 
++    //Fei: Pass the timestamp into the buffer
++    GST_BUFFER_TIMESTAMP (buf) = timestamp;
+     GST_BUFFER_DTS (buf) = timestamp;
+ 
+     GST_BUFFER_DURATION (buf) = duration;
+-- 
+1.9.1
+

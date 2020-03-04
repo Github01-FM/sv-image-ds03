@@ -1,0 +1,15 @@
+[Unit]
+Description=pulseaudio server
+Requires=dbus.service systemd-udevd.service
+After=dbus.service systemd-udevd.service
+Before=alsa-restore.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/pulseaudio --system --single-user --realtime --disallow-exit --no-cpu-limit
+#Restart=always
+#RestartSec=5
+#TimeoutSec=5
+
+[Install]
+WantedBy=multi-user.target

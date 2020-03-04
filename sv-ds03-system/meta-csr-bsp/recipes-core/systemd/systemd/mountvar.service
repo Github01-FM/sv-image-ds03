@@ -1,0 +1,16 @@
+[Unit]
+Description=Persistent VAR Mount
+DefaultDependencies=no
+Requires=systemd-remount-fs.service systemd-tmpfiles-setup.service var-volatile-lib.service
+After=systemd-remount-fs.service systemd-tmpfiles-setup.service var-volatile-lib.service
+Before=systemd-udevd.service sysinit.target shutdown.target
+#ConditionPathIsReadWrite=!/
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart= /bin/sh /usr/bin/mntvar.sh
+ExecStop=/usr/bin/killall -s KILL mntvar.sh
+
+[Install]
+RequiredBy=systemd-udevd.service

@@ -1,0 +1,52 @@
+From fbca678d2bdeb5a76a250c64d07ef3ecd3c55e9e Mon Sep 17 00:00:00 2001
+From: Alan Wang <wbo@codeaurora.org>
+Date: Wed, 15 Jun 2016 17:44:40 +0800
+Subject: [PATCH 64/67] Fix insecure code
+
+Protect from NULL point reference.
+
+Change-Id: I6ed5fafdac1b1d1329e372c44229a1396567acbd
+Signed-off-by: Alan Wang <wbo@codeaurora.org>
+---
+ omx/gstomxvideodec.c | 18 ++++++++++++++----
+ 1 file changed, 14 insertions(+), 4 deletions(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 8823dd4..9d35b8e 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -727,6 +727,11 @@ gst_omx_video_dec_fill_buffer (GstOMXVideoDec * self,
+   gboolean ret = FALSE;
+   GstVideoFrame frame;
+ 
++  if (!vinfo) {
++    GST_ERROR_OBJECT (self, "vinfo is NULL !!!");
++    goto done;
++  }
++
+   if (vinfo->width != crop_rect->nWidth ||
+       vinfo->height != crop_rect->nHeight) {
+     GST_ERROR_OBJECT (self, "Resolution do not match: port=%ux%u vinfo=%dx%d",
+@@ -860,10 +865,15 @@ done:
+           gst_util_uint64_scale (inbuf->omx_buf->nTickCount, GST_SECOND,
+           OMX_TICKS_PER_SECOND);
+     // crop metada for every frame.
+-    cropmeta->x = crop_rect->nLeft;
+-    cropmeta->y = crop_rect->nTop;
+-    cropmeta->width = crop_rect->nWidth;
+-    cropmeta->height = crop_rect->nHeight;
++    if (cropmeta) {
++      cropmeta->x = crop_rect->nLeft;
++      cropmeta->y = crop_rect->nTop;
++      cropmeta->width = crop_rect->nWidth;
++      cropmeta->height = crop_rect->nHeight;
++    } else {
++      GST_ERROR_OBJECT (self, "Fail add video crop meta !!!\n");
++      ret = FALSE;
++    }
+   }
+ 
+   gst_video_codec_state_unref (state);
+-- 
+1.9.1
+

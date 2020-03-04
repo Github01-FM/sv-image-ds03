@@ -1,0 +1,72 @@
+From cf401bc56ed8b011d5858688f06453d6afe0cdf9 Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Tue, 12 Jan 2016 17:21:56 +0800
+Subject: [PATCH 14/31] APBU-11157 [A7DA][MM]Not smooth,Show green block and
+ high cpu loading when play 1080P video
+
+1. Unref the dqbuf instead of releasing it to the pool
+   Because this dqbuf is copyed from the allocated buffer,
+   so we can not release it to the pool.
+
+2. Remove the memory writeable check for rendering buffer
+   Because gst-omx will always keep the allocated buffer, it just push
+   the copied buffer to v4l2sink, so this check should be failure.
+
+Change-Id: I20752170af2b9cc04e602f22e61ee655b2616a8a
+Signed-off-by: Xiaofeng Fei <xfei@codeaurora.org>
+---
+ sys/v4l2/gstv4l2bufferpool.c | 16 +++++++++++++---
+ 1 file changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2bufferpool.c b/sys/v4l2/gstv4l2bufferpool.c
+index 7efc070..292f139 100644
+--- a/sys/v4l2/gstv4l2bufferpool.c
++++ b/sys/v4l2/gstv4l2bufferpool.c
+@@ -85,6 +85,10 @@ gst_v4l2_is_buffer_valid (GstBuffer * buffer, GstV4l2MemoryGroup ** out_group)
+   if (mem && gst_is_v4l2_memory (mem)) {
+     GstV4l2Memory *vmem = (GstV4l2Memory *) mem;
+     GstV4l2MemoryGroup *group = vmem->group;
++#if 0
++    /* Do not check memory writeable. this check is failure because
++       gst-omx always keep one copy buffer during decoding.
++    */
+     gint i;
+ 
+     if (group->n_mem != gst_buffer_n_memory (buffer))
+@@ -97,6 +101,7 @@ gst_v4l2_is_buffer_valid (GstBuffer * buffer, GstV4l2MemoryGroup ** out_group)
+       if (!gst_memory_is_writable (group->mem[i]))
+         goto done;
+     }
++#endif
+ 
+     valid = TRUE;
+     if (out_group)
+@@ -1931,17 +1936,22 @@ gst_v4l2_buffer_pool_process (GstV4l2BufferPool * pool, GstBuffer ** buf)
+ 
+           /* Remove our ref, we will still hold this buffer in acquire as needed,
+            * otherwise the pool will think it is outstanding and will refuse to stop. */
+-          gst_buffer_unref (to_queue);
++          // gst_buffer_unref (to_queue);
+ 
+           if (g_atomic_int_get (&pool->num_queued) >= pool->min_latency) {
+             GstBuffer *out;
+             /* all buffers are queued, try to dequeue one and release it back
+              * into the pool so that _acquire can get to it again. */
+             ret = gst_v4l2_buffer_pool_dqbuf (pool, &out);
+-            if (ret == GST_FLOW_OK && out->pool == NULL)
++            if (ret == GST_FLOW_OK && out->pool == NULL) {
+               /* release the rendered buffer back into the pool. This wakes up any
+                * thread waiting for a buffer in _acquire(). */
+-              gst_v4l2_buffer_pool_release_buffer (bpool, out);
++              // gst_v4l2_buffer_pool_release_buffer (bpool, out);
++              /* This buffer is copied from the allocated buffer, so we can not
++                 release it to the pool.
++              */
++              gst_buffer_unref (out);
++            }
+           }
+           break;
+         }
+-- 
+1.9.1
+

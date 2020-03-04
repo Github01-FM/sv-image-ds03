@@ -1,0 +1,36 @@
+======================
+SiRFSoC Android README
+======================
+
+1. File Tree
+-------------
+
+  csr --> <company_name>
+    |--products
+         |--AndroidProducts.mk
+	 |--sirfsocv7_android.mk --> <product_name>.mk
+    |--sirfsocv7 --> <board_name>
+         |--AndroidBoard.mk
+	 |--system.prop
+	 |--...
+
+2. Product Definitions
+----------------------
+
+  PRODUCT_NAME		- End-user-visible name for the overall product. Appears in the "About the phone" info.
+  PRODUCT_MODEL 	- End-user-visible name for the end product
+  PRODUCT_LOCALES 	- A space-separated list of two-letter language code
+  PRODUCT_PACKAGES 	- Lists the APKs to install
+  PRODUCT_DEVICE 	- Name of the industrial design
+  PRODUCT_MANUFACTURER 	- Name of the manufacturer
+  PRODUCT_BRAND 	- The brand (e.g. carrier) the software is customized for, if any
+  ...
+
+3. Why PRODUCT_DEVICE is set to sirfsoc instead of prima_evb, atlas4_evb, ...etc?
+---------------------------------------------------------------------------------
+  In nature, android is userland framework and applications, which works on top of the linux kernel. In current
+  structure, the SoC and board level difference are handled by linux bsp. This makes it possible to run the same
+  android image on different SoCs and boards. Some feature level differences can be detected in runtime, such as
+  the 3d, mm can be determined through the exported proc files - /proc/cpuinfo, /proc/gpuinfo.
+  
+  But in customer's product, it's best to use its own name.

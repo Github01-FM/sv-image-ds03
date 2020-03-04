@@ -1,0 +1,38 @@
+From abbdc15488802bcfcc95050be12b77d5057c96ff Mon Sep 17 00:00:00 2001
+From: Yiming Cao <cyiming@codeaurora.org>
+Date: Wed, 1 Apr 2015 10:47:21 +0800
+Subject: [PATCH 23/67] APBU-10214: remove timeout workaround
+
+For the root cause of timeout is fix in glib with
+1ff8a1ea6ab79b416f57092becfa83095a9ee393 check-in,
+we remove the workaround here.
+
+Change-Id: Ib5e350e8637b996bf8b2a6eb12d000e175120f5f
+Signed-off-by: Yiming Cao <cyiming@codeaurora.org>
+---
+ omx/gstomxvideodec.c | 8 ++------
+ 1 file changed, 2 insertions(+), 6 deletions(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 99b1256..7ec1040 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -2654,13 +2654,9 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+       if (gst_omx_port_set_enabled (self->dec_out_port, FALSE) != OMX_ErrorNone)
+         return FALSE;
+ 
+-retry:
+       if (gst_omx_port_wait_enabled (self->dec_out_port,
+-              1 * GST_SECOND) != OMX_ErrorNone) {
+-        GST_WARNING_OBJECT (self, "Retry for timeout of operation on Port!!!");
+-        goto retry;
+-//        return FALSE;
+-      }
++              1 * GST_SECOND) != OMX_ErrorNone)
++        return FALSE;
+ 
+       if (gst_omx_component_set_state (self->dec,
+               OMX_StateIdle) != OMX_ErrorNone)
+-- 
+1.9.1
+

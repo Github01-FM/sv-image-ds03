@@ -1,0 +1,26 @@
+From 9c1543250e80917f7b3e6f6c5b034e91989b6373 Mon Sep 17 00:00:00 2001
+From: Laisheng Hu <laisheng@codeaurora.org>
+Date: Mon, 19 Jan 2015 16:51:49 +0800
+Subject: [PATCH 13/67]  U/V start address aligned to 16byte
+
+Change-Id: I4f61e6067f5489861d28325117a9cb326453a8a5
+---
+ omx/gstomxvideodec.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 1bd3fbe..3e6864b 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -730,7 +730,7 @@ gst_omx_video_dec_fill_buffer (GstOMXVideoDec * self,
+       */
+       src += crop_rect->nTop/(p+1) * port_def->format.video.nStride;
+ 
+-      dst = GST_VIDEO_FRAME_PLANE_DATA (&frame, p) + p *(0x40 - dst_height[p>>1]&0x3f)*GST_VIDEO_FRAME_PLANE_STRIDE (&frame, p>>1);/*only for NV12 ,others cases are not verified */
++      dst = GST_VIDEO_FRAME_PLANE_DATA (&frame, p) + p *(0x10 - dst_height[p>>1]&0xf)*GST_VIDEO_FRAME_PLANE_STRIDE (&frame, p>>1);/*only for NV12 ,others cases are not verified */
+ 	  GST_DEBUG_OBJECT (self,"dst comp data = %p plane data = %p",GST_VIDEO_FRAME_COMP_DATA (&frame, p),GST_VIDEO_FRAME_PLANE_DATA (&frame, p));
+ 
+ 	  data = src;
+-- 
+1.9.1
+

@@ -1,0 +1,3 @@
+add_lunch_combo sirfsocv7-eng
+add_lunch_combo sirfsocv7-userdebug
+add_lunch_combo sirfsocv7-user

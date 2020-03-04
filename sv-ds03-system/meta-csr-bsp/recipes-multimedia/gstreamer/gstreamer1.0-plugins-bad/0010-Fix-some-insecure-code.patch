@@ -1,0 +1,64 @@
+From 6404738dde26644a130dabf7a0366533e50902fc Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Tue, 14 Jun 2016 16:55:55 +0800
+Subject: [PATCH 10/10] Fix some insecure code
+
+Change-Id: Iea20ad6cac65531b3bb81b7b8a51199b40a1b767
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ ext/wayland/gstwaylandsink.c | 10 +++++++---
+ ext/wayland/wlwindow.c       |  2 +-
+ ext/wayland/wlwindow.h       |  2 +-
+ 3 files changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 2b7476a..4bf70a6 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -487,10 +487,14 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
+   structure = gst_buffer_pool_get_config (newpool);
+   gst_buffer_pool_config_set_params (structure, caps, info.size, 2, 0);
+   wl_allocator = (GstWlShmAllocator *)gst_wl_shm_allocator_get ();
+-  wl_allocator->info.width  = info.width;
+-  wl_allocator->info.height  = info.height;
+-  gst_buffer_pool_config_set_allocator (structure, wl_allocator,
++  if (G_LIKELY (wl_allocator)) {
++    wl_allocator->info.width  = info.width;
++    wl_allocator->info.height  = info.height;
++    gst_buffer_pool_config_set_allocator (structure, wl_allocator,
+       NULL);
++  }
++  else
++    goto config_failed;
+   if (!gst_buffer_pool_set_config (newpool, structure))
+     goto config_failed;
+ 
+diff --git a/ext/wayland/wlwindow.c b/ext/wayland/wlwindow.c
+index 544e7c6..f941068 100644
+--- a/ext/wayland/wlwindow.c
++++ b/ext/wayland/wlwindow.c
+@@ -168,7 +168,7 @@ gst_wl_window_new_internal (GstWlDisplay * display)
+ 
+   return window;
+ }
+-void *
++void
+ gst_wl_window_set_display (GstWlWindow *window, const GstVideoInfo * info,gboolean fullscreen)
+ {
+   gint width;
+diff --git a/ext/wayland/wlwindow.h b/ext/wayland/wlwindow.h
+index b0a5b0d..72a6b44 100644
+--- a/ext/wayland/wlwindow.h
++++ b/ext/wayland/wlwindow.h
+@@ -69,7 +69,7 @@ struct _GstWlWindowClass
+ 
+ GType gst_wl_window_get_type (void);
+ 
+-void * gst_wl_window_set_display (GstWlWindow *window,
++void gst_wl_window_set_display (GstWlWindow *window,
+         const GstVideoInfo * info,gboolean fullscreen);
+ 
+ GstWlWindow *gst_wl_window_new_toplevel (GstWlDisplay * display,
+-- 
+1.9.1
+

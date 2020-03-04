@@ -1,0 +1,39 @@
+From 801d51da5b23bb2ab6f20552304044c7080f830d Mon Sep 17 00:00:00 2001
+From: Laisheng Hu <laisheng@codeaurora.org>
+Date: Wed, 7 Jan 2015 10:36:40 +0800
+Subject: [PATCH 09/67] enable use buffer mode
+
+Change-Id: I685cfb0f8c3f8ae7fc62f9d879f0e0c0fc99f36c
+---
+ omx/gstomxvideodec.c | 1 -
+ omx/gstomxvideodec.h | 2 +-
+ 2 files changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 8a5eb64..7d21514 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -1804,7 +1804,6 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+     GST_WARNING_OBJECT (self,
+         "Frame is too late, dropping (deadline %" GST_TIME_FORMAT ")",
+         GST_TIME_ARGS (-deadline));
+-     printf("deadline drop here......\n");    
+ #if defined _USE_V4L2_BUFFER_ && defined _OMX_ASYNC_FILL_BUFFER_
+ 	if (buf) {
+ 	    err = gst_omx_port_release_buffer (port, buf);
+diff --git a/omx/gstomxvideodec.h b/omx/gstomxvideodec.h
+index e5346af..5dcdfcb 100644
+--- a/omx/gstomxvideodec.h
++++ b/omx/gstomxvideodec.h
+@@ -33,7 +33,7 @@
+ 
+ G_BEGIN_DECLS
+ 
+-//#define _USE_V4L2_BUFFER_
++#define _USE_V4L2_BUFFER_
+ 
+ #define GST_TYPE_OMX_VIDEO_DEC \
+   (gst_omx_video_dec_get_type())
+-- 
+1.9.1
+

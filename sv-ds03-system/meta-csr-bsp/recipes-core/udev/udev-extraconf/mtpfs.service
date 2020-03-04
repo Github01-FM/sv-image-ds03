@@ -1,0 +1,7 @@
+[Unit]
+
+Description=mtpfs
+
+[Service]
+
+ExecStart=/etc/udev/scripts/usbmtp.sh

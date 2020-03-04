@@ -1,0 +1,35 @@
+From df4fa2d41833d4eb46b8e10e01d9c51ec3f17acd Mon Sep 17 00:00:00 2001
+From: Laisheng Hu <laisheng@codeaurora.org>
+Date: Wed, 4 Mar 2015 16:15:33 +0800
+Subject: [PATCH 20/67] allocate two more buffers for rendering latency
+
+Change-Id: I3430379b3442bd383b16f7bf22f0fccb18b652f9
+---
+ omx/gstomxvideodec.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 353aab5..437a895 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -81,6 +81,8 @@ typedef struct _OMX_IMG_METADATA {
+                                   // additions can be made for more propietary data
+ }OMX_IMG_METADATA;
+ 
++#define GST_OMX_MIN_RENDERING_LATENCY 2
++
+ // as of now this is present in pPlatformPrivate.
+ #define GST_OMX_EXTRADATA(psBuffhdr) (((OMX_IMG_METADATA*)(psBuffhdr->pPlatformPrivate))->pui8ExtraData)
+ 
+@@ -997,6 +999,8 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
+     gboolean was_enabled = TRUE;
+     GstBufferPoolAcquireParams params = { 0, };
+      
++    min += GST_OMX_MIN_RENDERING_LATENCY; //for render latency
++
+     GST_DEBUG_OBJECT (self, "Trying to allocate %d v4l2 buffers", min);
+     if (min != port->port_def.nBufferCountActual) {
+       OMX_PARAM_PORTDEFINITIONTYPE port_def;
+-- 
+1.9.1
+

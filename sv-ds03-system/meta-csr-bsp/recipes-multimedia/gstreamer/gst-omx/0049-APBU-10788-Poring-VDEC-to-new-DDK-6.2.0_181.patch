@@ -1,0 +1,106 @@
+From 8cfbc18857814cf34d26702e11f900622070d027 Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Thu, 22 Oct 2015 15:44:09 +0800
+Subject: [PATCH 49/67] APBU-10788: Poring VDEC to new DDK 6.2.0_181
+
+Enable Native buffer when allocate user buffer for omx in new DDK.
+
+Change-Id: I7bf064a5cf7a85c5d793d0682561127e5659e803
+Signed-off-by: Xiaofeng Fei <xfei@codeaurora.org>
+---
+ omx/gstomxvideodec.c    | 40 ++++++++++++++++++++++++++++++----------
+ omx/openmax/OMX_Video.h |  2 --
+ 2 files changed, 30 insertions(+), 12 deletions(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index d29a12b..cf4a0c9 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -529,7 +529,7 @@ gst_omx_video_dec_shutdown (GstOMXVideoDec * self)
+   return TRUE;
+ }
+ #ifdef _USE_V4L2_BUFFER_
+-static void
++static gboolean
+ gst_omx_buffer_map_unref(gpointer key, gpointer value, gpointer user_data)
+ {
+   GstBuffer *buffer = (GstBuffer*)value;
+@@ -537,6 +537,7 @@ gst_omx_buffer_map_unref(gpointer key, gpointer value, gpointer user_data)
+   if (buffer) {
+     gst_buffer_unref(buffer);
+   }
++  return TRUE;
+ }
+ #endif
+ 
+@@ -3467,20 +3468,39 @@ gst_omx_video_dec_decide_allocation (GstVideoDecoder * bdec, GstQuery * query)
+ #ifdef _USE_V4L2_BUFFER_
+   {
+     OMX_INDEXTYPE index;
++    OMX_ERRORTYPE err;
+     gst_query_parse_nth_allocation_param (query, 0, &allocator, NULL);
+-    OMX_EXT_PARAM_ENABLEWLIONBUFFERTYPE enable_wlionbuf;
+ 
+     if ((allocator != NULL) && g_str_has_prefix (GST_OBJECT_NAME (allocator), "wlshmallocator"))
+     {
+-      GST_OMX_INIT_STRUCT (&enable_wlionbuf);
+-      enable_wlionbuf.enable = 1;
+-      enable_wlionbuf.nPortIndex = 1;
+-      gst_omx_get_extension_index(self->dec, "OMX.wayland.linux.index.enableWaylandIonBuffers", &index);
+-      gst_omx_component_set_parameter(self->dec, index, &enable_wlionbuf);
+-      self->wl_ion_buffer = TRUE;
++      err = gst_omx_get_extension_index(self->dec,
++              "OMX.wayland.linux.index.enableWaylandIonBuffers", &index);
++      if (err == OMX_ErrorNone) {
++        OMX_EXT_PARAM_ENABLEWLIONBUFFERTYPE enable_wlionbuf;
++        GST_OMX_INIT_STRUCT (&enable_wlionbuf);
++        enable_wlionbuf.enable = 1;
++        enable_wlionbuf.nPortIndex = 1;
++        gst_omx_component_set_parameter(self->dec, index, &enable_wlionbuf);
++        self->wl_ion_buffer = TRUE;
++      }
++      else {
++        GST_ERROR_OBJECT (self, "Component can't enableWaylandIonBuffers");
++      }
++    }
++    else {
++      err = gst_omx_get_extension_index(self->dec,
++              "OMX.img.index.enableNativeBuffers", &index);
++      if (err == OMX_ErrorNone) {
++        OMX_EXT_PARAM_ENABLENATIVEBUFFERTYPE enable_nativeBuffer;
++        GST_OMX_INIT_STRUCT (&enable_nativeBuffer);
++        enable_nativeBuffer.enable = 1;
++        enable_nativeBuffer.nPortIndex = self->dec_out_port->index;
++        gst_omx_component_set_parameter (self->dec, index, &enable_nativeBuffer);
++      }
++      else {
++        GST_ERROR_OBJECT (self, "Component can't enableNativeBuffers");
++      }
+     }
+-    else
+-      GST_DEBUG_OBJECT (self,"we do not use wayland sink !");
+   }
+ #endif
+ 
+diff --git a/omx/openmax/OMX_Video.h b/omx/openmax/OMX_Video.h
+index cfa3cb4..a76f633 100644
+--- a/omx/openmax/OMX_Video.h
++++ b/omx/openmax/OMX_Video.h
+@@ -756,14 +756,12 @@ typedef struct EnableWaylandIonBuffersParams {
+ 
+  *****************************************************************************/
+ 
+-#ifdef ANDROID
+ typedef struct EnableAndroidNativeBuffersParams {
+     OMX_U32 nSize;
+     OMX_VERSIONTYPE nVersion;
+     OMX_U32 nPortIndex;
+     OMX_BOOL enable;
+ }OMX_EXT_PARAM_ENABLENATIVEBUFFERTYPE;
+-#endif
+ 
+ #ifdef __cplusplus
+ }
+-- 
+1.9.1
+

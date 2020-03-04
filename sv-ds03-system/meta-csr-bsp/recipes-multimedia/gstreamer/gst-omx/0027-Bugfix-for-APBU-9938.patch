@@ -1,0 +1,32 @@
+From 42dde40e7f0ce7edf0805ec5f9896c3e33739a91 Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Tue, 7 Apr 2015 17:02:36 +0800
+Subject: [PATCH 27/67] Bugfix for APBU-9938
+
+Support divx and xvid in config file
+
+Change-Id: I79569a7037367605adaf85778ad699663ba81d67
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ parsed_data_gstomx.conf | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/parsed_data_gstomx.conf b/parsed_data_gstomx.conf
+index 5eae064..d7ed0a9 100755
+--- a/parsed_data_gstomx.conf
++++ b/parsed_data_gstomx.conf
+@@ -14,8 +14,9 @@ component-name=OMX.IMG.MSVDX.Decoder.MPEG4
+ rank=260
+ in-port-index=0
+ out-port-index=1
+-sink-template-caps=video/mpeg, mpegversion = (int) 4
+-
++sink-template-caps=video/mpeg, mpegversion = (int) 4, parsed = (boolean) false, profile = (string) simple, systemstream = (boolean) false, level = (string) {0, 1, 2, 3}, width = (int) [16, 4096], height = (int) [16, 4096], framerate = (fraction) [0/1, 2147483647/1]; video/mpeg, mpegversion = (int) 4, parsed = (boolean) false, profile = (string) advanced, systemstream = (boolean) false, level = (string) {0, 1, 2, 3, 4, 5}, width = (int)[16, 4096], height = (int) [16, 4096], framerate =
++(fraction) [0/1, 2147483647/1]; video/mpeg, mpegversion = (int) 4, parsed = (boolean) true, systemstream = (boolean) false; video/x-divx, divxversion = (int)[ 3, 5 ], width = (int) [16, 4096], height = (int) [16, 4096], framerate = (fraction) [0/1, 2147483647/1]; video/x-xvid, width = (int) [16, 4096], height = (int) [16, 4096], framerate = (fraction) [0/1, 2147483647/1]; video/x-3ivx, width = (int) [16, 4096], height = (int) [16, 4096], framerate = (fraction) [0/1, 2147483647/1];
++video/x-msmpeg, msmpegversion = (int) 4, width = (int) [16, 4096], height = (int) [16, 4096], framerate = (fraction) [0/1, 2147483647/1]; video/x-msmpeg, msmpegversion = (int)[ 41, 43 ], width = (int) [16, 4096], height = (int) [16, 4096], framerate = (fraction) [0/1, 2147483647/1]
+ 
+ [omxmpeg2videodec]
+ type-name=GstOMXMPEG2VideoDec
+-- 
+1.9.1
+

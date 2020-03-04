@@ -1,0 +1,138 @@
+From 5ee5c7e665d5f577052f19334426f8e2c7000bca Mon Sep 17 00:00:00 2001
+From: Alan Wang <wbo@codeaurora.org>
+Date: Mon, 18 Jan 2016 14:37:15 +0800
+Subject: [PATCH 54/67] For gstomxvideoenc: Store actual virtual buffer address
+ in pInputPortPrivate field for omxvideoenc input buffer.
+
+For gstomxmjpegvideoenc: Set config through omx standard API, let the
+omxmjpeg component know if the input content for encoder is interleaved.
+
+Change-Id: I90bb5494156781aa6983eb006f0722e4e708e3a1
+Signed-off-by: Alan Wang <wbo@codeaurora.org>
+---
+ omx/gstomxmjpegvideoenc.c  | 39 ++++++++++++++++++++++++++++++++++++++-
+ omx/gstomxvideoenc.c       |  7 +++++++
+ omx/openmax/OMX_IVCommon.h |  8 ++++++++
+ omx/openmax/OMX_Index.h    |  2 ++
+ 4 files changed, 55 insertions(+), 1 deletion(-)
+
+diff --git a/omx/gstomxmjpegvideoenc.c b/omx/gstomxmjpegvideoenc.c
+index acdad97..826341e 100644
+--- a/omx/gstomxmjpegvideoenc.c
++++ b/omx/gstomxmjpegvideoenc.c
+@@ -116,8 +116,11 @@ gst_omx_mjpeg_video_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
+     GstVideoCodecState * state)
+ {
+   GstOMXMJPEGVIDEOEnc *self = GST_OMX_MJPEG_VIDEO_ENC (enc);
++  GstCaps *codecCaps;
+   OMX_PARAM_PORTDEFINITIONTYPE port_def;
++  OMX_CONFIG_FIELDBLEND config;
+   OMX_ERRORTYPE err;
++  const gchar *interlacemod_string;
+ 
+   gst_omx_port_get_port_definition (GST_OMX_VIDEO_ENC (self)->enc_out_port,
+       &port_def);
+@@ -129,8 +132,42 @@ gst_omx_mjpeg_video_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
+   if (err != OMX_ErrorNone)
+     return FALSE;
+ 
+-  return TRUE;
++  // Extract the caps see if it's interleaved content
++  GST_OMX_INIT_STRUCT (&config);
++  config.bEnable = OMX_FALSE;
++
++  codecCaps = state->caps;
++  if (codecCaps) {
++    GstStructure *s;
++    if (gst_caps_is_empty (codecCaps)) {
++      gst_caps_unref (codecCaps);
++      GST_ERROR_OBJECT (self, "Empty caps");
++      return FALSE;
++    }
++
++    s = gst_caps_get_structure (codecCaps, 0);
++    interlacemod_string = gst_structure_get_string (s , "interlace-mode");
++    if (g_str_equal(interlacemod_string, "interleaved")) {
++      config.bEnable = OMX_TRUE;
++    } else {
++      config.bEnable = OMX_FALSE;
++    }
++
++    gst_caps_unref (codecCaps);
++  }
++
++  err = gst_omx_component_set_config (GST_OMX_VIDEO_ENC (self)->enc,
++          OMX_CSR_IndexConfigStreamInterleaved, &config);
++  if (err == OMX_ErrorUnsupportedIndex) {
++    GST_WARNING_OBJECT (self,
++            "Error setting CONFIG FIELDBLEND not supported by component");
++  } else if (err != OMX_ErrorNone) {
++    GST_ERROR_OBJECT (self,
++            "Error setting CONFIG_FIELDBLEND");
++    return FALSE;
++  }
+ 
++  return TRUE;
+ }
+ 
+ static void
+diff --git a/omx/gstomxvideoenc.c b/omx/gstomxvideoenc.c
+index 6a8c5af..1dd7c83 100644
+--- a/omx/gstomxvideoenc.c
++++ b/omx/gstomxvideoenc.c
+@@ -1232,6 +1232,7 @@ gst_omx_video_enc_fill_buffer (GstOMXVideoEnc * self, GstBuffer * inbuf,
+   OMX_PARAM_PORTDEFINITIONTYPE *port_def = &self->enc_in_port->port_def;
+   gboolean ret = FALSE;
+   GstVideoFrame frame;
++  GstMapInfo map = GST_MAP_INFO_INIT;
+ 
+   if (info->width != port_def->format.video.nFrameWidth ||
+       info->height != port_def->format.video.nFrameHeight) {
+@@ -1247,6 +1248,12 @@ gst_omx_video_enc_fill_buffer (GstOMXVideoEnc * self, GstBuffer * inbuf,
+     gst_buffer_extract (inbuf, 0,
+         outbuf->omx_buf->pBuffer + outbuf->omx_buf->nOffset,
+         outbuf->omx_buf->nFilledLen);
++
++    // Store input buffer's actual virtual address to private field
++    gst_buffer_map (inbuf, &map, GST_MAP_READ);
++    outbuf->omx_buf->pInputPortPrivate = (OMX_PTR)map.data;
++
++    gst_buffer_unmap (inbuf, &map);
+     ret = TRUE;
+     goto done;
+   }
+diff --git a/omx/openmax/OMX_IVCommon.h b/omx/openmax/OMX_IVCommon.h
+index c60312e..aba6d8b 100644
+--- a/omx/openmax/OMX_IVCommon.h
++++ b/omx/openmax/OMX_IVCommon.h
+@@ -599,6 +599,14 @@ typedef struct OMX_CONFIG_AFASSISTANTLIGHTTYPE{
+     OMX_AFASSISTANTLIGHTTYPE eAFAssistantLight;
+ } OMX_CONFIG_AFASSISTANTLIGHTTYPE;
+ 
++// CSR Vendor Specific
++// Enable field BLEND for interleaved content if needed
++typedef struct OMX_CONFIG_FIELDBLEND {
++    OMX_U32 nSize;
++    OMX_VERSIONTYPE nVersion;
++    OMX_BOOL bEnable;
++} OMX_CONFIG_FIELDBLEND;
++
+ #define OMX_InterlaceFrameProgressive                   0x00000001
+ #define OMX_InterlaceInterleaveFrameTopFieldFirst       0x00000002
+ #define OMX_InterlaceInterleaveFrameBottomFieldFirst    0x00000004
+diff --git a/omx/openmax/OMX_Index.h b/omx/openmax/OMX_Index.h
+index 5d20e29..05ca662 100644
+--- a/omx/openmax/OMX_Index.h
++++ b/omx/openmax/OMX_Index.h
+@@ -307,6 +307,8 @@ typedef enum OMX_INDEXTYPE {
+     OMX_IndexImgEnableWaylandIonBuffers,
+     OMX_IMG_IndexConfigStreamProgressive,
+ 
++    OMX_CSR_IndexConfigStreamInterleaved,           /**< CSR config if the stream content is interleaved */
++
+     OMX_IndexConfigDecribeColorFormat,
+     OMX_IndexConfigImgGetStreamColorDescription,
+     OMX_IndexImgEnableNativeBuffers,
+-- 
+1.9.1
+

@@ -1,0 +1,17 @@
+KERNEL=="ci_hdrc.1", ACTION=="add", SUBSYSTEM=="udc", RUN+="/bin/sh /etc/modules/usbevents.sh usb1 add device"
+KERNEL=="ci_hdrc.1", ACTION=="remove", SUBSYSTEM=="udc", RUN+="/bin/sh /etc/modules/usbevents.sh usb1 remove device"
+
+SUBSYSTEM=="block", ENV{ID_TYPE}=="disk", ENV{ID_PATH}=="platform-ci_hdrc.1-usb-0:1:1.0-scsi-0:0:0:0", SYMLINK+="usbport1disk"
+SUBSYSTEM=="block", ENV{ID_TYPE}=="disk", ENV{ID_PATH}=="platform-ci_hdrc.0-usb-0:1.1:1.0-scsi-0:0:0:0", SYMLINK+="usbport2disk"
+SUBSYSTEM=="block", ENV{ID_TYPE}=="disk", ENV{ID_PATH}=="platform-ci_hdrc.0-usb-0:1.2:1.0-scsi-0:0:0:0", SYMLINK+="usbport3disk"
+ACTION=="change", SUBSYSTEM=="udc", DRIVER=="g_carplay", RUN+="/bin/sh /etc/modules/sp.sh %p $attr{state}"
+
+KERNEL=="ttyUSB[0-9]", NAME="ttyUSB%n",MODE="0666"
+
+
+ATTRS{bInterfaceClass}=="08", ACTION=="add", RUN+="/bin/sh /etc/modules/usbevents.sh msd add host"
+ATTRS{bInterfaceClass}=="09", ACTION=="add", RUN+="/bin/sh /etc/modules/usbhub.sh"
+ATTRS{bInterfaceClass}=="03", ACTION=="add", RUN+="/bin/sh /etc/modules/usbevents.sh hid add host"
+SUBSYSTEMS=="usb_host", ACTION=="add", RUN+="/bin/sh /etc/modules/usbevents.sh usb add host"
+ATTRS{bInterfaceClass}=="ff", ACTION=="add", RUN+="/bin/sh /etc/modules/usbevents.sh vendor add host"
+

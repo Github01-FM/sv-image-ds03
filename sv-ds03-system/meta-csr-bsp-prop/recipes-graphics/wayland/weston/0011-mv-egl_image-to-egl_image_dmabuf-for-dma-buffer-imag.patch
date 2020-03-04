@@ -1,0 +1,107 @@
+From df825319fc394885ad5a0cf62537df875290db45 Mon Sep 17 00:00:00 2001
+From: "Nancy.Zou" <Nancy.Zou@csr.com>
+Date: Thu, 17 Dec 2015 13:39:11 +0800
+Subject: [PATCH] mv egl_image to egl_image_dmabuf for dma buffer image.
+
+Signed-off-by: Nancy.Zou <Nancy.Zou@csr.com>
+---
+ src/gl-renderer.c | 24 ++++++++++++------------
+ 1 file changed, 12 insertions(+), 12 deletions(-)
+
+diff --git a/src/gl-renderer.c b/src/gl-renderer.c
+index d7231f4..df95082 100644
+--- a/src/gl-renderer.c
++++ b/src/gl-renderer.c
+@@ -95,7 +95,7 @@ enum buffer_type {
+ 
+ struct gl_renderer;
+ 
+-struct egl_image {
++struct egl_image_dmabuf {
+ 	struct gl_renderer *renderer;
+ 	EGLImageKHR image;
+ 	int refcount;
+@@ -120,7 +120,7 @@ struct gl_surface_state {
+ 	GLenum gl_format;
+ 	GLenum gl_pixel_type;
+ 
+-	struct egl_image* images[3];
++	struct egl_image_dmabuf* images[3];
+ 	GLenum target;
+ 	int num_images;
+ 
+@@ -215,11 +215,11 @@ get_renderer(struct weston_compositor *ec)
+ 	return (struct gl_renderer *)ec->renderer;
+ }
+ 
+-static struct egl_image*
++static struct egl_image_dmabuf*
+ egl_image_create(struct gl_renderer *gr, EGLenum target,
+ 		 EGLClientBuffer buffer, const EGLint *attribs)
+ {
+-	struct egl_image *img;
++	struct egl_image_dmabuf *img;
+ 
+ 	img = zalloc(sizeof *img);
+ 	wl_list_init(&img->link);
+@@ -236,8 +236,8 @@ egl_image_create(struct gl_renderer *gr, EGLenum target,
+ 	return img;
+ }
+ 
+-static struct egl_image*
+-egl_image_ref(struct egl_image *image)
++static struct egl_image_dmabuf*
++egl_image_ref(struct egl_image_dmabuf *image)
+ {
+ 	image->refcount++;
+ 
+@@ -245,7 +245,7 @@ egl_image_ref(struct egl_image *image)
+ }
+ 
+ static int
+-egl_image_unref(struct egl_image *image)
++egl_image_unref(struct egl_image_dmabuf *image)
+ {
+ 	struct gl_renderer *gr = image->renderer;
+ 
+@@ -1420,16 +1420,16 @@ gl_renderer_attach_egl(struct weston_surface *es, struct weston_buffer *buffer,
+ static void
+ gl_renderer_destroy_dmabuf(struct linux_dmabuf_buffer *dmabuf)
+ {
+-	struct egl_image *image = dmabuf->user_data;
++	struct egl_image_dmabuf *image = dmabuf->user_data;
+ 
+ 	egl_image_unref(image);
+ }
+ 
+-static struct egl_image *
++static struct egl_image_dmabuf *
+ import_dmabuf(struct gl_renderer *gr,
+ 	      struct linux_dmabuf_buffer *dmabuf)
+ {
+-	struct egl_image *image;
++	struct egl_image_dmabuf *image;
+ 	EGLint attribs[30];
+ 	int atti = 0;
+ 
+@@ -1502,7 +1502,7 @@ gl_renderer_import_dmabuf(struct weston_compositor *ec,
+ 			  struct linux_dmabuf_buffer *dmabuf)
+ {
+ 	struct gl_renderer *gr = get_renderer(ec);
+-	struct egl_image *image;
++	struct egl_image_dmabuf *image;
+ 	int i;
+ 
+ 	assert(gr->has_dmabuf_import);
+@@ -2370,7 +2370,7 @@ static void
+ gl_renderer_destroy(struct weston_compositor *ec)
+ {
+ 	struct gl_renderer *gr = get_renderer(ec);
+-	struct egl_image *image, *next;
++	struct egl_image_dmabuf *image, *next;
+ 
+ 	wl_signal_emit(&gr->destroy_signal, gr);
+ 
+-- 
+1.9.1
+

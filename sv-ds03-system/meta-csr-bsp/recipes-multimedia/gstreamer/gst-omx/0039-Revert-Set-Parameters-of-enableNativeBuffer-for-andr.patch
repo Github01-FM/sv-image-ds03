@@ -1,0 +1,107 @@
+From 5d448d954e30f50699fa5111cbb838f932d51ed7 Mon Sep 17 00:00:00 2001
+From: Alan Wang <wbo@codeaurora.org>
+Date: Fri, 19 Jun 2015 18:16:23 +0800
+Subject: [PATCH 39/67] Revert "Set Parameters of enableNativeBuffer for
+ android cases"
+
+This reverts commit 93224034fe9d1130308872c9b2b0624fc9a8757f.
+---
+ omx/gstomxvideodec.c    | 40 ++++++++--------------------------------
+ omx/openmax/OMX_Video.h | 18 ------------------
+ 2 files changed, 8 insertions(+), 50 deletions(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 6558c58..7a86d51 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -1090,23 +1090,19 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
+       {
+ 	  GstMapInfo info;
+ 	  gst_buffer_map (buffer, &info, GST_MAP_READ);
++	  if ((guint32) (info.data) & 0xFFF) {
++		gst_buffer_unmap (buffer, &info);
+ 
+-#ifndef ANDROID
+-      if ((guint32) (info.data) & 0xFFF) {
+-        gst_buffer_unmap (buffer, &info);
+-
+-        g_list_free_full (buffers, (GDestroyNotify) gst_buffer_unref);
+-        buffers = NULL;
++		g_list_free_full (buffers, (GDestroyNotify) gst_buffer_unref);
++		buffers = NULL;
+ 
+         g_hash_table_destroy (self->omx_buffer_map);
+         self->omx_buffer_map = NULL;
+ 
+-        err = OMX_ErrorResourcesLost;
+-
+-        goto done;
+-
+-      }
+-#endif
++		err = OMX_ErrorResourcesLost;
++		goto done;
++	
++	  }
+ 
+ 	  g_hash_table_insert (self->omx_buffer_map, info.data, buffer);
+ 	  printf("acquire buffer info.data = %p %p\n",buffer,info.data);
+@@ -2402,26 +2398,6 @@ gst_omx_video_dec_negotiate (GstOMXVideoDec * self)
+         gst_omx_error_to_string (err), err);
+   }
+ 
+-#ifdef ANDROID
+-  // Enable enableAndroidNativeBuffers if component support
+-  OMX_INDEXTYPE index;
+-  err =
+-      gst_omx_get_extension_index(self->dec,
+-              "OMX.google.android.index.enableAndroidNativeBuffers",
+-              &index);
+-
+-  if (err == OMX_ErrorNone) {
+-    OMX_EXT_PARAM_ENABLENATIVEBUFFERTYPE enable_nativeBuffer;
+-    GST_OMX_INIT_STRUCT (&enable_nativeBuffer);
+-    enable_nativeBuffer.enable = 1;
+-    enable_nativeBuffer.nPortIndex = self->dec_out_port->index;
+-    gst_omx_component_set_parameter (self->dec, index, &enable_nativeBuffer);
+-  } else {
+-    GST_WARNING_OBJECT (self, "Component can't enableAndroidNativeBuffers");
+-  }
+-
+-#endif
+-
+   gst_caps_unref (intersection);
+   return (err == OMX_ErrorNone);
+ }
+diff --git a/omx/openmax/OMX_Video.h b/omx/openmax/OMX_Video.h
+index 81e0a0d..baecca5 100644
+--- a/omx/openmax/OMX_Video.h
++++ b/omx/openmax/OMX_Video.h
+@@ -732,24 +732,6 @@ typedef struct EnableAndroidMultiViewDecoding {
+ }OMX_EXT_PARAM_ENABLEMULTIVIEWDECODINGTYPE;
+ /* Vendor Specific Code - IMG ends */
+ 
+- /*!
+-  ******************************************************************************
+-
+-  Used with 'OMX.google.android.index.enableAndroidNativeBuffers'.
+-  The corresponding IMG index is OMX_IndexImgEnableAndroidNativeBuffers
+-
+-  *****************************************************************************/
+-
+-#ifdef ANDROID
+-typedef struct EnableAndroidNativeBuffersParams {
+-    OMX_U32 nSize;
+-    OMX_VERSIONTYPE nVersion;
+-    OMX_U32 nPortIndex;
+-    OMX_BOOL enable;
+-}OMX_EXT_PARAM_ENABLENATIVEBUFFERTYPE;
+-#endif
+-
+-
+ #ifdef __cplusplus
+ }
+ #endif /* __cplusplus */
+-- 
+1.9.1
+

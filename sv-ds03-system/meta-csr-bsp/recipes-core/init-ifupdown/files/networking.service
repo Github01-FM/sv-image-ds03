@@ -1,0 +1,13 @@
+[Unit]
+Description=networking
+DefaultDependencies=no
+After=local-fs.target tslib.service systemd-udevd.service
+Before=poweroff.service reboot.service halt.service
+Requires=systemd-udevd.service
+
+[Service]
+#Type=oneshot
+#RemainAfterExit=yes
+Type=idle
+ExecStartPre=/bin/sleep 6
+ExecStart=/bin/sh /etc/init.d/set_mac.sh

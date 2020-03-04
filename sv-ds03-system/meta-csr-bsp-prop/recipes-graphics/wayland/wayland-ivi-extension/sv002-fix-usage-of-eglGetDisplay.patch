@@ -1,0 +1,26 @@
+diff --git a/ivi-layermanagement-examples/multi-touch-viewer/src/window.c b/ivi-layermanagement-examples/multi-touch-viewer/src/window.c
+index 41b02a9..32aff53 100644
+--- a/ivi-layermanagement-examples/multi-touch-viewer/src/window.c
++++ b/ivi-layermanagement-examples/multi-touch-viewer/src/window.c
+@@ -331,7 +331,7 @@ init_egl(struct WaylandDisplay *p_display)
+         EGL_NONE
+     };
+ 
+-    p_display->egldisplay = eglGetDisplay(p_display->p_display);
++    p_display->egldisplay = eglGetDisplay((EGLNativeDisplayType)p_display->p_display);
+ 
+     if (!eglInitialize(p_display->egldisplay, &iMajor, &iMinor))
+     {
+diff --git a/ivi-layermanagement-examples/simple-ivi-share/src/simple-ivi-share.c b/ivi-layermanagement-examples/simple-ivi-share/src/simple-ivi-share.c
+index 56d98d9..11067a1 100644
+--- a/ivi-layermanagement-examples/simple-ivi-share/src/simple-ivi-share.c
++++ b/ivi-layermanagement-examples/simple-ivi-share/src/simple-ivi-share.c
+@@ -440,7 +440,7 @@ init_egl(struct display *display)
+     };
+     EGLint major, minor, n;
+ 
+-    display->egl.egldisplay = eglGetDisplay(display->display);
++    display->egl.egldisplay = eglGetDisplay((EGLNativeDisplayType)display->display);
+ 
+     if (!eglInitialize(display->egl.egldisplay, &major, &minor)) {
+         fprintf(stderr, "failed to initialize EGL\n");

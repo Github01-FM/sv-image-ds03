@@ -1,0 +1,22 @@
+#
+# system.prop for sirfsoc devices
+#
+
+#rild.libpath=/system/lib/libsirfsoc-ril.so
+
+# Huawei MU509 moduel, also work for Longcheer U6100 modem, since it will be updated by vold
+#rild.libargs=-d /dev/ttyUSB0
+#vchanneld.gprs=/dev/ttyUSB2
+rild.libpath=/system/lib/libzteevdo-ril.so
+
+# additional build properties
+ro.setupwizard.mode=DISABLED
+
+# default android usb config
+sys.usb.config=mass_storage,adb
+
+# default disable checkjni even in eng build
+dalvik.vm.checkjni=false
+
+# disable sending usage data
+ro.config.nocheckin=1

@@ -1,0 +1,69 @@
+#!/bin/sh
+busybox mkdir /usr
+busybox mkdir /usr/bin
+busybox mount -n -t proc nodev /proc
+busybox mount -n -t sysfs nodev /sys
+busybox --install -s
+mkdir /mnt /var 2>/dev/null
+mkdir /mnt/sdcard
+echo /sbin/mdev > /proc/sys/kernel/hotplug
+mdev -s
+echo V > /dev/watchdog
+sleep 3
+
+##############################################################
+# 1. check boot status, change image index if last booting failed
+# 2. clear boot status
+dd if=/proc/boot_status of=/tmp/data bs=6 count=1 1>/dev/null 2>&1
+scratchpad3=`cat /tmp/data`
+kernel_booting=${scratchpad3:0:1}
+kernel_booting_fail=${scratchpad3:1:1}
+recovery_booting=${scratchpad3:2:1}
+recovery_booting_fail=${scratchpad3:3:1}
+recovery_mode=${scratchpad3:4:1}
+recovery_secure=${scratchpad3:5:1}
+
+boot_dir=/boot
+bootmedia=`cat /proc/cmdline | awk -F "root=" '{print $2}' | cut -f1 -d "p"`
+boot_part=${bootmedia}"p2"
+
+echo "recovery init: boot_part=${boot_part}"
+
+sleep 3
+if [ -e /sys/block/mmcblk0boot0/force_ro ]; then
+	echo "enable write of mmcblk0boot0"
+	echo 0 > /sys/block/mmcblk0boot0/force_ro
+fi
+
+if [ "${scratchpad3}" != "000000" ]; then
+	echo "boot_status:${scratchpad3}  (bit0 => bit5)"
+	if [ "$kernel_booting_fail" = "1" ] || [ "$recovery_booting_fail" = "1" ] || [ "$recovery_secure" = "1" ]; then
+		mkdir $boot_dir
+		mount -t ext4 $boot_part $boot_dir
+		if [ "$kernel_booting_fail" = "1" ]; then
+			echo "kernel booting failed last time"
+			echo -n "update kernel index ..."
+			sed -i '/kernel_index/ s/^.*$/kernel_index='$kernel_index';/' $boot_dir/boot.cfg
+			echo "done"
+		fi
+		if [ "$recovery_booting_fail" = "1" ]; then
+			echo "recovery booting failed last time"
+			echo -n "update recovery index ..."
+			sed -i '/recovery_index/ s/^.*$/recovery_index='$recovery_index';/' $boot_dir/boot.cfg
+			echo "done"
+		fi
+		if [ "$recovery_secure" = "1" ]; then
+			echo "secure recovery"
+			echo "cleanup boot partition"
+			rm -rf $boot_dir/*
+			echo "done"
+		fi
+		umount $boot_dir
+	fi
+	echo "cleanup /proc/boot_status"
+	echo "000000" > /proc/boot_status
+fi
+######################################################
+os_type="linux"
+/bin/check-and-make-partitions.sh ${os_type}
+exec ./init.recovery

@@ -1,0 +1,157 @@
+From 7e171ff264942a29c49e4e3b48be7f5400cec113 Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Wed, 9 Mar 2016 11:19:51 +0800
+Subject: [PATCH 16/31] Add Linux Foundation Copyright
+
+Change-Id: I761c98b6318bd95d5dbbf96ca14c519e5ee180d2
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ gst/audioparsers/gstflacparse.c | 4 ++++
+ gst/avi/gstavidemux.c           | 4 ++++
+ gst/matroska/matroska-demux.c   | 4 ++++
+ sys/v4l2/gstv4l2.c              | 4 ++++
+ sys/v4l2/gstv4l2bufferpool.c    | 4 ++++
+ sys/v4l2/gstv4l2object.c        | 4 ++++
+ sys/v4l2/gstv4l2object.h        | 4 ++++
+ sys/v4l2/gstv4l2sink.c          | 4 ++++
+ sys/v4l2/gstv4l2sink.h          | 4 ++++
+ 9 files changed, 36 insertions(+)
+
+diff --git a/gst/audioparsers/gstflacparse.c b/gst/audioparsers/gstflacparse.c
+index 036271e..71928ec 100644
+--- a/gst/audioparsers/gstflacparse.c
++++ b/gst/audioparsers/gstflacparse.c
+@@ -21,6 +21,10 @@
+  * Boston, MA 02110-1301, USA.
+  */
+ 
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
++
+ /**
+  * SECTION:element-flacparse
+  * @see_also: flacdec, oggdemux, vorbisparse
+diff --git a/gst/avi/gstavidemux.c b/gst/avi/gstavidemux.c
+index 65a4d37..58f53a8 100644
+--- a/gst/avi/gstavidemux.c
++++ b/gst/avi/gstavidemux.c
+@@ -20,6 +20,10 @@
+  */
+ /* Element-Checklist-Version: 5 */
+ 
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
++
+ /**
+  * SECTION:element-avidemux
+  *
+diff --git a/gst/matroska/matroska-demux.c b/gst/matroska/matroska-demux.c
+index d3b7db0..cf11844 100644
+--- a/gst/matroska/matroska-demux.c
++++ b/gst/matroska/matroska-demux.c
+@@ -22,6 +22,10 @@
+  * Boston, MA 02110-1301, USA.
+  */
+ 
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
++
+ /* TODO: check CRC32 if present
+  * TODO: there can be a segment after the first segment. Handle like
+  *       chained oggs. Fixes #334082
+diff --git a/sys/v4l2/gstv4l2.c b/sys/v4l2/gstv4l2.c
+index 9b87afa..4f4f45b 100644
+--- a/sys/v4l2/gstv4l2.c
++++ b/sys/v4l2/gstv4l2.c
+@@ -21,6 +21,10 @@
+  * Boston, MA 02110-1301, USA.
+  */
+ 
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
++
+ #ifdef HAVE_CONFIG_H
+ #include "config.h"
+ #endif
+diff --git a/sys/v4l2/gstv4l2bufferpool.c b/sys/v4l2/gstv4l2bufferpool.c
+index 292f139..3c32d0f 100644
+--- a/sys/v4l2/gstv4l2bufferpool.c
++++ b/sys/v4l2/gstv4l2bufferpool.c
+@@ -22,6 +22,10 @@
+  * Boston, MA 02110-1301, USA.
+  */
+ 
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
++
+ #ifdef HAVE_CONFIG_H
+ #  include <config.h>
+ #endif
+diff --git a/sys/v4l2/gstv4l2object.c b/sys/v4l2/gstv4l2object.c
+index 9acc2a2..8a23f43 100644
+--- a/sys/v4l2/gstv4l2object.c
++++ b/sys/v4l2/gstv4l2object.c
+@@ -18,6 +18,10 @@
+  * USA.
+  */
+ 
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
++
+ /* FIXME 0.11: suppress warnings for deprecated API such as GValueArray
+  * with newer GLib versions (>= 2.31.0) */
+ #define GLIB_DISABLE_DEPRECATION_WARNINGS
+diff --git a/sys/v4l2/gstv4l2object.h b/sys/v4l2/gstv4l2object.h
+index 9a79ef5..cb2491b 100644
+--- a/sys/v4l2/gstv4l2object.h
++++ b/sys/v4l2/gstv4l2object.h
+@@ -21,6 +21,10 @@
+  * Boston, MA 02110-1301, USA.
+  */
+ 
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
++
+ #ifndef __GST_V4L2_OBJECT_H__
+ #define __GST_V4L2_OBJECT_H__
+ 
+diff --git a/sys/v4l2/gstv4l2sink.c b/sys/v4l2/gstv4l2sink.c
+index e860e5e..180516b 100644
+--- a/sys/v4l2/gstv4l2sink.c
++++ b/sys/v4l2/gstv4l2sink.c
+@@ -22,6 +22,10 @@
+  * Boston, MA 02110-1301, USA.
+  */
+ 
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
++
+ /**
+  * SECTION:element-v4l2sink
+  *
+diff --git a/sys/v4l2/gstv4l2sink.h b/sys/v4l2/gstv4l2sink.h
+index 515fbfa..74aab1b 100644
+--- a/sys/v4l2/gstv4l2sink.h
++++ b/sys/v4l2/gstv4l2sink.h
+@@ -22,6 +22,10 @@
+  * Boston, MA 02110-1301, USA.
+  */
+ 
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
++
+ #ifndef __GSTV4L2SINK_H__
+ #define __GSTV4L2SINK_H__
+ 
+-- 
+1.9.1
+

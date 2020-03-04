@@ -1,0 +1,321 @@
+From 69ca348fc30a25439d74529a7bacc970e5bbeb72 Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Fri, 6 Nov 2015 20:15:36 +0800
+Subject: [PATCH 50/67] APBU-10842 [A7DA][MM] gstreamer can not handle
+ resolution change video
+
+Since v4l2 driver rendering video via passthrough, it will always keep
+one v4l2 buffer on driver and it can not be dequeued. But gst-omx can do
+PSC only after all buffer are released, so gst-omx will release the last
+queued buffer.
+
+1. Add a new hash table, all new copy buffer will be pushed to this table, and
+   all release buffer will be removed.
+2. During PSC, gst-omx will release the last one buffer in this hash table.
+
+Change-Id: I713279ffecba2eef15a538e531eb599c3b14bf49
+Signed-off-by: Xiaofeng Fei <xfei@codeaurora.org>
+---
+ omx/gstomx.c         |  69 ++++++++++++++++++++++++++++
+ omx/gstomx.h         |   2 +
+ omx/gstomxvideodec.c | 124 +++++++++++++++++++++++++++++++++++++++++++++++++--
+ omx/gstomxvideodec.h |   1 +
+ 4 files changed, 193 insertions(+), 3 deletions(-)
+
+diff --git a/omx/gstomx.c b/omx/gstomx.c
+index cdf6907..dce0184 100644
+--- a/omx/gstomx.c
++++ b/omx/gstomx.c
+@@ -2097,6 +2097,75 @@ gst_omx_port_wait_buffers_released (GstOMXPort * port, GstClockTime timeout)
+   return err;
+ }
+ 
++OMX_ERRORTYPE
++gst_omx_port_wait_copy_buffers_released(GstOMXPort * port,
++  GstClockTime timeout, GHashTable *omx_copy_buffer_map)
++{
++  GstOMXComponent *comp;
++  OMX_ERRORTYPE err = OMX_ErrorNone;
++  OMX_ERRORTYPE last_error;
++  gboolean signalled;
++
++  comp = port->comp;
++  g_mutex_lock (&port->comp->lock);
++
++  gst_omx_component_handle_messages (comp);
++
++  if ((err = comp->last_error) != OMX_ErrorNone) {
++    GST_ERROR_OBJECT (comp->parent, "Component %s in error state: %s (0x%08x)",
++        comp->name, gst_omx_error_to_string (err), err);
++    goto done;
++  }
++
++  GST_INFO_OBJECT (comp->parent, "Waiting for %s port %u to release all copy"
++      "buffers", comp->name, port->index);
++
++  /* Wait until all copy buffers are released by the sink,
++     Because V4L2 driver always keep one buffer in the queue,
++     so it will break out when the copy buffer size <= 1 */
++  if (timeout == 0) {
++    if (!port->flushed || (g_hash_table_size(omx_copy_buffer_map) > 1))
++      err = OMX_ErrorTimeout;
++    goto done;
++  }
++
++  signalled = TRUE;
++  last_error = OMX_ErrorNone;
++  gst_omx_component_handle_messages (comp);
++  while (signalled && last_error == OMX_ErrorNone &&
++    (g_hash_table_size(omx_copy_buffer_map) > 1)) {
++    signalled = gst_omx_component_wait_message (comp, timeout);
++    if (signalled)
++      gst_omx_component_handle_messages (comp);
++    last_error = comp->last_error;
++  }
++
++  if (last_error != OMX_ErrorNone) {
++    err = last_error;
++    GST_ERROR_OBJECT (comp->parent,
++      "Got error while waiting for %s port %u to release all copy buffers: %s "
++      "(0x%08x)", comp->name, port->index, gst_omx_error_to_string (err),
++      err);
++    goto done;
++  } else if (!signalled) {
++    GST_ERROR_OBJECT (comp->parent, "Timeout waiting for %s port %u to "
++        "release all buffers", comp->name, port->index);
++    err = OMX_ErrorTimeout;
++    goto done;
++  }
++
++done:
++  gst_omx_component_handle_messages (comp);
++
++  GST_DEBUG_OBJECT (comp->parent,
++      "Waited for %s port %u to release all copy buffers: %s (0x%08x)", comp->name,
++      port->index, gst_omx_error_to_string (err), err);
++
++  g_mutex_unlock (&port->comp->lock);
++
++  return err;
++}
++
+ /* NOTE: Uses comp->lock and comp->messages_lock */
+ OMX_ERRORTYPE
+ gst_omx_port_set_enabled (GstOMXPort * port, gboolean enabled)
+diff --git a/omx/gstomx.h b/omx/gstomx.h
+index 86805ba..09f30be 100644
+--- a/omx/gstomx.h
++++ b/omx/gstomx.h
+@@ -354,6 +354,8 @@ OMX_ERRORTYPE     gst_omx_port_use_eglimages (GstOMXPort *port, const GList *ima
+ OMX_ERRORTYPE     gst_omx_port_deallocate_buffers (GstOMXPort *port);
+ OMX_ERRORTYPE     gst_omx_port_populate (GstOMXPort *port);
+ OMX_ERRORTYPE     gst_omx_port_wait_buffers_released (GstOMXPort * port, GstClockTime timeout);
++OMX_ERRORTYPE     gst_omx_port_wait_copy_buffers_released(GstOMXPort * port,
++  GstClockTime timeout, GHashTable *omx_buffer_map_videosink);
+ 
+ OMX_ERRORTYPE     gst_omx_port_mark_reconfigured (GstOMXPort * port);
+ 
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index cf4a0c9..620d435 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -152,16 +152,43 @@ typedef struct _OMX_DECODER_OUT_BUFFER
+ {
+   GstOMXVideoDec *self;
+   GstOMXBuffer *pBuffer;
++  GstBuffer *out_buf;
+ } OMX_DECODER_OUT_BUFFER;
+ 
++static void gst_omx_video_dec_videosink_addbuf (GstOMXVideoDec * self,
++  OMX_DECODER_OUT_BUFFER * pOutBuf);
++static void gst_omx_video_dec_videosink_removebuf (GstOMXVideoDec * self,
++  OMX_DECODER_OUT_BUFFER * pOutBuf);
++
+ static void
+ _omx_out_buffer_destroy (OMX_DECODER_OUT_BUFFER * pOutBuf)
+ {
+ 
+   if (pOutBuf && pOutBuf->self) {
+     if (gst_omx_component_get_state (pOutBuf->self->dec, 0) > OMX_StateIdle)
+-    {      	
+-			gst_omx_port_release_buffer (pOutBuf->self->dec_out_port,pOutBuf->pBuffer);
++    {
++      gst_omx_video_dec_videosink_removebuf(pOutBuf->self, pOutBuf);
++
++      gst_omx_port_release_buffer (pOutBuf->self->dec_out_port, pOutBuf->pBuffer);
++    }
++    g_object_unref (pOutBuf->self);
++  }
++  g_slice_free (OMX_DECODER_OUT_BUFFER, pOutBuf);
++}
++
++static void
++_omx_out_buffer_videosink_destroy (OMX_DECODER_OUT_BUFFER * pOutBuf)
++{
++  if (pOutBuf && pOutBuf->self) {
++    if (gst_omx_component_get_state(pOutBuf->self->dec, 0) > OMX_StateIdle) {
++      if (pOutBuf->out_buf) {
++        OMX_DECODER_OUT_BUFFER *pqdataOutBuf;
++        pqdataOutBuf = gst_mini_object_steal_qdata(
++          GST_MINI_OBJECT_CAST (pOutBuf->out_buf),
++          pOutBuf->self->omx_outbuf_quark);
++      }
++      gst_omx_port_release_buffer(pOutBuf->self->dec_out_port,
++        pOutBuf->pBuffer);
+     }
+     g_object_unref (pOutBuf->self);
+   }
+@@ -206,11 +233,26 @@ _omx_out_buffer_create (GstOMXVideoDec * dec, const GstBuffer * buf,
+   }
+   else {
+     g_slice_free (OMX_DECODER_OUT_BUFFER, pOutBuf);
+-	g_assert(0);
++    g_assert(0);
+   }
++
++  pOutBuf->out_buf = out_buf;
++
++  gst_omx_video_dec_videosink_addbuf(dec, pOutBuf);
++
+   return out_buf;
+ }
+ 
++static gboolean gst_omx_buffer_videosink_unref(
++  gpointer key, gpointer value, gpointer user_data)
++{
++  OMX_DECODER_OUT_BUFFER *pOutBuf = (OMX_DECODER_OUT_BUFFER*)value;
++  if (pOutBuf) {
++    _omx_out_buffer_videosink_destroy(pOutBuf);
++  }
++  return TRUE;
++}
++
+ #endif
+ static void
+ gst_omx_video_dec_class_init (GstOMXVideoDecClass * klass)
+@@ -392,6 +434,9 @@ gst_omx_video_dec_open (GstVideoDecoder * decoder)
+ 
+ #ifdef _USE_V4L2_BUFFER_
+   self->omx_buffer_map = g_hash_table_new (g_direct_hash, g_direct_equal);
++#ifdef _OMX_ASYNC_FILL_BUFFER_
++  self->omx_copy_buffer_map = g_hash_table_new(g_direct_hash, g_direct_equal);
++#endif
+ #endif
+ 
+   if (gst_omx_component_get_state (self->dec,
+@@ -561,6 +606,12 @@ gst_omx_video_dec_close (GstVideoDecoder * decoder)
+     g_hash_table_destroy (self->omx_buffer_map);
+     self->omx_buffer_map = NULL;
+   }
++#ifdef _OMX_ASYNC_FILL_BUFFER_
++  if (self->omx_copy_buffer_map) {
++    g_hash_table_destroy (self->omx_copy_buffer_map);
++    self->omx_copy_buffer_map = NULL;
++  }
++#endif
+ #endif
+ 
+ #if defined (USE_OMX_TARGET_RPI) && defined (HAVE_GST_GL)
+@@ -1328,6 +1379,14 @@ gst_omx_video_dec_deallocate_output_buffers (GstOMXVideoDec * self)
+   if (self->omx_buffer_map) {
+     g_hash_table_foreach_remove(self->omx_buffer_map, gst_omx_buffer_map_unref, NULL);
+   }
++#ifdef _OMX_ASYNC_FILL_BUFFER_
++  if (self->omx_copy_buffer_map) {
++    if (g_hash_table_size(self->omx_copy_buffer_map) != 0) {
++      GST_WARNING_OBJECT (self, "omx_copy_buffer_map is not empty");
++    }
++    g_hash_table_remove_all(self->omx_copy_buffer_map);
++  }
++#endif
+ #endif
+ 
+   return err;
+@@ -1682,6 +1741,45 @@ copy_frame (const GstVideoInfo * info, GstBuffer * outbuf)
+   return tmpbuf;
+ }
+ 
++#ifdef _USE_V4L2_BUFFER_
++#ifdef _OMX_ASYNC_FILL_BUFFER_
++static void gst_omx_video_dec_videosink_addbuf (GstOMXVideoDec * self,
++  OMX_DECODER_OUT_BUFFER * pOutBuf)
++{
++  GstOMXComponent *comp;
++  comp = self->dec;
++
++  g_mutex_lock (&comp->lock);
++
++  g_hash_table_insert(pOutBuf->self->omx_copy_buffer_map,
++    pOutBuf->pBuffer->omx_buf->pBuffer, pOutBuf);
++
++  g_mutex_unlock (&comp->lock);
++}
++
++static void gst_omx_video_dec_videosink_removebuf (GstOMXVideoDec * self,
++  OMX_DECODER_OUT_BUFFER * pOutBuf)
++{
++  gboolean ret;
++  GstOMXComponent *comp;
++  comp = self->dec;
++
++  g_mutex_lock (&comp->lock);
++
++  ret = g_hash_table_remove(pOutBuf->self->omx_copy_buffer_map,
++          pOutBuf->pBuffer->omx_buf->pBuffer);
++
++  g_mutex_unlock (&comp->lock);
++
++  if (!ret) {
++    /* the copy buffer is already removed, so this should never happen */
++    GST_ERROR_OBJECT (self, "the copy buffer is already removed");
++  }
++}
++
++#endif
++#endif
++
+ static void
+ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+ {
+@@ -1730,6 +1828,26 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+       if (err != OMX_ErrorNone)
+         goto reconfigure_error;
+ 
++#ifdef _USE_V4L2_BUFFER_
++#ifdef _OMX_ASYNC_FILL_BUFFER_
++      if (self->omx_copy_buffer_map) {
++        guint ret;
++
++        err = gst_omx_port_wait_copy_buffers_released(port, 5 * GST_SECOND,
++                self->omx_copy_buffer_map);
++        if (err != OMX_ErrorNone)
++          goto reconfigure_error;
++
++        ret = g_hash_table_foreach_remove(self->omx_copy_buffer_map,
++                gst_omx_buffer_videosink_unref, NULL);
++        if (ret > 1) {
++          /* Because v4l2 driver will keep 1 buffer in the queue,
++             so if the removed buffer is more than 1, it should has some error*/
++          GST_ERROR_OBJECT (self, "It has more than 1 buffer in the v4l2 sink");
++        }
++      }
++#endif
++#endif
+       err = gst_omx_port_wait_buffers_released (port, 5 * GST_SECOND);
+       if (err != OMX_ErrorNone)
+         goto reconfigure_error;
+diff --git a/omx/gstomxvideodec.h b/omx/gstomxvideodec.h
+index d91fb14..20b436e 100644
+--- a/omx/gstomxvideodec.h
++++ b/omx/gstomxvideodec.h
+@@ -93,6 +93,7 @@ struct _GstOMXVideoDec
+ #endif
+ #ifdef _OMX_ASYNC_FILL_BUFFER_
+   GQuark omx_outbuf_quark;
++  GHashTable *omx_copy_buffer_map;
+ #endif 
+   gint x_scale;
+   gint y_scale;
+-- 
+1.9.1
+

@@ -1,0 +1,34 @@
+From 8079df502f36aa4540d1d6e4fa24cdf738f2c77c Mon Sep 17 00:00:00 2001
+From: xf02 <xfei@codeaurora.org>
+Date: Wed, 7 Jan 2015 11:37:46 +0800
+Subject: [PATCH 11/67] Add caps for mpeg2 mpeg4
+
+---
+ parsed_data_gstomx.conf | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/parsed_data_gstomx.conf b/parsed_data_gstomx.conf
+index a226ed5..5a1843c 100755
+--- a/parsed_data_gstomx.conf
++++ b/parsed_data_gstomx.conf
+@@ -14,7 +14,7 @@ component-name=OMX.IMG.MSVDX.Decoder.MPEG4
+ rank=260
+ in-port-index=0
+ out-port-index=1
+-sink-template-caps=video/mpeg
++sink-template-caps=video/mpeg, mpegversion = (int) 4
+ 
+ 
+ [omxmpeg2videodec]
+@@ -24,7 +24,7 @@ component-name=OMX.IMG.MSVDX.Decoder.MPEG2
+ rank=260
+ in-port-index=0
+ out-port-index=1
+-sink-template-caps=video/mpeg
++sink-template-caps=video/mpeg, mpegversion=(int)2
+ 
+ 
+ [omxh263dec]
+-- 
+1.9.1
+

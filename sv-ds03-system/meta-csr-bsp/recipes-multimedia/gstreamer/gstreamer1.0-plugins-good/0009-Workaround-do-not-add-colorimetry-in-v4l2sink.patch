@@ -1,0 +1,36 @@
+From a9709cc6cd185f9ef62cbc73ff3d0792551ca466 Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Thu, 19 Nov 2015 15:40:45 +0800
+Subject: [PATCH 09/31] Workaround: do not add colorimetry in v4l2sink
+
+Change-Id: Ic9cb016c2ca18de136d0ae76d2c0d182fd54bdd2
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ sys/v4l2/gstv4l2object.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2object.c b/sys/v4l2/gstv4l2object.c
+index 6699517..018f912 100644
+--- a/sys/v4l2/gstv4l2object.c
++++ b/sys/v4l2/gstv4l2object.c
+@@ -2142,7 +2142,7 @@ return_data:
+   gst_v4l2_object_add_aspect_ratio (v4l2object, s);
+   gst_v4l2_object_add_interlace_mode (v4l2object, s, width, height,
+       pixelformat);
+-  gst_v4l2_object_add_colorspace (v4l2object, s, width, height, pixelformat);
++  //gst_v4l2_object_add_colorspace (v4l2object, s, width, height, pixelformat);
+ 
+   if (G_IS_VALUE (&rates)) {
+     gst_v4l2src_value_simplify (&rates);
+@@ -2468,7 +2468,7 @@ default_frame_sizes:
+     gst_v4l2_object_add_aspect_ratio (v4l2object, tmp);
+     /* We could consider to check colorspace for min too, in case it depends on
+      * the size. But in this case, min and max could not be enough */
+-    gst_v4l2_object_add_colorspace (v4l2object, tmp, max_w, max_h, pixelformat);
++    //gst_v4l2_object_add_colorspace (v4l2object, tmp, max_w, max_h, pixelformat);
+ 
+     gst_v4l2_object_update_and_append (v4l2object, pixelformat, ret, tmp);
+     return ret;
+-- 
+1.9.1
+

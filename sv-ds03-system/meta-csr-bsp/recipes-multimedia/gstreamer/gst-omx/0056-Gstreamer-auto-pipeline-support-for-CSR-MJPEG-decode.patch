@@ -1,0 +1,74 @@
+From 31e715f7c1c4a7687a05404911841d5c280d53e2 Mon Sep 17 00:00:00 2001
+From: Alan Wang <wbo@codeaurora.org>
+Date: Tue, 8 Mar 2016 16:05:56 +0800
+Subject: [PATCH 56/67] Gstreamer auto pipeline support for CSR MJPEG decoder.
+
+[1] Remove IMG JPEG codec in gstomx config file.
+[2] Add video/x-jpeg sink-template-caps for CSR MJPEG decoder.
+
+Change-Id: I995ecc647817ac2cb6594140b292e5aab22c4892
+Signed-off-by: Alan Wang <wbo@codeaurora.org>
+---
+ parsed_data_gstomx.conf   | 10 +---------
+ unparsed_data_gstomx.conf | 10 +---------
+ 2 files changed, 2 insertions(+), 18 deletions(-)
+
+diff --git a/parsed_data_gstomx.conf b/parsed_data_gstomx.conf
+index 1e40f5f..fa34ebf 100755
+--- a/parsed_data_gstomx.conf
++++ b/parsed_data_gstomx.conf
+@@ -50,14 +50,6 @@ rank=260
+ in-port-index=0
+ out-port-index=1
+ 
+-[omxmjpegdec]
+-type-name=GstOMXMJPEGDec
+-core-name=libomxcore.so
+-component-name=OMX.IMG.MSVDX.Decoder.JPEG
+-rank=260
+-in-port-index=0
+-out-port-index=1
+-
+ [omxmjpegvideodec]
+ type-name=GstOMXMJPEGVIDEODec
+ core-name=libomxcore.so
+@@ -65,7 +57,7 @@ component-name=OMX.CSR.MJPEG.Decoder
+ rank=260
+ in-port-index=0
+ out-port-index=1
+-sink-template-caps=image/jpeg
++sink-template-caps=image/jpeg; video/x-jpeg
+ 
+ [omxmjpegvideoenc]
+ type-name=GstOMXMJPEGVIDEOEnc
+diff --git a/unparsed_data_gstomx.conf b/unparsed_data_gstomx.conf
+index 89ae451..e209b91 100755
+--- a/unparsed_data_gstomx.conf
++++ b/unparsed_data_gstomx.conf
+@@ -51,14 +51,6 @@ rank=260
+ in-port-index=0
+ out-port-index=1
+ 
+-[omxmjpegdec]
+-type-name=GstOMXMJPEGDec
+-core-name=libomxcore.so
+-component-name=OMX.IMG.MSVDX.Decoder.JPEG
+-rank=260
+-in-port-index=0
+-out-port-index=1
+-
+ [omxmjpegvideodec]
+ type-name=GstOMXMJPEGVIDEODec
+ core-name=libomxcore.so
+@@ -66,7 +58,7 @@ component-name=OMX.CSR.MJPEG.Decoder
+ rank=260
+ in-port-index=0
+ out-port-index=1
+-sink-template-caps=image/jpeg
++sink-template-caps=image/jpeg; video/x-jpeg
+ 
+ [omxmjpegvideoenc]
+ type-name=GstOMXMJPEGVIDEOEnc
+-- 
+1.9.1
+

@@ -1,0 +1,59 @@
+From 26f2681b30f847e4251028e099775e0cd27b9e9a Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Thu, 9 Apr 2015 12:11:21 +0800
+Subject: [PATCH 29/67] Use default from IMG.
+
+Bugfix for APBU-10244 APBU-10245 APBU-10246
+
+Change-Id: I50239bff2e7eacf4b4b9d13717082edb26ac3a02
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ parsed_data_gstomx.conf | 11 ++++-------
+ 1 file changed, 4 insertions(+), 7 deletions(-)
+
+diff --git a/parsed_data_gstomx.conf b/parsed_data_gstomx.conf
+index d7ed0a9..eaf9e18 100755
+--- a/parsed_data_gstomx.conf
++++ b/parsed_data_gstomx.conf
+@@ -5,7 +5,7 @@ component-name=OMX.IMG.MSVDX.Decoder.AVC
+ rank=260
+ in-port-index=0
+ out-port-index=1
+-sink-template-caps=video/x-h264
++sink-template-caps=video/x-h264, parsed=(boolean) true, alignment=(string) au, stream-format=(string) byte-stream
+ 
+ [omxmpeg4videodec]
+ type-name=GstOMXMPEG4VideoDec
+@@ -14,9 +14,7 @@ component-name=OMX.IMG.MSVDX.Decoder.MPEG4
+ rank=260
+ in-port-index=0
+ out-port-index=1
+-sink-template-caps=video/mpeg, mpegversion = (int) 4, parsed = (boolean) false, profile = (string) simple, systemstream = (boolean) false, level = (string) {0, 1, 2, 3}, width = (int) [16, 4096], height = (int) [16, 4096], framerate = (fraction) [0/1, 2147483647/1]; video/mpeg, mpegversion = (int) 4, parsed = (boolean) false, profile = (string) advanced, systemstream = (boolean) false, level = (string) {0, 1, 2, 3, 4, 5}, width = (int)[16, 4096], height = (int) [16, 4096], framerate =
+-(fraction) [0/1, 2147483647/1]; video/mpeg, mpegversion = (int) 4, parsed = (boolean) true, systemstream = (boolean) false; video/x-divx, divxversion = (int)[ 3, 5 ], width = (int) [16, 4096], height = (int) [16, 4096], framerate = (fraction) [0/1, 2147483647/1]; video/x-xvid, width = (int) [16, 4096], height = (int) [16, 4096], framerate = (fraction) [0/1, 2147483647/1]; video/x-3ivx, width = (int) [16, 4096], height = (int) [16, 4096], framerate = (fraction) [0/1, 2147483647/1];
+-video/x-msmpeg, msmpegversion = (int) 4, width = (int) [16, 4096], height = (int) [16, 4096], framerate = (fraction) [0/1, 2147483647/1]; video/x-msmpeg, msmpegversion = (int)[ 41, 43 ], width = (int) [16, 4096], height = (int) [16, 4096], framerate = (fraction) [0/1, 2147483647/1]
++sink-template-caps=video/mpeg, mpegversion = (int) 4, parsed = (boolean) false, profile = (string) simple, systemstream = (boolean) false, level = (string) {0, 1, 2, 3}, width = (int) [16, 4096], height = (int) [16, 4096], framerate = (fraction) [0/1, 2147483647/1]; video/mpeg, mpegversion = (int) 4, parsed = (boolean) false, profile = (string) advanced, systemstream = (boolean) false, level = (string) {0, 1, 2, 3, 4, 5}, width = (int)[16, 4096], height = (int) [16, 4096], framerate = (fraction) [0/1, 2147483647/1]; video/mpeg, mpegversion = (int) 4, parsed = (boolean) true, systemstream = (boolean) false; video/x-divx, divxversion = (int)[ 3, 5 ], width = (int) [16, 4096], height = (int) [16, 4096], framerate = (fraction) [0/1, 2147483647/1]; video/x-xvid, width = (int) [16, 4096], height = (int) [16, 4096], framerate = (fraction) [0/1, 2147483647/1]; video/x-3ivx, width = (int) [16, 4096], height = (int) [16, 4096], framerate = (fraction) [0/1, 2147483647/1]; video/x-msmpeg, msmpegversion = (int) 4, width = (int) [16, 4096], height = (int) [16, 4096], framerate = (fraction) [0/1, 2147483647/1]; video/x-msmpeg, msmpegversion = (int)[ 41, 43 ], width = (int) [16, 4096], height = (int) [16, 4096], framerate = (fraction) [0/1, 2147483647/1]
+ 
+ [omxmpeg2videodec]
+ type-name=GstOMXMPEG2VideoDec
+@@ -25,8 +23,7 @@ component-name=OMX.IMG.MSVDX.Decoder.MPEG2
+ rank=260
+ in-port-index=0
+ out-port-index=1
+-sink-template-caps=video/mpeg, mpegversion=(int)2
+-
++sink-template-caps=video/mpeg, mpegversion=(int)2, systemstream=(boolean)false, parsed=(boolean)true;video/mpeg, mpegversion=(int)1, systemstream=(boolean)false, parsed=(boolean)true
+ 
+ [omxh263dec]
+ type-name=GstOMXH263Dec
+@@ -77,7 +74,7 @@ rank=260
+ in-port-index=0
+ out-port-index=1
+ sink-template-caps=video/x-vp6; video/x-vp6-flash; video/x-vp6-alpha
+-  
++
+ [omxvc1dec]
+ type-name=GstOMXWMVDec
+ core-name=libomxcore.so
+-- 
+1.9.1
+

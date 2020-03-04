@@ -1,0 +1,126 @@
+From f44623c240a7bfce6c53ded4f7a4602b0af951da Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Wed, 2 Mar 2016 13:36:01 +0800
+Subject: [PATCH 1/2] APBU-11514 [A7 RMVB]Playback stoped after seek APBU-11505
+ [A7 RMVB]A/V not sync and video image unsmooth
+
+CSR plugins can not handle DTS now, so we set PTS instead of DTS
+
+Change-Id: I999ef6bcf7985a922f50c73bdcd5a2d0ed2e2c08
+Signed-off-by: Jie Zhou <zhojie@codeaurora.org>
+Signed-off-by: Xiaofeng Fei <xfei@codeaurora.org>
+---
+ gst/realmedia/rmdemux.c | 43 ++++++++++++++-----------------------------
+ 1 file changed, 14 insertions(+), 29 deletions(-)
+
+diff --git a/gst/realmedia/rmdemux.c b/gst/realmedia/rmdemux.c
+index e670f98..8b9d605 100644
+--- a/gst/realmedia/rmdemux.c
++++ b/gst/realmedia/rmdemux.c
+@@ -999,11 +999,7 @@ gst_rmdemux_chain (GstPad * pad, GstObject * parent, GstBuffer * buffer)
+   GstRMDemux *rmdemux = GST_RMDEMUX (parent);
+ 
+   if (rmdemux->base_ts == -1) {
+-    if (GST_BUFFER_DTS_IS_VALID (buffer))
+-      rmdemux->base_ts = GST_BUFFER_DTS (buffer);
+-    else
+-      rmdemux->base_ts = GST_BUFFER_PTS (buffer);
+-
++    rmdemux->base_ts = GST_BUFFER_TIMESTAMP (buffer);
+     GST_LOG_OBJECT (rmdemux, "base_ts %" GST_TIME_FORMAT,
+         GST_TIME_ARGS (rmdemux->base_ts));
+   }
+@@ -1983,10 +1979,8 @@ gst_rmdemux_descramble_audio (GstRMDemux * rmdemux, GstRMDemuxStream * stream)
+ 
+     gst_buffer_map (b, &map, GST_MAP_READ);
+ 
+-    if (p == 0) {
+-      GST_BUFFER_PTS (outbuf) = GST_BUFFER_PTS (b);
+-      GST_BUFFER_DTS (outbuf) = GST_BUFFER_DTS (b);
+-    }
++    if (p == 0)
++      GST_BUFFER_TIMESTAMP (outbuf) = GST_BUFFER_TIMESTAMP (b);
+ 
+     for (x = 0; x < packet_size / leaf_size; ++x) {
+       guint idx;
+@@ -2009,9 +2003,8 @@ gst_rmdemux_descramble_audio (GstRMDemux * rmdemux, GstRMDemuxStream * stream)
+         gst_buffer_copy_region (outbuf, GST_BUFFER_COPY_ALL, p * packet_size,
+         packet_size);
+ 
+-    GST_LOG_OBJECT (rmdemux, "pushing buffer dts %" GST_TIME_FORMAT ", pts %"
+-        GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_DTS (subbuf)),
+-        GST_TIME_ARGS (GST_BUFFER_PTS (subbuf)));
++    GST_LOG_OBJECT (rmdemux, "pushing buffer timestamp %" GST_TIME_FORMAT,
++        GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (subbuf)));
+ 
+     if (stream->discont) {
+       GST_BUFFER_FLAG_SET (subbuf, GST_BUFFER_FLAG_DISCONT);
+@@ -2066,7 +2059,7 @@ gst_rmdemux_descramble_mp4a_audio (GstRMDemux * rmdemux,
+   g_ptr_array_set_size (stream->subpackets, 0);
+ 
+   gst_buffer_map (buf, &map, GST_MAP_READ);
+-  timestamp = GST_BUFFER_PTS (buf);
++  timestamp = GST_BUFFER_TIMESTAMP (buf);
+ 
+   frames = (map.data[1] & 0xf0) >> 4;
+   index = 2 * frames + 2;
+@@ -2075,10 +2068,8 @@ gst_rmdemux_descramble_mp4a_audio (GstRMDemux * rmdemux,
+     guint len = (map.data[i * 2 + 2] << 8) | map.data[i * 2 + 3];
+ 
+     outbuf = gst_buffer_copy_region (buf, GST_BUFFER_COPY_ALL, index, len);
+-    if (i == 0) {
+-      GST_BUFFER_PTS (outbuf) = timestamp;
+-      GST_BUFFER_DTS (outbuf) = timestamp;
+-    }
++    if (i == 0)
++      GST_BUFFER_TIMESTAMP (outbuf) = timestamp;
+ 
+     index += len;
+ 
+@@ -2117,18 +2108,15 @@ gst_rmdemux_descramble_sipr_audio (GstRMDemux * rmdemux,
+   for (p = 0; p < height; ++p) {
+     GstBuffer *b = g_ptr_array_index (stream->subpackets, p);
+ 
+-    if (p == 0) {
+-      GST_BUFFER_DTS (outbuf) = GST_BUFFER_DTS (b);
+-      GST_BUFFER_PTS (outbuf) = GST_BUFFER_PTS (b);
+-    }
++    if (p == 0)
++      GST_BUFFER_TIMESTAMP (outbuf) = GST_BUFFER_TIMESTAMP (b);
+ 
+     gst_buffer_extract (b, 0, outmap.data + packet_size * p, packet_size);
+   }
+   gst_buffer_unmap (outbuf, &outmap);
+ 
+-  GST_LOG_OBJECT (rmdemux, "pushing buffer dts %" GST_TIME_FORMAT ", pts %"
+-      GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_DTS (outbuf)),
+-      GST_TIME_ARGS (GST_BUFFER_PTS (outbuf)));
++  GST_LOG_OBJECT (rmdemux, "pushing buffer timestamp %" GST_TIME_FORMAT,
++      GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (outbuf)));
+ 
+   if (stream->discont) {
+     GST_BUFFER_FLAG_SET (outbuf, GST_BUFFER_FLAG_DISCONT);
+@@ -2375,9 +2363,7 @@ gst_rmdemux_parse_video_packet (GstRMDemux * rmdemux, GstRMDemuxStream * stream,
+       }
+       gst_buffer_unmap (out, &outmap);
+ 
+-      /* video has DTS */
+-      GST_BUFFER_DTS (out) = timestamp;
+-      GST_BUFFER_PTS (out) = GST_CLOCK_TIME_NONE;
++      GST_BUFFER_TIMESTAMP (out) = timestamp;
+ 
+       GST_LOG_OBJECT (rmdemux, "pushing timestamp %" GST_TIME_FORMAT,
+           GST_TIME_ARGS (timestamp));
+@@ -2445,8 +2431,7 @@ gst_rmdemux_parse_audio_packet (GstRMDemux * rmdemux, GstRMDemuxStream * stream,
+   if (rmdemux->base_ts != -1)
+     timestamp += rmdemux->base_ts;
+ 
+-  GST_BUFFER_PTS (buffer) = timestamp;
+-  GST_BUFFER_DTS (buffer) = timestamp;
++  GST_BUFFER_TIMESTAMP (buffer) = timestamp;
+ 
+   if (stream->needs_descrambling) {
+     GST_LOG_OBJECT (rmdemux, "descramble timestamp %" GST_TIME_FORMAT,
+-- 
+1.9.1
+

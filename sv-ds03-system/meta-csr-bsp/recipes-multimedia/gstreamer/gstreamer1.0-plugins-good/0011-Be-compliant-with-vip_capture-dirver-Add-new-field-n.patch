@@ -1,0 +1,55 @@
+From 93273754c66e798aa51ea5199ed8dddad5ce42cc Mon Sep 17 00:00:00 2001
+From: Alan Wang <wbo@codeaurora.org>
+Date: Mon, 28 Dec 2015 16:39:38 +0800
+Subject: [PATCH 11/31] Be compliant with vip_capture dirver, Add new field
+ name in v4l2.
+
+Change-Id: Ib7dce4cd07ca5fc14e237ccddc243a642c1e3fa0
+Signed-off-by: Alan Wang <wbo@codeaurora.org>
+---
+ sys/v4l2/gstv4l2bufferpool.c | 2 ++
+ sys/v4l2/gstv4l2object.c     | 4 ++++
+ 2 files changed, 6 insertions(+)
+
+diff --git a/sys/v4l2/gstv4l2bufferpool.c b/sys/v4l2/gstv4l2bufferpool.c
+index 331ea4c..baf1ae1 100644
+--- a/sys/v4l2/gstv4l2bufferpool.c
++++ b/sys/v4l2/gstv4l2bufferpool.c
+@@ -1220,10 +1220,12 @@ gst_v4l2_buffer_pool_dqbuf (GstV4l2BufferPool * pool, GstBuffer ** buffer)
+       GST_BUFFER_FLAG_UNSET (outbuf, GST_VIDEO_BUFFER_FLAG_INTERLACED);
+       GST_BUFFER_FLAG_UNSET (outbuf, GST_VIDEO_BUFFER_FLAG_TFF);
+       break;
++    case V4L2_FIELD_SEQ_TB:
+     case V4L2_FIELD_INTERLACED_TB:
+       GST_BUFFER_FLAG_SET (outbuf, GST_VIDEO_BUFFER_FLAG_INTERLACED);
+       GST_BUFFER_FLAG_SET (outbuf, GST_VIDEO_BUFFER_FLAG_TFF);
+       break;
++    case V4L2_FIELD_SEQ_BT:
+     case V4L2_FIELD_INTERLACED_BT:
+       GST_BUFFER_FLAG_SET (outbuf, GST_VIDEO_BUFFER_FLAG_INTERLACED);
+       GST_BUFFER_FLAG_UNSET (outbuf, GST_VIDEO_BUFFER_FLAG_TFF);
+diff --git a/sys/v4l2/gstv4l2object.c b/sys/v4l2/gstv4l2object.c
+index 14d17ec..3db7369 100644
+--- a/sys/v4l2/gstv4l2object.c
++++ b/sys/v4l2/gstv4l2object.c
+@@ -1681,6 +1681,8 @@ gst_v4l2_object_get_interlace_mode (enum v4l2_field field,
+     case V4L2_FIELD_INTERLACED:
+     case V4L2_FIELD_INTERLACED_TB:
+     case V4L2_FIELD_INTERLACED_BT:
++    case V4L2_FIELD_SEQ_TB:
++    case V4L2_FIELD_SEQ_BT:
+       *interlace_mode = GST_VIDEO_INTERLACE_MODE_INTERLEAVED;
+       return TRUE;
+     default:
+@@ -3378,6 +3380,8 @@ gst_v4l2_object_acquire_format (GstV4l2Object * v4l2object, GstVideoInfo * info)
+     case V4L2_FIELD_INTERLACED:
+     case V4L2_FIELD_INTERLACED_TB:
+     case V4L2_FIELD_INTERLACED_BT:
++    case V4L2_FIELD_SEQ_TB:
++    case V4L2_FIELD_SEQ_BT:
+       info->interlace_mode = GST_VIDEO_INTERLACE_MODE_INTERLEAVED;
+       break;
+     default:
+-- 
+1.9.1
+

@@ -1,0 +1,58 @@
+From 4da382baae89e19afb64fc4e50b3941cf4714599 Mon Sep 17 00:00:00 2001
+From: Alan Wang <wbo@codeaurora.org>
+Date: Fri, 6 May 2016 19:32:48 +0800
+Subject: [PATCH 24/31] Code Revise: If buffers not came from omx, use copying
+ as usual.
+
+Change-Id: I81159b8e0375017242c96469e9dc4f4a4f88afbf
+Signed-off-by: Alan Wang <wbo@codeaurora.org>
+---
+ sys/v4l2/gstv4l2bufferpool.c | 18 +++++-------------
+ 1 file changed, 5 insertions(+), 13 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2bufferpool.c b/sys/v4l2/gstv4l2bufferpool.c
+index 1366c71..33728cf 100644
+--- a/sys/v4l2/gstv4l2bufferpool.c
++++ b/sys/v4l2/gstv4l2bufferpool.c
+@@ -1877,15 +1877,9 @@ gst_v4l2_buffer_pool_process (GstV4l2BufferPool * pool, GstBuffer ** buf)
+           GstV4l2MemoryGroup *group;
+           gint index;
+ 
+-          if ((*buf)->pool != bpool &&
+-                  ((obj->mode) != GST_V4L2_IO_MMAP)) {
+-            /* APBU-10143 Todo.
+-               Temp disable this check, the buffer from gst-omx will not
+-               include pool value. but it should not goto copying.
+-            */
+-            GST_WARNING_OBJECT(pool,
+-              "pool in gstbuffer is not equal to v4l2 pool");
+-
++          if (gst_mini_object_get_qdata (GST_MINI_OBJECT_CAST (*buf),
++                GST_OMX_VIDEO_DEC_OMX_BUFFER_QUARK) == NULL &&
++                  (*buf)->pool != bpool) {
+             goto copying;
+           }
+ 
+@@ -1954,8 +1948,7 @@ gst_v4l2_buffer_pool_process (GstV4l2BufferPool * pool, GstBuffer ** buf)
+           /* Remove our ref, we will still hold this buffer in acquire as needed,
+            * otherwise the pool will think it is outstanding and will refuse to stop. */
+           if (gst_mini_object_get_qdata (GST_MINI_OBJECT_CAST (to_queue),
+-                GST_OMX_VIDEO_DEC_OMX_BUFFER_QUARK) == NULL ||
+-                  ((obj->mode) != GST_V4L2_IO_MMAP)) {
++                GST_OMX_VIDEO_DEC_OMX_BUFFER_QUARK) == NULL) {
+             gst_buffer_unref (to_queue);
+           }
+ 
+@@ -1968,8 +1961,7 @@ gst_v4l2_buffer_pool_process (GstV4l2BufferPool * pool, GstBuffer ** buf)
+               /* release the rendered buffer back into the pool. This wakes up any
+                * thread waiting for a buffer in _acquire(). */
+               if (gst_mini_object_get_qdata (GST_MINI_OBJECT_CAST (out),
+-                    GST_OMX_VIDEO_DEC_OMX_BUFFER_QUARK) == NULL ||
+-                      ((obj->mode) != GST_V4L2_IO_MMAP))
++                    GST_OMX_VIDEO_DEC_OMX_BUFFER_QUARK) == NULL)
+                 gst_v4l2_buffer_pool_release_buffer (bpool, out);
+               else
+                 /* This buffer is copied from the allocated buffer, so we can not
+-- 
+1.9.1
+

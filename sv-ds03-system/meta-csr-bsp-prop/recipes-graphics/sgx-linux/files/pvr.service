@@ -1,0 +1,10 @@
+[Unit]
+Description=CSR PVR Service
+DefaultDependencies=no
+Before=sysinit.target shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart= /bin/sh /usr/bin/pvrsvr.sh start
+ExecStop= /bin/sh /usr/bin/pvrsvr.sh stop

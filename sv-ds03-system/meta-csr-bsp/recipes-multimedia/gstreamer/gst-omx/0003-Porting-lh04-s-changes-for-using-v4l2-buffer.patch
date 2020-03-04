@@ -1,0 +1,495 @@
+From a5ab25b20d9f5201ccc3499e9fbfa6b7b6b7c9f4 Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Fri, 19 Dec 2014 16:01:30 +0800
+Subject: [PATCH 03/67] Porting lh04's changes for using v4l2 buffer
+
+Change-Id: I05dd5005c56f6d6630fe10c333ffd6d56fcbccdb
+---
+ omx/gstomx.c             |   9 +-
+ omx/gstomxbufferpool.c   |   3 +-
+ omx/gstomxrealvideodec.c |   0
+ omx/gstomxvideodec.c     | 221 ++++++++++++++++++++++++++++++++++++++---------
+ omx/gstomxvideodec.h     |   2 +
+ 5 files changed, 194 insertions(+), 41 deletions(-)
+ mode change 100755 => 100644 omx/gstomxrealvideodec.c
+
+diff --git a/omx/gstomx.c b/omx/gstomx.c
+index 683bc9d..33b7f3b 100644
+--- a/omx/gstomx.c
++++ b/omx/gstomx.c
+@@ -1733,9 +1733,13 @@ gst_omx_port_allocate_buffers_unlocked (GstOMXPort * port,
+     g_ptr_array_add (port->buffers, buf);
+ 
+     if (buffers) {
++      GstMapInfo info;
++      gst_buffer_map (l->data, &info, GST_MAP_READ);
++      gst_buffer_unmap (l->data, &info);
++      //printf("pBuffer = %p\n",info.data);
+       err =
+           OMX_UseBuffer (comp->handle, &buf->omx_buf, port->index, buf,
+-          port->port_def.nBufferSize, l->data);
++      port->port_def.nBufferSize, info.data);
+       buf->eglimage = FALSE;
+     } else if (images) {
+       err =
+@@ -2127,6 +2131,9 @@ gst_omx_port_populate_unlocked (GstOMXPort * port)
+   if (port->port_def.eDir == OMX_DirOutput && port->buffers && !port->tunneled) {
+     /* Enqueue all buffers for the component to fill */
+     while ((buf = g_queue_pop_head (&port->pending_buffers))) {
++      if (!buf)
++        continue;
++
+       g_assert (!buf->used);
+ 
+       /* Reset all flags, some implementations don't
+diff --git a/omx/gstomxbufferpool.c b/omx/gstomxbufferpool.c
+index 4bc4a55..507a084 100644
+--- a/omx/gstomxbufferpool.c
++++ b/omx/gstomxbufferpool.c
+@@ -369,7 +369,8 @@ gst_omx_buffer_pool_alloc_buffer (GstBufferPool * bpool,
+        * it back to the pool. Which is done in the pool's release
+        * function
+        */
+-      GST_MINI_OBJECT_FLAG_SET (mem, GST_MEMORY_FLAG_NO_SHARE);
++      printf("gst_omx_buffer_pool_alloc_buffer mem = %p\n",mem);
++      //GST_MINI_OBJECT_FLAG_SET (mem, GST_MEMORY_FLAG_NO_SHARE);
+     }
+ 
+     if (pool->add_videometa) {
+diff --git a/omx/gstomxrealvideodec.c b/omx/gstomxrealvideodec.c
+old mode 100755
+new mode 100644
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 31e7a03..e5a77a2 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -58,6 +58,12 @@
+ #include "OMX_VideoExt.h"
+ #include "OMX_IndexExt.h"
+ 
++//#define USE_V4L2_BUFFER
++
++
++GST_DEBUG_CATEGORY_STATIC (gst_omx_video_dec_debug_category);
++#define GST_CAT_DEFAULT gst_omx_video_dec_debug_category
++
+ #ifndef GSTOMX_REMOVE_MEMCPY
+     #define GSTOMX_MEMCPY(dest,src,size) memcpy(dest,src,size)
+ #else
+@@ -73,8 +79,8 @@
+  *
+  */
+ typedef struct _OMX_IMG_METADATA {
+-    OMX_U8* pui8ExtraData;          /*!< Used to pass Interlace Information to IL Client as of now. */
+-                                    // additions can be made for more propietary data
++  OMX_U8* pui8ExtraData;          /*!< Used to pass Interlace Information to IL Client as of now. */
++                                  // additions can be made for more propietary data
+ }OMX_IMG_METADATA;
+ 
+ // as of now this is present in pPlatformPrivate.
+@@ -82,9 +88,6 @@ typedef struct _OMX_IMG_METADATA {
+ 
+ /* IMG Vendor specific code ends*/
+ 
+-GST_DEBUG_CATEGORY_STATIC (gst_omx_video_dec_debug_category);
+-#define GST_CAT_DEFAULT gst_omx_video_dec_debug_category
+-
+ /* prototypes */
+ static void gst_omx_video_dec_finalize (GObject * object);
+ 
+@@ -610,6 +613,9 @@ gst_omx_video_dec_fill_buffer (GstOMXVideoDec * self,
+     const guint8 *src;
+     guint p;
+ 
++    /* MSVDX uses the same stride for both chroma planes as for luma when decoding JPEG.
++     * Other video formats are decoded to GST_VIDEO_FORMAT_NV12 */
++    GST_WARNING_OBJECT (self,"GST_VIDEO_INFO_FORMAT (vinfo) = %d\n",GST_VIDEO_INFO_FORMAT (vinfo));
+     switch (GST_VIDEO_INFO_FORMAT (vinfo)) {
+       case GST_VIDEO_FORMAT_Y42B:
+         chromVertDeno = 1;
+@@ -630,11 +636,11 @@ gst_omx_video_dec_fill_buffer (GstOMXVideoDec * self,
+         break;
+       case GST_VIDEO_FORMAT_I420:
+         dst_width[0] = GST_VIDEO_INFO_WIDTH (vinfo);
+-        src_stride[1] = nstride / 2;
++        src_stride[1] = nstride;
+         src_size[1] = (src_stride[1] * nslice) / 2;
+         dst_width[1] = GST_VIDEO_INFO_WIDTH (vinfo) / 2;
+         dst_height[1] = GST_VIDEO_INFO_HEIGHT (vinfo) / 2;
+-        src_stride[2] = nstride / 2;
++        src_stride[2] = nstride;
+         src_size[2] = (src_stride[1] * nslice) / 2;
+         dst_width[2] = GST_VIDEO_INFO_WIDTH (vinfo) / 2;
+         dst_height[2] = GST_VIDEO_INFO_HEIGHT (vinfo) / 2;
+@@ -677,7 +683,7 @@ gst_omx_video_dec_fill_buffer (GstOMXVideoDec * self,
+ 	  data = src;
+       for (h = 0; h < dst_height[p]; h++) {
+         data += crop_rect->nLeft;
+-        GSTOMX_MEMCPY (dst, data, dst_width[p]);
++        memcpy (dst, data, dst_width[p]);
+         dst += GST_VIDEO_FRAME_PLANE_STRIDE (&frame, p);
+         data += src_stride[p] - crop_rect->nLeft;
+       }
+@@ -933,6 +939,102 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
+   }
+ #endif
+ 
++#ifdef USE_V4L2_BUFFER
++ {
++    GList *buffers = NULL;
++    GList *l;
++    gint i;
++	gboolean was_enabled = TRUE;
++    GstBufferPoolAcquireParams params = { 0, };
++
++    GST_DEBUG_OBJECT (self, "Trying to allocate %d v4l2 buffers", min);
++
++    if (min != port->port_def.nBufferCountActual) {
++      err = gst_omx_port_update_port_definition (port, NULL);
++      if (err == OMX_ErrorNone) {
++        port->port_def.nBufferCountActual = min;
++        err = gst_omx_port_update_port_definition (port, &port->port_def);
++      }
++
++      if (err != OMX_ErrorNone) {
++        GST_INFO_OBJECT (self,
++            "Failed to configure %u output buffers: %s (0x%08x)", min,
++            gst_omx_error_to_string (err), err);
++
++        goto done;
++      }
++    }
++
++
++    if (!gst_omx_port_is_enabled (port)) {
++      err = gst_omx_port_set_enabled (port, TRUE);
++      if (err != OMX_ErrorNone) {
++        GST_INFO_OBJECT (self,
++            "Failed to enable port: %s (0x%08x)",
++            gst_omx_error_to_string (err), err);
++        goto done;
++      }
++	  was_enabled = FALSE;
++
++    }
++
++    for (i = 0; i < min; i++) {
++      GstBuffer *buffer;
++      GstMemory *mem;
++	  printf("i buffer = %d in pool: %d\n",i,pool);
++#if 0
++	  buffer = gst_video_decoder_allocate_output_buffer (GST_VIDEO_DECODER (self));
++	  if (buffer == NULL) {
++		err = OMX_ErrorInsufficientResources;
++		goto done;
++	  }
++#else
++	  if (gst_buffer_pool_acquire_buffer (pool, &buffer, &params) != GST_FLOW_OK
++		   || gst_buffer_n_memory (buffer) != 1
++		   || !(mem = gst_buffer_peek_memory (buffer, 0))) {
++		 GST_INFO_OBJECT (self, "Failed to allocated %d-th Android buffer", i);
++		 g_list_free_full (buffers, (GDestroyNotify) gst_buffer_unref);
++		 buffers = NULL;
++		 err = OMX_ErrorUndefined;
++		 goto done;
++	   }
++  #endif
++	  
++      printf("gst_buffer_pool_acquire_buffer buffer = %p buffer->pool = %p in pool: %p\n",buffer,buffer->pool,pool);
++      buffers = g_list_append (buffers, buffer);
++    }
++
++    err = gst_omx_port_use_buffers (port, buffers);
++    if (err != OMX_ErrorNone) {
++      GST_INFO_OBJECT (self,
++          "Failed to pass v4l2 buffers to port: %s (0x%08x)",
++          gst_omx_error_to_string (err), err);
++      g_list_free_full (buffers, (GDestroyNotify) gst_buffer_unref);
++      goto done;
++    }
++	if (!was_enabled){
++	err = gst_omx_port_wait_enabled (port, 2 * GST_SECOND);
++	if (err != OMX_ErrorNone) {
++	  GST_INFO_OBJECT (self,
++		  "Failed to wait until port is enabled: %s (0x%08x)",
++		  gst_omx_error_to_string (err), err);
++	  goto done;
++	}
++		}
++
++	GST_DEBUG_OBJECT (self, "Populating internal buffer pool");
++	GST_OMX_BUFFER_POOL (self->out_port_pool)->other_pool =
++		GST_BUFFER_POOL (gst_object_ref (pool));
++	for (l = buffers; l; l = l->next) {
++	  g_ptr_array_add (GST_OMX_BUFFER_POOL (self->out_port_pool)->buffers,
++		  l->data);
++	}
++
++	
++    g_list_free (buffers);
++  }
++#else
++
+   /* If not using EGLImage or trying to use EGLImage failed */
+   if (!eglimage) {
+     gboolean was_enabled = TRUE;
+@@ -1019,7 +1121,7 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
+ 
+ 
+   }
+-
++#endif
+   err = OMX_ErrorNone;
+ 
+   if (caps) {
+@@ -1094,7 +1196,7 @@ gst_omx_video_dec_deallocate_output_buffers (GstOMXVideoDec * self)
+ }
+ 
+ static OMX_ERRORTYPE
+-gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self)
++gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self,OMX_CONFIG_RECTTYPE *crop_rect)
+ {
+   GstOMXPort *port;
+   OMX_ERRORTYPE err;
+@@ -1121,8 +1223,8 @@ gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self)
+       gst_omx_port_get_port_definition (self->dec_out_port, &port_def);
+       GST_VIDEO_DECODER_STREAM_LOCK (self);
+       state = gst_video_decoder_set_output_state (GST_VIDEO_DECODER (self),
+-          GST_VIDEO_FORMAT_RGBA, port_def.format.video.nFrameWidth,
+-          port_def.format.video.nFrameHeight, self->input_state);
++          GST_VIDEO_FORMAT_RGBA, crop_rect->nWidth,
++        crop_rect->nHeight, self->input_state);
+ 
+       /* at this point state->caps is NULL */
+       if (state->caps)
+@@ -1308,9 +1410,29 @@ gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self)
+       (guint) port_def.format.video.nFrameWidth,
+       (guint) port_def.format.video.nFrameHeight);
+ 
++    //IMG specific code for getting Aspect Ratio Info
++    {
++        OMX_IMG_ASPECTRATIOTYPE aspect_ratio;
++        GST_OMX_INIT_STRUCT (&aspect_ratio);
++        aspect_ratio.nPortIndex = self->dec_out_port->index;
++        gst_omx_component_get_config(self->dec_out_port->comp, OMX_IndexImgAspectRatio, &aspect_ratio);
++        if((aspect_ratio.nNumerator != 0) && (aspect_ratio.nDenominator != 0))
++        {
++            self->input_state->info.par_n = aspect_ratio.nNumerator; 
++            self->input_state->info.par_d = aspect_ratio.nDenominator;
++        }
++    }
++    //End of IMG specific code
++	self->input_state->info.par_n = 1; 
++	self->input_state->info.par_d = 1;
++
++
++
+   state = gst_video_decoder_set_output_state (GST_VIDEO_DECODER (self),
+-      format, port_def.format.video.nFrameWidth,
+-      port_def.format.video.nFrameHeight, self->input_state);
++      format, crop_rect->nWidth,
++        crop_rect->nHeight, self->input_state);
++
++
+ 
+   if (!gst_video_decoder_negotiate (GST_VIDEO_DECODER (self))) {
+     gst_video_codec_state_unref (state);
+@@ -1477,7 +1599,7 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+     gst_omx_component_get_config(self->dec_out_port->comp, OMX_IndexConfigCommonOutputCrop, crop_rect);
+     if (acq_return == GST_OMX_ACQUIRE_BUFFER_RECONFIGURE) {
+       /* We have the possibility to reconfigure everything now */
+-      err = gst_omx_video_dec_reconfigure_output_port (self);
++      err = gst_omx_video_dec_reconfigure_output_port (self,crop_rect);
+       if (err != OMX_ErrorNone)
+         goto reconfigure_error;
+     } else {
+@@ -1502,6 +1624,13 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+         goto caps_failed;
+       }
+ 
++      GST_DEBUG_OBJECT (self,
++          "Setting output state: format %s (%d), width %u, height %u",
++          gst_video_format_to_string (format),
++          port_def.format.video.eColorFormat,
++          (guint) port_def.format.video.nFrameWidth,
++          (guint) port_def.format.video.nFrameHeight);
++
+       //IMG specific code for getting Aspect Ratio Info
+       {
+         OMX_IMG_ASPECTRATIOTYPE aspect_ratio;
+@@ -1516,13 +1645,10 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+       }
+       //End of IMG specific code
+ 
+-      GST_DEBUG_OBJECT (self,
+-          "Setting output state: format %s (%d), width %u, height %u",
+-          gst_video_format_to_string (format),
+-          port_def.format.video.eColorFormat,
+-          (guint) port_def.format.video.nFrameWidth,
+-          (guint) port_def.format.video.nFrameHeight);
++      self->input_state->info.par_n = 1; 
++      self->input_state->info.par_d = 1;
+ 
++      GST_DEBUG_OBJECT (self, "Setting output state: format %s, width %d, height %d", gst_video_format_to_string (format), crop_rect->nWidth, crop_rect->nHeight);
+       state = gst_video_decoder_set_output_state (GST_VIDEO_DECODER (self),
+           format, crop_rect->nWidth,
+           crop_rect->nHeight, self->input_state);
+@@ -1695,6 +1821,7 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+       g_assert (i != n);
+ 
+       GST_OMX_BUFFER_POOL (self->out_port_pool)->current_buffer_index = i;
++#ifndef USE_V4L2_BUFFER
+       flow_ret =
+           gst_buffer_pool_acquire_buffer (self->out_port_pool,
+           &outbuf, &params);
+@@ -1712,6 +1839,12 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+             outbuf);
+ 
+       frame->output_buffer = outbuf;
++#else
++      if(buf->omx_buf&&outbuf&&self)
++        printf("buf->omx_buf->pBuffer gstbuffer = %p outbuf->pool = %p self->out_port_pool = %p \n",buf->omx_buf->pBuffer,outbuf->pool,self->out_port_pool);
++      frame->output_buffer = buf->omx_buf->pBuffer;
++#endif
++
+ 
+       flow_ret =
+           gst_video_decoder_finish_frame (GST_VIDEO_DECODER (self), frame);
+@@ -2098,6 +2231,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+   gboolean is_format_change = FALSE;
+   gboolean needs_disable = FALSE;
+   OMX_PARAM_PORTDEFINITIONTYPE port_def;
++  OMX_CONFIG_RECTTYPE crop_rect;
+ 
+   self = GST_OMX_VIDEO_DEC (decoder);
+   klass = GST_OMX_VIDEO_DEC_GET_CLASS (decoder);
+@@ -2148,14 +2282,14 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+ 
+     gst_omx_video_dec_drain (self, FALSE);
+     gst_omx_video_dec_flush (decoder);
+-    gst_omx_port_set_flushing (out_port, 5 * GST_SECOND, TRUE);
++    gst_omx_port_set_flushing (self->dec_out_port, 5 * GST_SECOND, TRUE);
+ 
+     if (klass->cdata.hacks & GST_OMX_HACK_NO_COMPONENT_RECONFIGURE) {
+       GST_VIDEO_DECODER_STREAM_UNLOCK (self);
+       gst_omx_video_dec_stop (GST_VIDEO_DECODER (self));
+       gst_omx_video_dec_close (GST_VIDEO_DECODER (self));
+       GST_VIDEO_DECODER_STREAM_LOCK (self);
+-      //Removing Disable and Enable of output Port in set_format. This is already done via PSC from OMX.
++
+       if (!gst_omx_video_dec_open (GST_VIDEO_DECODER (self)))
+         return FALSE;
+       needs_disable = FALSE;
+@@ -2171,31 +2305,28 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+ 
+       if (gst_omx_port_set_enabled (self->dec_in_port, FALSE) != OMX_ErrorNone)
+         return FALSE;
+-#if 0
+-      if (gst_omx_port_set_enabled (out_port, FALSE) != OMX_ErrorNone)
++      /*if (gst_omx_port_set_enabled (self->dec_out_port, FALSE) != OMX_ErrorNone)
+         return FALSE;
+-#endif
++      */
+       if (gst_omx_port_wait_buffers_released (self->dec_in_port,
+               5 * GST_SECOND) != OMX_ErrorNone)
+         return FALSE;
+-#if 0
+-      if (gst_omx_port_wait_buffers_released (out_port,
++     /* if (gst_omx_port_wait_buffers_released (self->dec_out_port,
+               1 * GST_SECOND) != OMX_ErrorNone)
+         return FALSE;
+-#endif
++     */      
+       if (gst_omx_port_deallocate_buffers (self->dec_in_port) != OMX_ErrorNone)
+         return FALSE;
+-#if 0
+-      if (gst_omx_video_dec_deallocate_output_buffers (self) != OMX_ErrorNone)
++      /*if (gst_omx_video_dec_deallocate_output_buffers (self) != OMX_ErrorNone)
+         return FALSE;
+-#endif
++      */
+       if (gst_omx_port_wait_enabled (self->dec_in_port,
+               1 * GST_SECOND) != OMX_ErrorNone)
+         return FALSE;
+-#if 0
+-      if (gst_omx_port_wait_enabled (out_port, 1 * GST_SECOND) != OMX_ErrorNone)
++      /*if (gst_omx_port_wait_enabled (self->dec_out_port,
++              1 * GST_SECOND) != OMX_ErrorNone)
+         return FALSE;
+-#endif
++      */
+       /* BRN44598 - Disabled the SYNC_POINT Check in handle_frame.
+         Hence, with streams of BRN44592,BRN44453,BRN44288,BRN44282 intial
+         junk frames would go to OMX component for which there would be no 
+@@ -2322,7 +2453,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+               gst_buffer_unmap(buf,&map);
+           }
+       }
+-
++#if 0
+       /* Enable MVC decoding */
+       {
+           OMX_INDEXTYPE index;
+@@ -2333,6 +2464,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+           gst_omx_get_extension_index(self->dec, "OMX.img.index.enableMultiViewDecoding", &index);
+           gst_omx_component_set_parameter(self->dec, index, &enable_multiview);
+       }
++#endif
+   }// IMG specific code ends.
+ #if 0
+   GST_DEBUG_OBJECT (self, "Updating outport port definition");
+@@ -2395,8 +2527,20 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+       /* Need to allocate buffers to reach Idle state */
+       if (gst_omx_port_allocate_buffers (self->dec_in_port) != OMX_ErrorNone)
+         return FALSE;
++
++#ifdef USEV4L2BUFFER
++	  GST_OMX_INIT_STRUCT (&crop_rect);
++	crop_rect.nWidth= port_def.format.video.nFrameWidth;
++	crop_rect.nHeight = port_def.format.video.nFrameWidth;
++	crop_rect.nLeft= 0;
++	crop_rect.nTop= 0;
++
++      if (gst_omx_video_dec_reconfigure_output_port (self,&crop_rect) != OMX_ErrorNone)
++        return FALSE;
++#else
+       if (gst_omx_port_allocate_buffers (self->dec_out_port) != OMX_ErrorNone)
+         return FALSE;
++#endif
+     }
+ 
+     if (gst_omx_component_get_state (self->dec,
+@@ -2548,15 +2692,14 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
+     return GST_FLOW_EOS;
+   }
+ 
++  if (!self->started) {
+   /* BRN44598 - For all the streams of this BRN, only one frame is present.
+      self->started is FALSE for the first frame. But, gst-omx gets
+      GST_VIDEO_CODEC_FRAME_IS_SYNC_POINT (frame) as FALSE for these streams
+      and drops them, the pipeline then hangs as it then doesn't send EOS as
+      well to OMX. Hence, commenting it out to check whether we fail elsewhere
+      because of this check made to false*/
+-
+-  if (!self->started) {
+-#if 0 // Todo.
++#if 0
+     if (!GST_VIDEO_CODEC_FRAME_IS_SYNC_POINT (frame)) {
+       gst_video_decoder_drop_frame (GST_VIDEO_DECODER (self), frame);
+       return GST_FLOW_OK;
+diff --git a/omx/gstomxvideodec.h b/omx/gstomxvideodec.h
+index a3883d9..539a61e 100644
+--- a/omx/gstomxvideodec.h
++++ b/omx/gstomxvideodec.h
+@@ -87,6 +87,8 @@ struct _GstOMXVideoDec
+   GstOMXPort *egl_in_port, *egl_out_port;
+   gboolean eglimage;
+ #endif
++  gboolean use_v4l2_buffers;
++
+ 
+   gint x_scale;
+   gint y_scale;
+-- 
+1.9.1
+

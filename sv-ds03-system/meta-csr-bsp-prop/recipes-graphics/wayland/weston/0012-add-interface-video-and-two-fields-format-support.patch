@@ -1,0 +1,56 @@
+From 02353a9479e379d0433c6591e56bc991aa6e2d4c Mon Sep 17 00:00:00 2001
+From: Lihui <lwen@qti.qualcomm.com>
+Date: Tue, 15 Dec 2015 17:26:11 +0800
+Subject: [PATCH] add interface video and two fields format support
+
+Change-Id: I47dbcc5beb84b9afdbd586b6291b514369b97ba1
+Signed-off-by: Lihui <lwen@qti.qualcomm.com>
+---
+ src/gl-renderer.c | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/src/gl-renderer.c b/src/gl-renderer.c
+index 6889dd6..b5f6019 100644
+--- a/src/gl-renderer.c
++++ b/src/gl-renderer.c
+@@ -1399,6 +1399,13 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer,
+ 		egl_format = EGL_TEXTURE_NV12_VXD;
+ 		gl_pixel_type = GL_UNSIGNED_BYTE;
+ 		break;
++	case WL_SHM_FORMAT_NV12_VXD_INTERLACED:
++		gs->shader = &gr->texture_shader_egl_external;
++		pitch =  egl_stride;
++		gl_format = GL_RGB;
++		egl_format = EGL_TEXTURE_NV12_VXD;
++		gl_pixel_type = GL_UNSIGNED_BYTE;
++		break;
+ 	case WL_SHM_FORMAT_YUYV:
+ 		gs->shader = &gr->texture_shader_egl_external;
+ 		pitch =  egl_stride / 2;
+@@ -1406,6 +1413,13 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer,
+ 		egl_format = EGL_TEXTURE_YUYV;
+ 		gl_pixel_type = GL_UNSIGNED_BYTE;
+ 		break;
++	case WL_SHM_FORMAT_YUYV_TWO_FIELDS:
++		gs->shader = &gr->texture_shader_egl_external;
++		pitch =  egl_stride / 2;
++		gl_format = GL_RGB;
++		egl_format = EGL_TEXTURE_YUYV;
++		gl_pixel_type = GL_UNSIGNED_BYTE;
++		break;
+ 	default:
+ 		weston_log("warning: unknown shm buffer format: %08x\n",
+ 			   wl_shm_buffer_get_format(shm_buffer));
+@@ -2582,7 +2596,9 @@ gl_renderer_create(struct weston_compositor *ec, EGLenum platform,
+ 
+ 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_RGB565);
+ 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_NV12_VXD);
++	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_NV12_VXD_INTERLACED);
+ 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_YUYV);
++	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_YUYV_TWO_FIELDS);
+ 
+ 	wl_signal_init(&gr->destroy_signal);
+ 
+-- 
+1.9.1
+

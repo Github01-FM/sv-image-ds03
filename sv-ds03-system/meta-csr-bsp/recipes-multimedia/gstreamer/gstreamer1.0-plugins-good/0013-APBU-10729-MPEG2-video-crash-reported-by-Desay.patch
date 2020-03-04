@@ -1,0 +1,68 @@
+From a589975890398e7081b37524ba674979828c0212 Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Thu, 31 Dec 2015 09:25:20 +0800
+Subject: [PATCH 13/31] APBU-10729: MPEG2 video crash reported by Desay
+
+  1. Remove interlaced caps from v4l2 sink, so that progressive and interlaced video
+     can both connect to v4l2 sink
+
+  2. Check interlaced flag from gstbuffer then set it to v4l2 buffer's field, v4l2
+     driver will process the video according to this flag.
+
+Change-Id: Id7d0a3495db277d4caf39cc26e1ac9a402c801fb
+Signed-off-by: Xiaofeng Fei <xfei@codeaurora.org>
+---
+ sys/v4l2/gstv4l2bufferpool.c | 12 +++++++++++-
+ sys/v4l2/gstv4l2object.c     |  6 ++++++
+ 2 files changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/sys/v4l2/gstv4l2bufferpool.c b/sys/v4l2/gstv4l2bufferpool.c
+index baf1ae1..7efc070 100644
+--- a/sys/v4l2/gstv4l2bufferpool.c
++++ b/sys/v4l2/gstv4l2bufferpool.c
+@@ -1082,7 +1082,7 @@ gst_v4l2_buffer_pool_qbuf (GstV4l2BufferPool * pool, GstBuffer * buf)
+ 
+   if (V4L2_TYPE_IS_OUTPUT (obj->type)) {
+     enum v4l2_field field;
+-
++#if 0
+     /* Except when field is set to alternate, buffer field is the same as
+      * the one defined in format */
+     if (V4L2_TYPE_IS_MULTIPLANAR (obj->type))
+@@ -1098,6 +1098,16 @@ gst_v4l2_buffer_pool_qbuf (GstV4l2BufferPool * pool, GstBuffer * buf)
+       else
+         field = V4L2_FIELD_BOTTOM;
+     }
++#endif
++
++    if (GST_BUFFER_FLAG_IS_SET(buf, GST_VIDEO_BUFFER_FLAG_INTERLACED)) {
++      if (GST_BUFFER_FLAG_IS_SET(buf, GST_VIDEO_BUFFER_FLAG_TFF)) {
++        field = V4L2_FIELD_INTERLACED_TB;
++      }
++      else {
++        field = V4L2_FIELD_INTERLACED_BT;
++      }
++    }
+ 
+     group->buffer.field = field;
+   }
+diff --git a/sys/v4l2/gstv4l2object.c b/sys/v4l2/gstv4l2object.c
+index d457377..9acc2a2 100644
+--- a/sys/v4l2/gstv4l2object.c
++++ b/sys/v4l2/gstv4l2object.c
+@@ -1888,6 +1888,12 @@ gst_v4l2_object_add_interlace_mode (GstV4l2Object * v4l2object,
+     return;
+   }
+ 
++  /* Remove inerlaced check from sink caps, so that progressive & mixed video both
++     can link to v4l2 driver */
++  if (v4l2object->type == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
++    return;
++  }
++
+   g_value_init (&interlace_formats, GST_TYPE_LIST);
+ 
+   /* Try twice - once for NONE, once for INTERLACED. */
+-- 
+1.9.1
+

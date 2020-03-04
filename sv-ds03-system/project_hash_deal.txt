@@ -1,0 +1,14 @@
+current_project_hash d9c7d0f
+need_integrate_hash 0b4d705 081a2ba
+need_to_submit
+need_to_release 1
+version_number AS23_NAVI_10.1_16G_01_20190617 carplay
+need_to_compile 1
+
+---------------------------
+current_project_hash:
+need_integrate_hash:
+need_to_submit:
+need_to_release: 1:release; other: no release
+version_number: Specifies the version number
+need_to_compile: Is not enabled

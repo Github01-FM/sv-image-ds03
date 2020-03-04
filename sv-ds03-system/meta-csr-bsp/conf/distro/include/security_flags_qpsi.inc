@@ -1,0 +1,3 @@
+SECURITY_CFLAGS_pn-bash = "${SECURITY_NO_PIE_CFLAGS}"
+SECURITY_LDFLAGS_pn-synergy = ""
+SECURITY_CFLAGS_pn-synergy = ""

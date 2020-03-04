@@ -1,0 +1,125 @@
+diff -Naur DirectFB-1.7.4/gfxdrivers/sirfsoc/g2d/g2d.c working/gfxdrivers/sirfsoc/g2d/g2d.c
+--- DirectFB-1.7.4/gfxdrivers/sirfsoc/g2d/g2d.c	2016-04-11 09:47:39.901952155 +0800
++++ working/gfxdrivers/sirfsoc/g2d/g2d.c	2016-04-19 16:58:38.240970327 +0800
+@@ -1,5 +1,5 @@
+ /*
+-   Copyright (c) 2011 Cambridge Silicon Radio Limited, a CSR plc group company.
++   Copyright (c) [2011, 2016], The Linux Foundation.
+ 
+    All rights reserved.
+ 
+@@ -66,6 +66,7 @@
+ 	ctx->parms.src.width = surf->w;
+ 	ctx->parms.src.height = surf->h;
+ 	ctx->parms.src.format = surf->fmt;
++	ctx->parms.src.field = surf->field;
+ }
+ 
+ void g2dSetDstBuf(size_t hdr, struct g2d_surface *surf)
+@@ -77,6 +78,7 @@
+ 	ctx->parms.dst.width = surf->w;
+ 	ctx->parms.dst.height = surf->h;
+ 	ctx->parms.dst.format = surf->fmt;
++	ctx->parms.dst.field = surf->field;
+ }
+ 
+ void g2dFillRect(size_t hdr, uint32_t color, struct sirf_g2d_rect_wh *rect)
+diff -Naur DirectFB-1.7.4/gfxdrivers/sirfsoc/g2d/g2d.h working/gfxdrivers/sirfsoc/g2d/g2d.h
+--- DirectFB-1.7.4/gfxdrivers/sirfsoc/g2d/g2d.h	2016-04-11 09:47:39.897951990 +0800
++++ working/gfxdrivers/sirfsoc/g2d/g2d.h	2016-04-19 16:59:00.362396872 +0800
+@@ -1,5 +1,5 @@
+ /*
+-   Copyright (c) 2011 Cambridge Silicon Radio Limited, a CSR plc group company.
++   Copyright (c) [2011, 2016], The Linux Foundation.
+ 
+    All rights reserved.
+ 
+@@ -41,6 +41,7 @@
+ 	uint32_t w;
+ 	uint32_t h;
+ 	uint32_t fmt;
++	uint32_t field;
+ };
+ 
+ void g2dSetGlobal(size_t hdr, struct g2d_global *params);
+diff -Naur DirectFB-1.7.4/gfxdrivers/sirfsoc/g2d/g2d_int.h working/gfxdrivers/sirfsoc/g2d/g2d_int.h
+--- DirectFB-1.7.4/gfxdrivers/sirfsoc/g2d/g2d_int.h	2016-04-11 09:47:39.913952720 +0800
++++ working/gfxdrivers/sirfsoc/g2d/g2d_int.h	2016-04-19 16:59:16.547448636 +0800
+@@ -1,5 +1,5 @@
+ /*
+-   Copyright (c) 2011 Cambridge Silicon Radio Limited, a CSR plc group company.
++   Copyright (c) [2011, 2016], The Linux Foundation.
+ 
+    All rights reserved.
+ 
+diff -Naur DirectFB-1.7.4/gfxdrivers/sirfsoc/g2d/sirfsoc_g2d.h working/gfxdrivers/sirfsoc/g2d/sirfsoc_g2d.h
+--- DirectFB-1.7.4/gfxdrivers/sirfsoc/g2d/sirfsoc_g2d.h	2016-04-11 09:47:39.913952720 +0800
++++ working/gfxdrivers/sirfsoc/g2d/sirfsoc_g2d.h	2016-04-19 16:59:52.061753137 +0800
+@@ -1,5 +1,5 @@
+ /*
+-   Copyright (c) 2011 Cambridge Silicon Radio Limited, a CSR plc group company.
++   Copyright (c) [2011, 2016], The Linux Foundation.
+ 
+    All rights reserved.
+ 
+@@ -59,6 +59,8 @@
+ #define G2D_BLT_COLOR_FILL		0x00001000
+ /* wait blt to complete */
+ #define G2D_BLT_WAIT_COMPLETE		0x00100000
++/* enable clip*/
++#define G2D_BLT_CLIP_ENABLE		0x00002000
+ 
+ /* Memory type */
+ #define G2D_MEM_ADDR 0
+@@ -71,17 +73,28 @@
+ 	G2D_ABGR8888,
+ 	G2D_RGB565,
+ 
+-	G2D_YUYV,      /* this format is not support yet */
+-	G2D_YVYU,      /* this format is not support yet */
+-	G2D_UYVY,      /* this format is not support yet */
+-	G2D_VYUY,      /* this format is not support yet */
+-
+ 	/* the following format isn't for g2d but vpp. */
+-	G2D_EX_I_YUV420 = 0x10000,
+-	G2D_EX_I_YUV422,
+-	G2D_EX_O_RGBX888,
+-	G2D_EX_O_BGRX888,
+-	G2D_MAX,
++	G2D_EX_YUYV = 0x10000,
++	G2D_EX_YVYU,
++	G2D_EX_UYVY,
++	G2D_EX_VYUY,
++	G2D_EX_NV12,
++	G2D_EX_NV21,
++	G2D_EX_YV12,
++	G2D_EX_I420,
++	G2D_EX_BGRX8880,
++};
++
++/* field type isn't for g2d but vpp */
++enum g2d_ex_field {
++	G2D_EX_FIELD_NONE = 0, /* no field*/
++	G2D_EX_FIELD_SEQ_TB, /* both fields sequential into
++				one buffer, top-bottom order */
++	G2D_EX_FIELD_SEQ_BT, /* same as above + bottom-top order */
++	G2D_EX_FIELD_INTERLACED_TB, /*both fields interlaced, top
++				field is transmitted first */
++	G2D_EX_FIELD_INTERLACED_BT, /* same as above + bottom field
++				is transmitted first */
+ };
+ 
+ struct sirf_g2d_rect {
+@@ -101,9 +114,10 @@
+ struct sirf_g2d_surface {
+ 	u_int32_t paddr; /* destination memory */
+ 	u_int32_t bpp;
+-	u_int32_t format; /* dest format */
++	enum g2d_format format; /* dest format */
+ 	u_int32_t width; /* size of dest surface in pixels */
+ 	u_int32_t height; /* size of dest surface in pixels */
++	enum g2d_ex_field field;
+ };
+ 
+ struct sirf_g2d_bltparams {
+

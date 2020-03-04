@@ -1,0 +1,4414 @@
+diff --git a/.gitignore b/.gitignore
+index 8f673a0..148de45 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -6,11 +6,9 @@
+ *~
+ *.orig
+ *.rej
+-Makefile
+ Makefile.in
+ aclocal.m4
+ autom4te.cache
+-config.*
+ depcomp
+ configure
+ *.rules
+diff --git a/Makefile b/Makefile
+new file mode 100644
+index 0000000..4dfd21e
+--- /dev/null
++++ b/Makefile
+@@ -0,0 +1,18 @@
++all: libmtphost.so.1.0
++
++CFLAGS	+=  -fpic -shared
++
++PWD = $(shell pwd)
++
++OBJS := src/libmtp.c \
++    		src/libusb1-glue.c \
++		src/playlist-spl.c \
++		src/ptp.c \
++		src/unicode.c \
++		src/util.c \
++
++INCLUDES := -I$(PWD) -I$(PWD)/src/
++LLIBS := -lusb-1.0 -lpthread -lc -lglibmtp
++
++libmtphost.so.1.0 : $(OBJS)
++	$(CC) $(CFLAGS) $(LDFLAGS) $(INCLUDES) -L/lib $(LLIBS) $^ -Wl,-soname -Wl,libmtphost.so.1 -o libmtphost.so.1.0
+diff --git a/config.h b/config.h
+new file mode 100644
+index 0000000..a067e14
+--- /dev/null
++++ b/config.h
+@@ -0,0 +1,211 @@
++/* config.h.  Generated from config.h.in by configure.  */
++/* config.h.in.  Generated from configure.ac by autoheader.  */
++
++/* Define if building universal (internal helper macro) */
++/* #undef AC_APPLE_UNIVERSAL_BUILD */
++
++/* Define to 1 if you have the <arpa/inet.h> header file. */
++#define HAVE_ARPA_INET_H 1
++
++/* Define to 1 if you have the `basename' function. */
++#define HAVE_BASENAME 1
++
++/* Define to 1 if you have the <byteswap.h> header file. */
++#define HAVE_BYTESWAP_H 1
++
++/* Define to 1 if you have the <ctype.h> header file. */
++#define HAVE_CTYPE_H 1
++
++/* Define to 1 if you have the <dlfcn.h> header file. */
++#define HAVE_DLFCN_H 1
++
++/* Define to 1 if you have the <errno.h> header file. */
++#define HAVE_ERRNO_H 1
++
++/* Define to 1 if you have the <fcntl.h> header file. */
++#define HAVE_FCNTL_H 1
++
++/* Define to 1 if you have the <getopt.h> header file. */
++#define HAVE_GETOPT_H 1
++
++/* Define if you have the iconv() function and it works. */
++#define HAVE_ICONV 1
++
++/* Define to 1 if you have the <inttypes.h> header file. */
++#define HAVE_INTTYPES_H 1
++
++/* Define to 1 if you have the <langinfo.h> header file. */
++#define HAVE_LANGINFO_H 1
++
++/* Define to 1 if you have the `gcrypt' library (-lgcrypt). */
++/* #undef HAVE_LIBGCRYPT */
++
++/* Define to 1 if you have the <libgen.h> header file. */
++#define HAVE_LIBGEN_H 1
++
++/* Have libusb 0.x */
++/* #undef HAVE_LIBUSB0 */
++
++/* Have libusb 1.0 */
++#define HAVE_LIBUSB1 /**/
++
++/* Define to 1 if you have the <limits.h> header file. */
++#define HAVE_LIMITS_H 1
++
++/* Define to 1 if you have the <locale.h> header file. */
++#define HAVE_LOCALE_H 1
++
++/* Define to 1 if your system has a GNU libc compatible `malloc' function, and
++   to 0 otherwise. */
++#define HAVE_MALLOC 1
++
++/* Define to 1 if you have the <memory.h> header file. */
++#define HAVE_MEMORY_H 1
++
++/* Define to 1 if you have the `memset' function. */
++#define HAVE_MEMSET 1
++
++/* Define to 1 if you have the `mkstemp' function. */
++#define HAVE_MKSTEMP 1
++
++/* Have libopenusb 1.0 */
++/* #undef HAVE_OPENUSB */
++
++/* Define to 1 if you have the `select' function. */
++#define HAVE_SELECT 1
++
++/* Define to 1 if `stat' has the bug that it succeeds when given the
++   zero-length file name argument. */
++/* #undef HAVE_STAT_EMPTY_STRING_BUG */
++
++/* Define to 1 if you have the <stdint.h> header file. */
++#define HAVE_STDINT_H 1
++
++/* Define to 1 if you have the <stdio.h> header file. */
++#define HAVE_STDIO_H 1
++
++/* Define to 1 if you have the <stdlib.h> header file. */
++#define HAVE_STDLIB_H 1
++
++/* Define to 1 if you have the `strdup' function. */
++#define HAVE_STRDUP 1
++
++/* Define to 1 if you have the `strerror' function. */
++#define HAVE_STRERROR 1
++
++/* Define to 1 if you have the <strings.h> header file. */
++#define HAVE_STRINGS_H 1
++
++/* Define to 1 if you have the <string.h> header file. */
++#define HAVE_STRING_H 1
++
++/* Define to 1 if you have the `strndup' function. */
++#define HAVE_STRNDUP 1
++
++/* Define to 1 if you have the `strrchr' function. */
++#define HAVE_STRRCHR 1
++
++/* Define to 1 if you have the `strtoul' function. */
++#define HAVE_STRTOUL 1
++
++/* Define to 1 if `st_blksize' is a member of `struct stat'. */
++#define HAVE_STRUCT_STAT_ST_BLKSIZE 1
++
++/* Define to 1 if your `struct stat' has `st_blksize'. Deprecated, use
++   `HAVE_STRUCT_STAT_ST_BLKSIZE' instead. */
++#define HAVE_ST_BLKSIZE 1
++
++/* Define to 1 if you have the <sys/stat.h> header file. */
++#define HAVE_SYS_STAT_H 1
++
++/* Define to 1 if you have the <sys/time.h> header file. */
++#define HAVE_SYS_TIME_H 1
++
++/* Define to 1 if you have the <sys/types.h> header file. */
++#define HAVE_SYS_TYPES_H 1
++
++/* Define to 1 if you have the <sys/uio.h> header file. */
++#define HAVE_SYS_UIO_H 1
++
++/* Define to 1 if you have the <unistd.h> header file. */
++#define HAVE_UNISTD_H 1
++
++/* Define to 1 if you have the `usleep' function. */
++#define HAVE_USLEEP 1
++
++/* Define as const if the declaration of iconv() needs const. */
++#define ICONV_CONST 
++
++/* Define to 1 if `lstat' dereferences a symlink specified with a trailing
++   slash. */
++#define LSTAT_FOLLOWS_SLASHED_SYMLINK 1
++
++/* Define to the sub-directory in which libtool stores uninstalled libraries.
++   */
++#define LT_OBJDIR ".libs/"
++
++/* Name of package */
++#define PACKAGE "libmtp"
++
++/* Define to the address where bug reports for this package should be sent. */
++#define PACKAGE_BUGREPORT "libmtp-discuss@lists.sourceforge.net"
++
++/* Define to the full name of this package. */
++#define PACKAGE_NAME "libmtp"
++
++/* Define to the full name and version of this package. */
++#define PACKAGE_STRING "libmtp 1.1.6"
++
++/* Define to the one symbol short name of this package. */
++#define PACKAGE_TARNAME "libmtp"
++
++/* Define to the home page for this package. */
++#define PACKAGE_URL ""
++
++/* Define to the version of this package. */
++#define PACKAGE_VERSION "1.1.6"
++
++/* Define as the return type of signal handlers (`int' or `void'). */
++#define RETSIGTYPE void
++
++/* Define to 1 if you have the ANSI C header files. */
++#define STDC_HEADERS 1
++
++/* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
++#define TIME_WITH_SYS_TIME 1
++
++/* Enable MTPZ functionality */
++/* #undef USE_MTPZ */
++
++/* Version number of package */
++#define VERSION "1.1.6"
++
++/* Define WORDS_BIGENDIAN to 1 if your processor stores words with the most
++   significant byte first (like Motorola and SPARC, unlike Intel). */
++#if defined AC_APPLE_UNIVERSAL_BUILD
++# if defined __BIG_ENDIAN__
++#  define WORDS_BIGENDIAN 1
++# endif
++#else
++# ifndef WORDS_BIGENDIAN
++/* #  undef WORDS_BIGENDIAN */
++# endif
++#endif
++
++/* Number of bits in a file offset, on hosts where this is settable. */
++#define _FILE_OFFSET_BITS 64
++
++/* Define for large files, on AIX-style hosts. */
++/* #undef _LARGE_FILES */
++
++/* Define to empty if `const' does not conform to ANSI C. */
++/* #undef const */
++
++/* Define to rpl_malloc if the replacement function should be used. */
++/* #undef malloc */
++
++/* Define to `long int' if <sys/types.h> does not define. */
++/* #undef off_t */
++
++/* Define to `unsigned int' if <sys/types.h> does not define. */
++/* #undef size_t */
+diff --git a/iconv.h b/iconv.h
+new file mode 100644
+index 0000000..69dfafd
+--- /dev/null
++++ b/iconv.h
+@@ -0,0 +1,249 @@
++/* Copyright (C) 1999-2003, 2005-2006, 2008-2011 Free Software Foundation, Inc.
++   Copyright (c) 2013 - 2015 The Linux Foundation. All rights reserved.
++   This file is part of the GNU LIBICONV Library.
++
++   The GNU LIBICONV Library is free software; you can redistribute it
++   and/or modify it under the terms of the GNU Library General Public
++   License as published by the Free Software Foundation; either version 2
++   of the License, or (at your option) any later version.
++
++   The GNU LIBICONV Library is distributed in the hope that it will be
++   useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Library General Public License for more details.
++
++   You should have received a copy of the GNU Library General Public
++   License along with the GNU LIBICONV Library; see the file COPYING.LIB.
++   If not, write to the Free Software Foundation, Inc., 51 Franklin Street,
++   Fifth Floor, Boston, MA 02110-1301, USA.  */
++
++/* When installed, this file is called "iconv.h". */
++
++#ifndef _LIBICONV_H
++#define _LIBICONV_H
++
++#define _LIBICONV_VERSION 0x010E    /* version number: (major<<8) + minor */
++
++#if 1 && BUILDING_LIBICONV
++#define LIBICONV_DLL_EXPORTED __attribute__((__visibility__("default")))
++#else
++#define LIBICONV_DLL_EXPORTED
++#endif
++extern LIBICONV_DLL_EXPORTED  int _libiconv_version; /* Likewise */
++
++/* We would like to #include any system header file which could define
++   iconv_t, 1. in order to eliminate the risk that the user gets compilation
++   errors because some other system header file includes /usr/include/iconv.h
++   which defines iconv_t or declares iconv after this file, 2. when compiling
++   for LIBICONV_PLUG, we need the proper iconv_t type in order to produce
++   binary compatible code.
++   But gcc's #include_next is not portable. Thus, once libiconv's iconv.h
++   has been installed in /usr/local/include, there is no way any more to
++   include the original /usr/include/iconv.h. We simply have to get away
++   without it.
++   Ad 1. The risk that a system header file does
++   #include "iconv.h"  or  #include_next "iconv.h"
++   is small. They all do #include <iconv.h>.
++   Ad 2. The iconv_t type is a pointer type in all cases I have seen. (It
++   has to be a scalar type because (iconv_t)(-1) is a possible return value
++   from iconv_open().) */
++
++/* Define iconv_t ourselves. */
++#undef iconv_t
++#define iconv_t libiconv_t
++typedef void* iconv_t;
++
++/* Get size_t declaration.
++   Get wchar_t declaration if it exists. */
++#include <stddef.h>
++
++/* Get errno declaration and values. */
++#include <errno.h>
++/* Some systems, like SunOS 4, don't have EILSEQ. Some systems, like BSD/OS,
++   have EILSEQ in a different header.  On these systems, define EILSEQ
++   ourselves. */
++#ifndef EILSEQ
++#define EILSEQ 
++#endif
++
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++
++/* Allocates descriptor for code conversion from encoding ‘fromcode’ to
++   encoding ‘tocode’. */
++#ifndef LIBICONV_PLUG
++#define iconv_open libiconv_open
++#endif
++extern LIBICONV_DLL_EXPORTED iconv_t iconv_open (const char* tocode, const char* fromcode);
++
++/* Converts, using conversion descriptor ‘cd’, at most ‘*inbytesleft’ bytes
++   starting at ‘*inbuf’, writing at most ‘*outbytesleft’ bytes starting at
++   ‘*outbuf’.
++   Decrements ‘*inbytesleft’ and increments ‘*inbuf’ by the same amount.
++   Decrements ‘*outbytesleft’ and increments ‘*outbuf’ by the same amount. */
++#ifndef LIBICONV_PLUG
++#define iconv libiconv
++#endif
++extern LIBICONV_DLL_EXPORTED size_t iconv (iconv_t cd,  char* * inbuf, size_t *inbytesleft, char* * outbuf, size_t *outbytesleft);
++
++/* Frees resources allocated for conversion descriptor ‘cd’. */
++#ifndef LIBICONV_PLUG
++#define iconv_close libiconv_close
++#endif
++extern LIBICONV_DLL_EXPORTED int iconv_close (iconv_t cd);
++
++
++#ifdef __cplusplus
++}
++#endif
++
++
++#ifndef LIBICONV_PLUG
++
++/* Nonstandard extensions. */
++
++#if 1
++#if 0
++/* Tru64 with Desktop Toolkit C has a bug: <stdio.h> must be included before
++   <wchar.h>.
++   BSD/OS 4.0.1 has a bug: <stddef.h>, <stdio.h> and <time.h> must be
++   included before <wchar.h>.  */
++#include <stddef.h>
++#include <stdio.h>
++#include <time.h>
++#endif
++#include <wchar.h>
++#endif
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++/* A type that holds all memory needed by a conversion descriptor.
++   A pointer to such an object can be used as an iconv_t. */
++typedef struct {
++  void* dummy1[28];
++#if 1
++  mbstate_t dummy2;
++#endif
++} iconv_allocation_t;
++
++/* Allocates descriptor for code conversion from encoding ‘fromcode’ to
++   encoding ‘tocode’ into preallocated memory. Returns an error indicator
++   (0 or -1 with errno set). */
++#define iconv_open_into libiconv_open_into
++extern LIBICONV_DLL_EXPORTED int iconv_open_into (const char* tocode, const char* fromcode,
++                            iconv_allocation_t* resultp);
++
++/* Control of attributes. */
++#define iconvctl libiconvctl
++extern LIBICONV_DLL_EXPORTED int iconvctl (iconv_t cd, int request, void* argument);
++
++/* Hook performed after every successful conversion of a Unicode character. */
++typedef void (*iconv_unicode_char_hook) (unsigned int uc, void* data);
++/* Hook performed after every successful conversion of a wide character. */
++typedef void (*iconv_wide_char_hook) (wchar_t wc, void* data);
++/* Set of hooks. */
++struct iconv_hooks {
++  iconv_unicode_char_hook uc_hook;
++  iconv_wide_char_hook wc_hook;
++  void* data;
++};
++
++/* Fallback function.  Invoked when a small number of bytes could not be
++   converted to a Unicode character.  This function should process all
++   bytes from inbuf and may produce replacement Unicode characters by calling
++   the write_replacement callback repeatedly.  */
++typedef void (*iconv_unicode_mb_to_uc_fallback)
++             (const char* inbuf, size_t inbufsize,
++              void (*write_replacement) (const unsigned int *buf, size_t buflen,
++                                         void* callback_arg),
++              void* callback_arg,
++              void* data);
++/* Fallback function.  Invoked when a Unicode character could not be converted
++   to the target encoding.  This function should process the character and
++   may produce replacement bytes (in the target encoding) by calling the
++   write_replacement callback repeatedly.  */
++typedef void (*iconv_unicode_uc_to_mb_fallback)
++             (unsigned int code,
++              void (*write_replacement) (const char *buf, size_t buflen,
++                                         void* callback_arg),
++              void* callback_arg,
++              void* data);
++#if 1
++/* Fallback function.  Invoked when a number of bytes could not be converted to
++   a wide character.  This function should process all bytes from inbuf and may
++   produce replacement wide characters by calling the write_replacement
++   callback repeatedly.  */
++typedef void (*iconv_wchar_mb_to_wc_fallback)
++             (const char* inbuf, size_t inbufsize,
++              void (*write_replacement) (const wchar_t *buf, size_t buflen,
++                                         void* callback_arg),
++              void* callback_arg,
++              void* data);
++/* Fallback function.  Invoked when a wide character could not be converted to
++   the target encoding.  This function should process the character and may
++   produce replacement bytes (in the target encoding) by calling the
++   write_replacement callback repeatedly.  */
++typedef void (*iconv_wchar_wc_to_mb_fallback)
++             (wchar_t code,
++              void (*write_replacement) (const char *buf, size_t buflen,
++                                         void* callback_arg),
++              void* callback_arg,
++              void* data);
++#else
++/* If the wchar_t type does not exist, these two fallback functions are never
++   invoked.  Their argument list therefore does not matter.  */
++typedef void (*iconv_wchar_mb_to_wc_fallback) ();
++typedef void (*iconv_wchar_wc_to_mb_fallback) ();
++#endif
++/* Set of fallbacks. */
++struct iconv_fallbacks {
++  iconv_unicode_mb_to_uc_fallback mb_to_uc_fallback;
++  iconv_unicode_uc_to_mb_fallback uc_to_mb_fallback;
++  iconv_wchar_mb_to_wc_fallback mb_to_wc_fallback;
++  iconv_wchar_wc_to_mb_fallback wc_to_mb_fallback;
++  void* data;
++};
++
++/* Requests for iconvctl. */
++#define ICONV_TRIVIALP            0  /* int *argument */
++#define ICONV_GET_TRANSLITERATE   1  /* int *argument */
++#define ICONV_SET_TRANSLITERATE   2  /* const int *argument */
++#define ICONV_GET_DISCARD_ILSEQ   3  /* int *argument */
++#define ICONV_SET_DISCARD_ILSEQ   4  /* const int *argument */
++#define ICONV_SET_HOOKS           5  /* const struct iconv_hooks *argument */
++#define ICONV_SET_FALLBACKS       6  /* const struct iconv_fallbacks *argument */
++
++/* Listing of locale independent encodings. */
++#define iconvlist libiconvlist
++extern LIBICONV_DLL_EXPORTED void iconvlist (int (*do_one) (unsigned int namescount,
++                                      const char * const * names,
++                                      void* data),
++                       void* data);
++
++/* Canonicalize an encoding name.
++   The result is either a canonical encoding name, or name itself. */
++extern LIBICONV_DLL_EXPORTED const char * iconv_canonicalize (const char * name);
++
++/* Support for relocatable packages.  */
++
++/* Sets the original and the current installation prefix of the package.
++   Relocation simply replaces a pathname starting with the original prefix
++   by the corresponding pathname with the current prefix instead.  Both
++   prefixes should be directory names without trailing slash (i.e. use ""
++   instead of "/").  */
++extern LIBICONV_DLL_EXPORTED void libiconv_set_relocation_prefix (const char *orig_prefix,
++                                            const char *curr_prefix);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif
++
++
++#endif /* _LIBICONV_H */
+diff --git a/libusb.h b/libusb.h
+new file mode 100644
+index 0000000..1c0bb23
+--- /dev/null
++++ b/libusb.h
+@@ -0,0 +1,1202 @@
++/*
++ * Public libusb header file
++ * Copyright (C) 2007-2008 Daniel Drake <dsd@gentoo.org>
++ * Copyright (c) 2001 Johannes Erdfelt <johannes@erdfelt.com>
++ * Copyright (c) 2013 - 2015 The Linux Foundation. All rights reserved.
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#ifndef __LIBUSB_H__
++#define __LIBUSB_H__
++
++#include <endian.h>
++#include <stdint.h>
++#include <sys/time.h>
++#include <sys/types.h>
++#include <time.h>
++
++#define bswap16(x) (((x & 0xff) << 8) | (x >> 8))
++#if __BYTE_ORDER == __LITTLE_ENDIAN
++#define libusb_cpu_to_le16(x) (x)
++#define libusb_le16_to_cpu(x) (x)
++#elif __BYTE_ORDER == __BIG_ENDIAN
++#define libusb_le16_to_cpu(x) bswap16(x)
++#define libusb_cpu_to_le16(x) bswap16(x)
++#else
++#error "Unrecognized endianness"
++#endif
++
++/** \def libusb_cpu_to_le16
++ * \ingroup misc
++ * Convert a 16-bit value from host-endian to little-endian format. On
++ * little endian systems, this function does nothing. On big endian systems,
++ * the bytes are swapped.
++ * \param x the host-endian value to convert
++ * \returns the value in little-endian byte order
++ */
++
++/** \def libusb_le16_to_cpu
++ * \ingroup misc
++ * Convert a 16-bit value from little-endian to host-endian format. On
++ * little endian systems, this function does nothing. On big endian systems,
++ * the bytes are swapped.
++ * \param x the little-endian value to convert
++ * \returns the value in host-endian byte order
++ */
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++/* standard USB stuff */
++
++/** \ingroup desc
++ * Device and/or Interface Class codes */
++enum libusb_class_code {
++	/** In the context of a \ref libusb_device_descriptor "device descriptor",
++	 * this bDeviceClass value indicates that each interface specifies its
++	 * own class information and all interfaces operate independently.
++	 */
++	LIBUSB_CLASS_PER_INTERFACE = 0,
++
++	/** Audio class */
++	LIBUSB_CLASS_AUDIO = 1,
++
++	/** Communications class */
++	LIBUSB_CLASS_COMM = 2,
++
++	/** Human Interface Device class */
++	LIBUSB_CLASS_HID = 3,
++
++	/** Printer dclass */
++	LIBUSB_CLASS_PRINTER = 7,
++
++	/** Picture transfer protocol class */
++	LIBUSB_CLASS_PTP = 6,
++
++	/** Mass storage class */
++	LIBUSB_CLASS_MASS_STORAGE = 8,
++
++	/** Hub class */
++	LIBUSB_CLASS_HUB = 9,
++
++	/** Data class */
++	LIBUSB_CLASS_DATA = 10,
++
++	/** Class is vendor-specific */
++	LIBUSB_CLASS_VENDOR_SPEC = 0xff,
++};
++
++/** \ingroup desc
++ * Descriptor types as defined by the USB specification. */
++enum libusb_descriptor_type {
++	/** Device descriptor. See libusb_device_descriptor. */
++	LIBUSB_DT_DEVICE = 0x01,
++
++	/** Configuration descriptor. See libusb_config_descriptor. */
++	LIBUSB_DT_CONFIG = 0x02,
++
++	/** String descriptor */
++	LIBUSB_DT_STRING = 0x03,
++
++	/** Interface descriptor. See libusb_interface_descriptor. */
++	LIBUSB_DT_INTERFACE = 0x04,
++
++	/** Endpoint descriptor. See libusb_endpoint_descriptor. */
++	LIBUSB_DT_ENDPOINT = 0x05,
++
++	/** HID descriptor */
++	LIBUSB_DT_HID = 0x21,
++
++	/** HID report descriptor */
++	LIBUSB_DT_REPORT = 0x22,
++
++	/** Physical descriptor */
++	LIBUSB_DT_PHYSICAL = 0x23,
++
++	/** Hub descriptor */
++	LIBUSB_DT_HUB = 0x29,
++};
++
++/* Descriptor sizes per descriptor type */
++#define LIBUSB_DT_DEVICE_SIZE			18
++#define LIBUSB_DT_CONFIG_SIZE			9
++#define LIBUSB_DT_INTERFACE_SIZE		9
++#define LIBUSB_DT_ENDPOINT_SIZE		7
++#define LIBUSB_DT_ENDPOINT_AUDIO_SIZE	9	/* Audio extension */
++#define LIBUSB_DT_HUB_NONVAR_SIZE		7
++
++#define LIBUSB_ENDPOINT_ADDRESS_MASK	0x0f    /* in bEndpointAddress */
++#define LIBUSB_ENDPOINT_DIR_MASK		0x80
++
++/** \ingroup desc
++ * Endpoint direction. Values for bit 7 of the
++ * \ref libusb_endpoint_descriptor::bEndpointAddress "endpoint address" scheme.
++ */
++enum libusb_endpoint_direction {
++	/** In: device-to-host */
++	LIBUSB_ENDPOINT_IN = 0x80,
++
++	/** Out: host-to-device */
++	LIBUSB_ENDPOINT_OUT = 0x00,
++};
++
++#define LIBUSB_TRANSFER_TYPE_MASK			0x03    /* in bmAttributes */
++
++/** \ingroup desc
++ * Endpoint transfer type. Values for bits 0:1 of the
++ * \ref libusb_endpoint_descriptor::bmAttributes "endpoint attributes" field.
++ */
++enum libusb_transfer_type {
++	/** Control endpoint */
++	LIBUSB_TRANSFER_TYPE_CONTROL = 0,
++
++	/** Isochronous endpoint */
++	LIBUSB_TRANSFER_TYPE_ISOCHRONOUS = 1,
++
++	/** Bulk endpoint */
++	LIBUSB_TRANSFER_TYPE_BULK = 2,
++
++	/** Interrupt endpoint */
++	LIBUSB_TRANSFER_TYPE_INTERRUPT = 3,
++};
++
++/** \ingroup misc
++ * Standard requests, as defined in table 9-3 of the USB2 specifications */
++enum libusb_standard_request {
++	/** Request status of the specific recipient */
++	LIBUSB_REQUEST_GET_STATUS = 0x00,
++
++	/** Clear or disable a specific feature */
++	LIBUSB_REQUEST_CLEAR_FEATURE = 0x01,
++
++	/* 0x02 is reserved */
++
++	/** Set or enable a specific feature */
++	LIBUSB_REQUEST_SET_FEATURE = 0x03,
++
++	/* 0x04 is reserved */
++
++	/** Set device address for all future accesses */
++	LIBUSB_REQUEST_SET_ADDRESS = 0x05,
++
++	/** Get the specified descriptor */
++	LIBUSB_REQUEST_GET_DESCRIPTOR = 0x06,
++
++	/** Used to update existing descriptors or add new descriptors */
++	LIBUSB_REQUEST_SET_DESCRIPTOR = 0x07,
++
++	/** Get the current device configuration value */
++	LIBUSB_REQUEST_GET_CONFIGURATION = 0x08,
++
++	/** Set device configuration */
++	LIBUSB_REQUEST_SET_CONFIGURATION = 0x09,
++
++	/** Return the selected alternate setting for the specified interface */
++	LIBUSB_REQUEST_GET_INTERFACE = 0x0A,
++
++	/** Select an alternate interface for the specified interface */
++	LIBUSB_REQUEST_SET_INTERFACE = 0x0B,
++
++	/** Set then report an endpoint's synchronization frame */
++	LIBUSB_REQUEST_SYNCH_FRAME = 0x0C,
++};
++
++/** \ingroup misc
++ * Request type bits of the
++ * \ref libusb_control_setup::bmRequestType "bmRequestType" field in control
++ * transfers. */
++enum libusb_request_type {
++	/** Standard */
++	LIBUSB_REQUEST_TYPE_STANDARD = (0x00 << 5),
++
++	/** Class */
++	LIBUSB_REQUEST_TYPE_CLASS = (0x01 << 5),
++
++	/** Vendor */
++	LIBUSB_REQUEST_TYPE_VENDOR = (0x02 << 5),
++
++	/** Reserved */
++	LIBUSB_REQUEST_TYPE_RESERVED = (0x03 << 5),
++};
++
++/** \ingroup misc
++ * Recipient bits of the
++ * \ref libusb_control_setup::bmRequestType "bmRequestType" field in control
++ * transfers. Values 4 through 31 are reserved. */
++enum libusb_request_recipient {
++	/** Device */
++	LIBUSB_RECIPIENT_DEVICE = 0x00,
++
++	/** Interface */
++	LIBUSB_RECIPIENT_INTERFACE = 0x01,
++
++	/** Endpoint */
++	LIBUSB_RECIPIENT_ENDPOINT = 0x02,
++
++	/** Other */
++	LIBUSB_RECIPIENT_OTHER = 0x03,
++};
++
++#define LIBUSB_ISO_SYNC_TYPE_MASK		0x0C
++
++/** \ingroup desc
++ * Synchronization type for isochronous endpoints. Values for bits 2:3 of the
++ * \ref libusb_endpoint_descriptor::bmAttributes "bmAttributes" field in
++ * libusb_endpoint_descriptor.
++ */
++enum libusb_iso_sync_type {
++	/** No synchronization */
++	LIBUSB_ISO_SYNC_TYPE_NONE = 0,
++
++	/** Asynchronous */
++	LIBUSB_ISO_SYNC_TYPE_ASYNC = 1,
++
++	/** Adaptive */
++	LIBUSB_ISO_SYNC_TYPE_ADAPTIVE = 2,
++
++	/** Synchronous */
++	LIBUSB_ISO_SYNC_TYPE_SYNC = 3,
++};
++
++#define LIBUSB_ISO_USAGE_TYPE_MASK 0x30
++
++/** \ingroup desc
++ * Usage type for isochronous endpoints. Values for bits 4:5 of the
++ * \ref libusb_endpoint_descriptor::bmAttributes "bmAttributes" field in
++ * libusb_endpoint_descriptor.
++ */
++enum libusb_iso_usage_type {
++	/** Data endpoint */
++	LIBUSB_ISO_USAGE_TYPE_DATA = 0,
++
++	/** Feedback endpoint */
++	LIBUSB_ISO_USAGE_TYPE_FEEDBACK = 1,
++
++	/** Implicit feedback Data endpoint */
++	LIBUSB_ISO_USAGE_TYPE_IMPLICIT = 2,
++};
++
++/** \ingroup desc
++ * A structure representing the standard USB device descriptor. This
++ * descriptor is documented in section 9.6.1 of the USB 2.0 specification.
++ * All multiple-byte fields are represented in host-endian format.
++ */
++struct libusb_device_descriptor {
++	/** Size of this descriptor (in bytes) */
++	uint8_t  bLength;
++
++	/** Descriptor type. Will have value
++	 * \ref libusb_descriptor_type::LIBUSB_DT_DEVICE LIBUSB_DT_DEVICE in this
++	 * context. */
++	uint8_t  bDescriptorType;
++
++	/** USB specification release number in binary-coded decimal. A value of
++	 * 0x0200 indicates USB 2.0, 0x0110 indicates USB 1.1, etc. */
++	uint16_t bcdUSB;
++
++	/** USB-IF class code for the device. See \ref libusb_class_code. */
++	uint8_t  bDeviceClass;
++
++	/** USB-IF subclass code for the device, qualified by the bDeviceClass
++	 * value */
++	uint8_t  bDeviceSubClass;
++
++	/** USB-IF protocol code for the device, qualified by the bDeviceClass and
++	 * bDeviceSubClass values */
++	uint8_t  bDeviceProtocol;
++
++	/** Maximum packet size for endpoint 0 */
++	uint8_t  bMaxPacketSize0;
++
++	/** USB-IF vendor ID */
++	uint16_t idVendor;
++
++	/** USB-IF product ID */
++	uint16_t idProduct;
++
++	/** Device release number in binary-coded decimal */
++	uint16_t bcdDevice;
++
++	/** Index of string descriptor describing manufacturer */
++	uint8_t  iManufacturer;
++
++	/** Index of string descriptor describing product */
++	uint8_t  iProduct;
++
++	/** Index of string descriptor containing device serial number */
++	uint8_t  iSerialNumber;
++
++	/** Number of possible configurations */
++	uint8_t  bNumConfigurations;
++};
++
++/** \ingroup desc
++ * A structure representing the standard USB endpoint descriptor. This
++ * descriptor is documented in section 9.6.3 of the USB 2.0 specification.
++ * All multiple-byte fields are represented in host-endian format.
++ */
++struct libusb_endpoint_descriptor {
++	/** Size of this descriptor (in bytes) */
++	uint8_t  bLength;
++
++	/** Descriptor type. Will have value
++	 * \ref libusb_descriptor_type::LIBUSB_DT_ENDPOINT LIBUSB_DT_ENDPOINT in
++	 * this context. */
++	uint8_t  bDescriptorType;
++
++	/** The address of the endpoint described by this descriptor. Bits 0:3 are
++	 * the endpoint number. Bits 4:6 are reserved. Bit 7 indicates direction,
++	 * see \ref libusb_endpoint_direction.
++	 */
++	uint8_t  bEndpointAddress;
++
++	/** Attributes which apply to the endpoint when it is configured using
++	 * the bConfigurationValue. Bits 0:1 determine the transfer type and
++	 * correspond to \ref libusb_transfer_type. Bits 2:3 are only used for
++	 * isochronous endpoints and correspond to \ref libusb_iso_sync_type.
++	 * Bits 4:5 are also only used for isochronous endpoints and correspond to
++	 * \ref libusb_iso_usage_type. Bits 6:7 are reserved.
++	 */
++	uint8_t  bmAttributes;
++
++	/** Maximum packet size this endpoint is capable of sending/receiving. */
++	uint16_t wMaxPacketSize;
++
++	/** Interval for polling endpoint for data transfers. */
++	uint8_t  bInterval;
++
++	/** For audio devices only: the rate at which synchronization feedback
++	 * is provided. */
++	uint8_t  bRefresh;
++
++	/** For audio devices only: the address if the synch endpoint */
++	uint8_t  bSynchAddress;
++
++	/** Extra descriptors. If libusb encounters unknown endpoint descriptors,
++	 * it will store them here, should you wish to parse them. */
++	const unsigned char *extra;
++
++	/** Length of the extra descriptors, in bytes. */
++	int extra_length;
++};
++
++/** \ingroup desc
++ * A structure representing the standard USB interface descriptor. This
++ * descriptor is documented in section 9.6.5 of the USB 2.0 specification.
++ * All multiple-byte fields are represented in host-endian format.
++ */
++struct libusb_interface_descriptor {
++	/** Size of this descriptor (in bytes) */
++	uint8_t  bLength;
++
++	/** Descriptor type. Will have value
++	 * \ref libusb_descriptor_type::LIBUSB_DT_INTERFACE LIBUSB_DT_INTERFACE
++	 * in this context. */
++	uint8_t  bDescriptorType;
++
++	/** Number of this interface */
++	uint8_t  bInterfaceNumber;
++
++	/** Value used to select this alternate setting for this interface */
++	uint8_t  bAlternateSetting;
++
++	/** Number of endpoints used by this interface (excluding the control
++	 * endpoint). */
++	uint8_t  bNumEndpoints;
++
++	/** USB-IF class code for this interface. See \ref libusb_class_code. */
++	uint8_t  bInterfaceClass;
++
++	/** USB-IF subclass code for this interface, qualified by the
++	 * bInterfaceClass value */
++	uint8_t  bInterfaceSubClass;
++
++	/** USB-IF protocol code for this interface, qualified by the
++	 * bInterfaceClass and bInterfaceSubClass values */
++	uint8_t  bInterfaceProtocol;
++
++	/** Index of string descriptor describing this interface */
++	uint8_t  iInterface;
++
++	/** Array of endpoint descriptors. This length of this array is determined
++	 * by the bNumEndpoints field. */
++	const struct libusb_endpoint_descriptor *endpoint;
++
++	/** Extra descriptors. If libusb encounters unknown interface descriptors,
++	 * it will store them here, should you wish to parse them. */
++	const unsigned char *extra;
++
++	/** Length of the extra descriptors, in bytes. */
++	int extra_length;
++};
++
++/** \ingroup desc
++ * A collection of alternate settings for a particular USB interface.
++ */
++struct libusb_interface {
++	/** Array of interface descriptors. The length of this array is determined
++	 * by the num_altsetting field. */
++	const struct libusb_interface_descriptor *altsetting;
++
++	/** The number of alternate settings that belong to this interface */
++	int num_altsetting;
++};
++
++/** \ingroup desc
++ * A structure representing the standard USB configuration descriptor. This
++ * descriptor is documented in section 9.6.3 of the USB 2.0 specification.
++ * All multiple-byte fields are represented in host-endian format.
++ */
++struct libusb_config_descriptor {
++	/** Size of this descriptor (in bytes) */
++	uint8_t  bLength;
++
++	/** Descriptor type. Will have value
++	 * \ref libusb_descriptor_type::LIBUSB_DT_CONFIG LIBUSB_DT_CONFIG
++	 * in this context. */
++	uint8_t  bDescriptorType;
++
++	/** Total length of data returned for this configuration */
++	uint16_t wTotalLength;
++
++	/** Number of interfaces supported by this configuration */
++	uint8_t  bNumInterfaces;
++
++	/** Identifier value for this configuration */
++	uint8_t  bConfigurationValue;
++
++	/** Index of string descriptor describing this configuration */
++	uint8_t  iConfiguration;
++
++	/** Configuration characteristics */
++	uint8_t  bmAttributes;
++
++	/** Maximum power consumption of the USB device from this bus in this
++	 * configuration when the device is fully opreation. Expressed in units
++	 * of 2 mA. */
++	uint8_t  MaxPower;
++
++	/** Array of interfaces supported by this configuration. The length of
++	 * this array is determined by the bNumInterfaces field. */
++	const struct libusb_interface *interface;
++
++	/** Extra descriptors. If libusb encounters unknown configuration
++	 * descriptors, it will store them here, should you wish to parse them. */
++	const unsigned char *extra;
++
++	/** Length of the extra descriptors, in bytes. */
++	int extra_length;
++};
++
++/** \ingroup asyncio
++ * Setup packet for control transfers. */
++struct libusb_control_setup {
++	/** Request type. Bits 0:4 determine recipient, see
++	 * \ref libusb_request_recipient. Bits 5:6 determine type, see
++	 * \ref libusb_request_type. Bit 7 determines data transfer direction, see
++	 * \ref libusb_endpoint_direction.
++	 */
++	uint8_t  bmRequestType;
++
++	/** Request. If the type bits of bmRequestType are equal to
++	 * \ref libusb_request_type::LIBUSB_REQUEST_TYPE_STANDARD
++	 * "LIBUSB_REQUEST_TYPE_STANDARD" then this field refers to
++	 * \ref libusb_standard_request. For other cases, use of this field is
++	 * application-specific. */
++	uint8_t  bRequest;
++
++	/** Value. Varies according to request */
++	uint16_t wValue;
++
++	/** Index. Varies according to request, typically used to pass an index
++	 * or offset */
++	uint16_t wIndex;
++
++	/** Number of bytes to transfer */
++	uint16_t wLength;
++};
++
++#define LIBUSB_CONTROL_SETUP_SIZE (sizeof(struct libusb_control_setup))
++
++/* libusb */
++
++struct libusb_context;
++struct libusb_device;
++struct libusb_device_handle;
++
++/** \ingroup lib
++ * Structure representing a libusb session. The concept of individual libusb
++ * sessions allows for your program to use two libraries (or dynamically
++ * load two modules) which both independently use libusb. This will prevent
++ * interference between the individual libusb users - for example
++ * libusb_set_debug() will not affect the other user of the library, and
++ * libusb_exit() will not destroy resources that the other user is still
++ * using.
++ *
++ * Sessions are created by libusb_init() and destroyed through libusb_exit().
++ * If your application is guaranteed to only ever include a single libusb
++ * user (i.e. you), you do not have to worry about contexts: pass NULL in
++ * every function call where a context is required. The default context
++ * will be used.
++ *
++ * For more information, see \ref contexts.
++ */
++typedef struct libusb_context libusb_context;
++
++/** \ingroup dev
++ * Structure representing a USB device detected on the system. This is an
++ * opaque type for which you are only ever provided with a pointer, usually
++ * originating from libusb_get_device_list().
++ *
++ * Certain operations can be performed on a device, but in order to do any
++ * I/O you will have to first obtain a device handle using libusb_open().
++ *
++ * Devices are reference counted with libusb_device_ref() and
++ * libusb_device_unref(), and are freed when the reference count reaches 0.
++ * New devices presented by libusb_get_device_list() have a reference count of
++ * 1, and libusb_free_device_list() can optionally decrease the reference count
++ * on all devices in the list. libusb_open() adds another reference which is
++ * later destroyed by libusb_close().
++ */
++typedef struct libusb_device libusb_device;
++
++
++/** \ingroup dev
++ * Structure representing a handle on a USB device. This is an opaque type for
++ * which you are only ever provided with a pointer, usually originating from
++ * libusb_open().
++ *
++ * A device handle is used to perform I/O and other operations. When finished
++ * with a device handle, you should call libusb_close().
++ */
++typedef struct libusb_device_handle libusb_device_handle;
++
++/** \ingroup misc
++ * Error codes. Most libusb functions return 0 on success or one of these
++ * codes on failure.
++ */
++enum libusb_error {
++	/** Success (no error) */
++	LIBUSB_SUCCESS = 0,
++
++	/** Input/output error */
++	LIBUSB_ERROR_IO = -1,
++
++	/** Invalid parameter */
++	LIBUSB_ERROR_INVALID_PARAM = -2,
++
++	/** Access denied (insufficient permissions) */
++	LIBUSB_ERROR_ACCESS = -3,
++
++	/** No such device (it may have been disconnected) */
++	LIBUSB_ERROR_NO_DEVICE = -4,
++
++	/** Entity not found */
++	LIBUSB_ERROR_NOT_FOUND = -5,
++
++	/** Resource busy */
++	LIBUSB_ERROR_BUSY = -6,
++
++	/** Operation timed out */
++	LIBUSB_ERROR_TIMEOUT = -7,
++
++	/** Overflow */
++	LIBUSB_ERROR_OVERFLOW = -8,
++
++	/** Pipe error */
++	LIBUSB_ERROR_PIPE = -9,
++
++	/** System call interrupted (perhaps due to signal) */
++	LIBUSB_ERROR_INTERRUPTED = -10,
++
++	/** Insufficient memory */
++	LIBUSB_ERROR_NO_MEM = -11,
++
++	/** Operation not supported or unimplemented on this platform */
++	LIBUSB_ERROR_NOT_SUPPORTED = -12,
++
++	/** Other error */
++	LIBUSB_ERROR_OTHER = -99,
++};
++
++/** \ingroup asyncio
++ * Transfer status codes */
++enum libusb_transfer_status {
++	/** Transfer completed without error. Note that this does not indicate
++	 * that the entire amount of requested data was transferred. */
++	LIBUSB_TRANSFER_COMPLETED,
++
++	/** Transfer failed */
++	LIBUSB_TRANSFER_ERROR,
++
++	/** Transfer timed out */
++	LIBUSB_TRANSFER_TIMED_OUT,
++
++	/** Transfer was cancelled */
++	LIBUSB_TRANSFER_CANCELLED,
++
++	/** For bulk/interrupt endpoints: halt condition detected (endpoint
++	 * stalled). For control endpoints: control request not supported. */
++	LIBUSB_TRANSFER_STALL,
++
++	/** Device was disconnected */
++	LIBUSB_TRANSFER_NO_DEVICE,
++
++	/** Device sent more data than requested */
++	LIBUSB_TRANSFER_OVERFLOW,
++};
++
++/** \ingroup asyncio
++ * libusb_transfer.flags values */
++enum libusb_transfer_flags {
++	/** Report short frames as errors */
++	LIBUSB_TRANSFER_SHORT_NOT_OK = 1<<0,
++
++	/** Automatically free() transfer buffer during libusb_free_transfer() */
++	LIBUSB_TRANSFER_FREE_BUFFER = 1<<1,
++
++	/** Automatically call libusb_free_transfer() after callback returns.
++	 * If this flag is set, it is illegal to call libusb_free_transfer()
++	 * from your transfer callback, as this will result in a double-free
++	 * when this flag is acted upon. */
++	LIBUSB_TRANSFER_FREE_TRANSFER = 1<<2,
++};
++
++/** \ingroup asyncio
++ * Isochronous packet descriptor. */
++struct libusb_iso_packet_descriptor {
++	/** Length of data to request in this packet */
++	unsigned int length;
++
++	/** Amount of data that was actually transferred */
++	unsigned int actual_length;
++
++	/** Status code for this packet */
++	enum libusb_transfer_status status;
++};
++
++struct libusb_transfer;
++
++typedef void (*libusb_transfer_cb_fn)(struct libusb_transfer *transfer);
++
++/** \ingroup asyncio
++ * The generic USB transfer structure. The user populates this structure and
++ * then submits it in order to request a transfer. After the transfer has
++ * completed, the library populates the transfer with the results and passes
++ * it back to the user.
++ */
++struct libusb_transfer {
++	/** Handle of the device that this transfer will be submitted to */
++	libusb_device_handle *dev_handle;
++
++	/** A bitwise OR combination of \ref libusb_transfer_flags. */
++	uint8_t flags;
++
++	/** Address of the endpoint where this transfer will be sent. */
++	unsigned char endpoint;
++
++	/** Type of the endpoint from \ref libusb_transfer_type */
++	unsigned char type;
++
++	/** Timeout for this transfer in millseconds. A value of 0 indicates no
++	 * timeout. */
++	unsigned int timeout;
++
++	/** The status of the transfer. Read-only, and only for use within
++	 * transfer callback function.
++	 *
++	 * If this is an isochronous transfer, this field may read COMPLETED even
++	 * if there were errors in the frames. Use the
++	 * \ref libusb_iso_packet_descriptor::status "status" field in each packet
++	 * to determine if errors occurred. */
++	enum libusb_transfer_status status;
++
++	/** Length of the data buffer */
++	int length;
++
++	/** Actual length of data that was transferred. Read-only, and only for
++	 * use within transfer callback function. Not valid for isochronous
++	 * endpoint transfers. */
++	int actual_length;
++
++	/** Callback function. This will be invoked when the transfer completes,
++	 * fails, or is cancelled. */
++	libusb_transfer_cb_fn callback;
++
++	/** User context data to pass to the callback function. */
++	void *user_data;
++
++	/** Data buffer */
++	unsigned char *buffer;
++
++	/** Number of isochronous packets. Only used for I/O with isochronous
++	 * endpoints. */
++	int num_iso_packets;
++
++	/** Isochronous packet descriptors, for isochronous transfers only. */
++	struct libusb_iso_packet_descriptor iso_packet_desc[0];
++};
++
++int libusb_init(libusb_context **ctx);
++void libusb_exit(libusb_context *ctx);
++void libusb_set_debug(libusb_context *ctx, int level);
++
++ssize_t libusb_get_device_list(libusb_context *ctx,
++	libusb_device ***list);
++void libusb_free_device_list(libusb_device **list, int unref_devices);
++libusb_device *libusb_ref_device(libusb_device *dev);
++void libusb_unref_device(libusb_device *dev);
++
++int libusb_get_configuration(libusb_device_handle *dev, int *config);
++int libusb_get_device_descriptor(libusb_device *dev,
++	struct libusb_device_descriptor *desc);
++int libusb_get_active_config_descriptor(libusb_device *dev,
++	struct libusb_config_descriptor **config);
++int libusb_get_config_descriptor(libusb_device *dev, uint8_t config_index,
++	struct libusb_config_descriptor **config);
++int libusb_get_config_descriptor_by_value(libusb_device *dev,
++	uint8_t bConfigurationValue, struct libusb_config_descriptor **config);
++void libusb_free_config_descriptor(struct libusb_config_descriptor *config);
++uint8_t libusb_get_bus_number(libusb_device *dev);
++uint8_t libusb_get_device_address(libusb_device *dev);
++int libusb_get_max_packet_size(libusb_device *dev, unsigned char endpoint);
++
++int libusb_open(libusb_device *dev, libusb_device_handle **handle);
++void libusb_close(libusb_device_handle *dev_handle);
++libusb_device *libusb_get_device(libusb_device_handle *dev_handle);
++
++int libusb_set_configuration(libusb_device_handle *dev, int configuration);
++int libusb_claim_interface(libusb_device_handle *dev, int iface);
++int libusb_release_interface(libusb_device_handle *dev, int iface);
++
++libusb_device_handle *libusb_open_device_with_vid_pid(libusb_context *ctx,
++	uint16_t vendor_id, uint16_t product_id);
++
++int libusb_set_interface_alt_setting(libusb_device_handle *dev,
++	int interface_number, int alternate_setting);
++int libusb_clear_halt(libusb_device_handle *dev, unsigned char endpoint);
++int libusb_reset_device(libusb_device_handle *dev);
++
++int libusb_kernel_driver_active(libusb_device_handle *dev, int interface);
++int libusb_detach_kernel_driver(libusb_device_handle *dev, int interface);
++int libusb_attach_kernel_driver(libusb_device_handle *dev, int interface);
++
++/* async I/O */
++
++/** \ingroup asyncio
++ * Get the data section of a control transfer. This convenience function is here
++ * to remind you that the data does not start until 8 bytes into the actual
++ * buffer, as the setup packet comes first.
++ *
++ * Calling this function only makes sense from a transfer callback function,
++ * or situations where you have already allocated a suitably sized buffer at
++ * transfer->buffer.
++ *
++ * \param transfer a transfer
++ * \returns pointer to the first byte of the data section
++ */
++static inline unsigned char *libusb_control_transfer_get_data(
++	struct libusb_transfer *transfer)
++{
++	return transfer->buffer + LIBUSB_CONTROL_SETUP_SIZE;
++}
++
++/** \ingroup asyncio
++ * Get the control setup packet of a control transfer. This convenience
++ * function is here to remind you that the control setup occupies the first
++ * 8 bytes of the transfer data buffer.
++ *
++ * Calling this function only makes sense from a transfer callback function,
++ * or situations where you have already allocated a suitably sized buffer at
++ * transfer->buffer.
++ *
++ * \param transfer a transfer
++ * \returns a casted pointer to the start of the transfer data buffer
++ */
++static inline struct libusb_control_setup *libusb_control_transfer_get_setup(
++	struct libusb_transfer *transfer)
++{
++	return (struct libusb_control_setup *) transfer->buffer;
++}
++
++/** \ingroup asyncio
++ * Helper function to populate the setup packet (first 8 bytes of the data
++ * buffer) for a control transfer. The wIndex, wValue and wLength values should
++ * be given in host-endian byte order.
++ *
++ * \param buffer buffer to output the setup packet into
++ * \param bmRequestType see the
++ * \ref libusb_control_setup::bmRequestType "bmRequestType" field of
++ * \ref libusb_control_setup
++ * \param bRequest see the
++ * \ref libusb_control_setup::bRequest "bRequest" field of
++ * \ref libusb_control_setup
++ * \param wValue see the
++ * \ref libusb_control_setup::wValue "wValue" field of
++ * \ref libusb_control_setup
++ * \param wIndex see the
++ * \ref libusb_control_setup::wIndex "wIndex" field of
++ * \ref libusb_control_setup
++ * \param wLength see the
++ * \ref libusb_control_setup::wLength "wLength" field of
++ * \ref libusb_control_setup
++ */
++static inline void libusb_fill_control_setup(unsigned char *buffer,
++	uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex,
++	uint16_t wLength)
++{
++	struct libusb_control_setup *setup = (struct libusb_control_setup *) buffer;
++	setup->bmRequestType = bmRequestType;
++	setup->bRequest = bRequest;
++	setup->wValue = libusb_cpu_to_le16(wValue);
++	setup->wIndex = libusb_cpu_to_le16(wIndex);
++	setup->wLength = libusb_cpu_to_le16(wLength);
++}
++
++struct libusb_transfer *libusb_alloc_transfer(int iso_packets);
++int libusb_submit_transfer(struct libusb_transfer *transfer);
++int libusb_cancel_transfer(struct libusb_transfer *transfer);
++void libusb_free_transfer(struct libusb_transfer *transfer);
++
++/** \ingroup asyncio
++ * Helper function to populate the required \ref libusb_transfer fields
++ * for a control transfer.
++ *
++ * If you pass a transfer buffer to this function, the first 8 bytes will
++ * be interpreted as a control setup packet, and the wLength field will be
++ * used to automatically populate the \ref libusb_transfer::length "length"
++ * field of the transfer. Therefore the recommended approach is:
++ * -# Allocate a suitably sized data buffer (including space for control setup)
++ * -# Call libusb_fill_control_setup()
++ * -# If this is a host-to-device transfer with a data stage, put the data
++ *    in place after the setup packet
++ * -# Call this function
++ * -# Call libusb_submit_transfer()
++ *
++ * It is also legal to pass a NULL buffer to this function, in which case this
++ * function will not attempt to populate the length field. Remember that you
++ * must then populate the buffer and length fields later.
++ *
++ * \param transfer the transfer to populate
++ * \param dev_handle handle of the device that will handle the transfer
++ * \param buffer data buffer. If provided, this function will interpret the
++ * first 8 bytes as a setup packet and infer the transfer length from that.
++ * \param callback callback function to be invoked on transfer completion
++ * \param user_data user data to pass to callback function
++ * \param timeout timeout for the transfer in milliseconds
++ */
++static inline void libusb_fill_control_transfer(
++	struct libusb_transfer *transfer, libusb_device_handle *dev_handle,
++	unsigned char *buffer, libusb_transfer_cb_fn callback, void *user_data,
++	unsigned int timeout)
++{
++	struct libusb_control_setup *setup = (struct libusb_control_setup *) buffer;
++	transfer->dev_handle = dev_handle;
++	transfer->endpoint = 0;
++	transfer->type = LIBUSB_TRANSFER_TYPE_CONTROL;
++	transfer->timeout = timeout;
++	transfer->buffer = buffer;
++	if (setup)
++		transfer->length = LIBUSB_CONTROL_SETUP_SIZE
++			+ libusb_le16_to_cpu(setup->wLength);
++	transfer->user_data = user_data;
++	transfer->callback = callback;
++}
++
++/** \ingroup asyncio
++ * Helper function to populate the required \ref libusb_transfer fields
++ * for a bulk transfer.
++ *
++ * \param transfer the transfer to populate
++ * \param dev_handle handle of the device that will handle the transfer
++ * \param endpoint address of the endpoint where this transfer will be sent
++ * \param buffer data buffer
++ * \param length length of data buffer
++ * \param callback callback function to be invoked on transfer completion
++ * \param user_data user data to pass to callback function
++ * \param timeout timeout for the transfer in milliseconds
++ */
++static inline void libusb_fill_bulk_transfer(struct libusb_transfer *transfer,
++	libusb_device_handle *dev_handle, unsigned char endpoint,
++	unsigned char *buffer, int length, libusb_transfer_cb_fn callback,
++	void *user_data, unsigned int timeout)
++{
++	transfer->dev_handle = dev_handle;
++	transfer->endpoint = endpoint;
++	transfer->type = LIBUSB_TRANSFER_TYPE_BULK;
++	transfer->timeout = timeout;
++	transfer->buffer = buffer;
++	transfer->length = length;
++	transfer->user_data = user_data;
++	transfer->callback = callback;
++}
++
++/** \ingroup asyncio
++ * Helper function to populate the required \ref libusb_transfer fields
++ * for an interrupt transfer.
++ *
++ * \param transfer the transfer to populate
++ * \param dev_handle handle of the device that will handle the transfer
++ * \param endpoint address of the endpoint where this transfer will be sent
++ * \param buffer data buffer
++ * \param length length of data buffer
++ * \param callback callback function to be invoked on transfer completion
++ * \param user_data user data to pass to callback function
++ * \param timeout timeout for the transfer in milliseconds
++ */
++static inline void libusb_fill_interrupt_transfer(
++	struct libusb_transfer *transfer, libusb_device_handle *dev_handle,
++	unsigned char endpoint, unsigned char *buffer, int length,
++	libusb_transfer_cb_fn callback, void *user_data, unsigned int timeout)
++{
++	transfer->dev_handle = dev_handle;
++	transfer->endpoint = endpoint;
++	transfer->type = LIBUSB_TRANSFER_TYPE_INTERRUPT;
++	transfer->timeout = timeout;
++	transfer->buffer = buffer;
++	transfer->length = length;
++	transfer->user_data = user_data;
++	transfer->callback = callback;
++}
++
++/** \ingroup asyncio
++ * Helper function to populate the required \ref libusb_transfer fields
++ * for an isochronous transfer.
++ *
++ * \param transfer the transfer to populate
++ * \param dev_handle handle of the device that will handle the transfer
++ * \param endpoint address of the endpoint where this transfer will be sent
++ * \param buffer data buffer
++ * \param length length of data buffer
++ * \param num_iso_packets the number of isochronous packets
++ * \param callback callback function to be invoked on transfer completion
++ * \param user_data user data to pass to callback function
++ * \param timeout timeout for the transfer in milliseconds
++ */
++static inline void libusb_fill_iso_transfer(struct libusb_transfer *transfer,
++	libusb_device_handle *dev_handle, unsigned char endpoint,
++	unsigned char *buffer, int length, int num_iso_packets,
++	libusb_transfer_cb_fn callback, void *user_data, unsigned int timeout)
++{
++	transfer->dev_handle = dev_handle;
++	transfer->endpoint = endpoint;
++	transfer->type = LIBUSB_TRANSFER_TYPE_ISOCHRONOUS;
++	transfer->timeout = timeout;
++	transfer->buffer = buffer;
++	transfer->length = length;
++	transfer->num_iso_packets = num_iso_packets;
++	transfer->user_data = user_data;
++	transfer->callback = callback;
++}
++
++/** \ingroup asyncio
++ * Convenience function to set the length of all packets in an isochronous
++ * transfer, based on the num_iso_packets field in the transfer structure.
++ *
++ * \param transfer a transfer
++ * \param length the length to set in each isochronous packet descriptor
++ * \see libusb_get_max_packet_size()
++ */
++static inline void libusb_set_iso_packet_lengths(
++	struct libusb_transfer *transfer, unsigned int length)
++{
++	int i;
++	for (i = 0; i < transfer->num_iso_packets; i++)
++		transfer->iso_packet_desc[i].length = length;
++}
++
++/** \ingroup asyncio
++ * Convenience function to locate the position of an isochronous packet
++ * within the buffer of an isochronous transfer.
++ *
++ * This is a thorough function which loops through all preceding packets,
++ * accumulating their lengths to find the position of the specified packet.
++ * Typically you will assign equal lengths to each packet in the transfer,
++ * and hence the above method is sub-optimal. You may wish to use
++ * libusb_get_iso_packet_buffer_simple() instead.
++ *
++ * \param transfer a transfer
++ * \param packet the packet to return the address of
++ * \returns the base address of the packet buffer inside the transfer buffer,
++ * or NULL if the packet does not exist.
++ * \see libusb_get_iso_packet_buffer_simple()
++ */
++static inline unsigned char *libusb_get_iso_packet_buffer(
++	struct libusb_transfer *transfer, unsigned int packet)
++{
++	unsigned int i;
++	size_t offset = 0;
++
++	if (packet >= (unsigned int)transfer->num_iso_packets)
++		return NULL;
++
++	for (i = 0; i < packet; i++)
++		offset += transfer->iso_packet_desc[i].length;
++
++	return transfer->buffer + offset;
++}
++
++/** \ingroup asyncio
++ * Convenience function to locate the position of an isochronous packet
++ * within the buffer of an isochronous transfer, for transfers where each
++ * packet is of identical size.
++ *
++ * This function relies on the assumption that every packet within the transfer
++ * is of identical size to the first packet. Calculating the location of
++ * the packet buffer is then just a simple calculation:
++ * <tt>buffer + (packet_size * packet)</tt>
++ *
++ * Do not use this function on transfers other than those that have identical
++ * packet lengths for each packet.
++ *
++ * \param transfer a transfer
++ * \param packet the packet to return the address of
++ * \returns the base address of the packet buffer inside the transfer buffer,
++ * or NULL if the packet does not exist.
++ * \see libusb_get_iso_packet_buffer()
++ */
++static inline unsigned char *libusb_get_iso_packet_buffer_simple(
++	struct libusb_transfer *transfer, unsigned int packet)
++{
++	if (packet >= (unsigned int)transfer->num_iso_packets)
++		return NULL;
++
++	return transfer->buffer + (transfer->iso_packet_desc[0].length * packet);
++}
++
++/* sync I/O */
++
++int libusb_control_transfer(libusb_device_handle *dev_handle,
++	uint8_t request_type, uint8_t request, uint16_t value, uint16_t index,
++	unsigned char *data, uint16_t length, unsigned int timeout);
++
++int libusb_bulk_transfer(libusb_device_handle *dev_handle,
++	unsigned char endpoint, unsigned char *data, int length,
++	int *actual_length, unsigned int timeout);
++
++int libusb_interrupt_transfer(libusb_device_handle *dev_handle,
++	unsigned char endpoint, unsigned char *data, int length,
++	int *actual_length, unsigned int timeout);
++
++/** \ingroup desc
++ * Retrieve a descriptor from the default control pipe.
++ * This is a convenience function which formulates the appropriate control
++ * message to retrieve the descriptor.
++ *
++ * \param dev a device handle
++ * \param desc_type the descriptor type, see \ref libusb_descriptor_type
++ * \param desc_index the index of the descriptor to retrieve
++ * \param data output buffer for descriptor
++ * \param length size of data buffer
++ * \returns number of bytes returned in data, or LIBUSB_ERROR code on failure
++ */
++static inline int libusb_get_descriptor(libusb_device_handle *dev,
++	uint8_t desc_type, uint8_t desc_index, unsigned char *data, int length)
++{
++	return libusb_control_transfer(dev, LIBUSB_ENDPOINT_IN,
++		LIBUSB_REQUEST_GET_DESCRIPTOR, (desc_type << 8) | desc_index, 0, data,
++		length, 1000);
++}
++
++/** \ingroup desc
++ * Retrieve a descriptor from a device.
++ * This is a convenience function which formulates the appropriate control
++ * message to retrieve the descriptor. The string returned is Unicode, as
++ * detailed in the USB specifications.
++ *
++ * \param dev a device handle
++ * \param desc_index the index of the descriptor to retrieve
++ * \param langid the language ID for the string descriptor
++ * \param data output buffer for descriptor
++ * \param length size of data buffer
++ * \returns number of bytes returned in data, or LIBUSB_ERROR code on failure
++ * \see libusb_get_string_descriptor_ascii()
++ */
++static inline int libusb_get_string_descriptor(libusb_device_handle *dev,
++	uint8_t desc_index, uint16_t langid, unsigned char *data, int length)
++{
++	return libusb_control_transfer(dev, LIBUSB_ENDPOINT_IN,
++		LIBUSB_REQUEST_GET_DESCRIPTOR, (LIBUSB_DT_STRING << 8) | desc_index,
++		langid, data, length, 1000);
++}
++
++int libusb_get_string_descriptor_ascii(libusb_device_handle *dev,
++	uint8_t index, unsigned char *data, int length);
++
++/* polling and timeouts */
++
++int libusb_try_lock_events(libusb_context *ctx);
++void libusb_lock_events(libusb_context *ctx);
++void libusb_unlock_events(libusb_context *ctx);
++int libusb_event_handling_ok(libusb_context *ctx);
++int libusb_event_handler_active(libusb_context *ctx);
++void libusb_lock_event_waiters(libusb_context *ctx);
++void libusb_unlock_event_waiters(libusb_context *ctx);
++int libusb_wait_for_event(libusb_context *ctx, struct timeval *tv);
++
++int libusb_handle_events_timeout(libusb_context *ctx, struct timeval *tv);
++int libusb_handle_events(libusb_context *ctx);
++int libusb_handle_events_locked(libusb_context *ctx, struct timeval *tv);
++int libusb_get_next_timeout(libusb_context *ctx, struct timeval *tv);
++
++/** \ingroup poll
++ * File descriptor for polling
++ */
++struct libusb_pollfd {
++	/** Numeric file descriptor */
++	int fd;
++
++	/** Event flags to poll for from <poll.h>. POLLIN indicates that you
++	 * should monitor this file descriptor for becoming ready to read from,
++	 * and POLLOUT indicates that you should monitor this file descriptor for
++	 * nonblocking write readiness. */
++	short events;
++};
++
++/** \ingroup poll
++ * Callback function, invoked when a new file descriptor should be added
++ * to the set of file descriptors monitored for events.
++ * \param fd the new file descriptor
++ * \param events events to monitor for, see \ref libusb_pollfd for a
++ * description
++ * \param user_data User data pointer specified in
++ * libusb_set_pollfd_notifiers() call
++ * \see libusb_set_pollfd_notifiers()
++ */
++typedef void (*libusb_pollfd_added_cb)(int fd, short events, void *user_data);
++
++/** \ingroup poll
++ * Callback function, invoked when a file descriptor should be removed from
++ * the set of file descriptors being monitored for events. After returning
++ * from this callback, do not use that file descriptor again.
++ * \param fd the file descriptor to stop monitoring
++ * \param user_data User data pointer specified in
++ * libusb_set_pollfd_notifiers() call
++ * \see libusb_set_pollfd_notifiers()
++ */
++typedef void (*libusb_pollfd_removed_cb)(int fd, void *user_data);
++
++const struct libusb_pollfd **libusb_get_pollfds(libusb_context *ctx);
++void libusb_set_pollfd_notifiers(libusb_context *ctx,
++	libusb_pollfd_added_cb added_cb, libusb_pollfd_removed_cb removed_cb,
++	void *user_data);
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif
+diff --git a/src/.gitignore b/src/.gitignore
+index 4b0f4c0..c8b0843 100644
+--- a/src/.gitignore
++++ b/src/.gitignore
+@@ -1,5 +1,2 @@
+ .deps
+ .libs
+-_stdint.h
+-gphoto2-endian.h
+-libmtp.h
+diff --git a/src/_stdint.h b/src/_stdint.h
+new file mode 100644
+index 0000000..80ecf41
+--- /dev/null
++++ b/src/_stdint.h
+@@ -0,0 +1,2 @@
++/* This file is generated automatically by configure */
++#include <stdint.h>
+diff --git a/src/gphoto2-endian.h b/src/gphoto2-endian.h
+new file mode 100644
+index 0000000..5b9719d
+--- /dev/null
++++ b/src/gphoto2-endian.h
+@@ -0,0 +1,143 @@
++/* This file is generated automatically by configure */
++/* It is valid only for the system type i686-pc-linux-gnu */
++
++#ifndef __BYTEORDER_H
++#define __BYTEORDER_H
++
++/* ntohl and relatives live here */
++#include <arpa/inet.h>
++
++/* Define generic byte swapping functions */
++#include <byteswap.h>
++#ifndef swap16
++#define swap16(x) bswap_16(x)
++#endif
++#ifndef swap32
++#define swap32(x) bswap_32(x)
++#endif
++#ifndef swap64
++#define swap64(x) bswap_64(x)
++#endif
++
++/* The byte swapping macros have the form: */
++/*   EENN[a]toh or htoEENN[a] where EE is be (big endian) or */
++/* le (little-endian), NN is 16 or 32 (number of bits) and a, */
++/* if present, indicates that the endian side is a pointer to an */
++/* array of uint8_t bytes instead of an integer of the specified length. */
++/* h refers to the host's ordering method. */
++
++/* So, to convert a 32-bit integer stored in a buffer in little-endian */
++/* format into a uint32_t usable on this machine, you could use: */
++/*   uint32_t value = le32atoh(&buf[3]); */
++/* To put that value back into the buffer, you could use: */
++/*   htole32a(&buf[3], value); */
++
++/* Define aliases for the standard byte swapping macros */
++/* Arguments to these macros must be properly aligned on natural word */
++/* boundaries in order to work properly on all architectures */
++#ifndef htobe16
++# define htobe16(x) htons(x)
++#endif
++#ifndef htobe32
++# define htobe32(x) htonl(x)
++#endif
++#ifndef be16toh
++# define be16toh(x) ntohs(x)
++#endif
++#ifndef be32toh
++# define be32toh(x) ntohl(x)
++#endif
++
++#define HTOBE16(x) (x) = htobe16(x)
++#define HTOBE32(x) (x) = htobe32(x)
++#define BE32TOH(x) (x) = be32toh(x)
++#define BE16TOH(x) (x) = be16toh(x)
++
++/* On little endian machines, these macros are null */
++#ifndef htole16
++# define htole16(x)      (x)
++#endif
++#ifndef htole32
++# define htole32(x)      (x)
++#endif
++#ifndef htole64
++# define htole64(x)      (x)
++#endif
++#ifndef le16toh
++# define le16toh(x)      (x)
++#endif
++#ifndef le32toh
++# define le32toh(x)      (x)
++#endif
++#ifndef le64toh
++# define le64toh(x)      (x)
++#endif
++
++#define HTOLE16(x)      (void) (x)
++#define HTOLE32(x)      (void) (x)
++#define HTOLE64(x)      (void) (x)
++#define LE16TOH(x)      (void) (x)
++#define LE32TOH(x)      (void) (x)
++#define LE64TOH(x)      (void) (x)
++
++/* These don't have standard aliases */
++#ifndef htobe64
++# define htobe64(x)      swap64(x)
++#endif
++#ifndef be64toh
++# define be64toh(x)      swap64(x)
++#endif
++
++#define HTOBE64(x)      (x) = htobe64(x)
++#define BE64TOH(x)      (x) = be64toh(x)
++
++/* Define the C99 standard length-specific integer types */
++#include <_stdint.h>
++
++/* Here are some macros to create integers from a byte array */
++/* These are used to get and put integers from/into a uint8_t array */
++/* with a specific endianness.  This is the most portable way to generate */
++/* and read messages to a network or serial device.  Each member of a */
++/* packet structure must be handled separately. */
++
++/* The i386 and compatibles can handle unaligned memory access, */
++/* so use the optimized macros above to do this job */
++#ifndef be16atoh
++# define be16atoh(x)     be16toh(*(uint16_t*)(x))
++#endif
++#ifndef be32atoh
++# define be32atoh(x)     be32toh(*(uint32_t*)(x))
++#endif
++#ifndef be64atoh
++# define be64atoh(x)     be64toh(*(uint64_t*)(x))
++#endif
++#ifndef le16atoh
++# define le16atoh(x)     le16toh(*(uint16_t*)(x))
++#endif
++#ifndef le32atoh
++# define le32atoh(x)     le32toh(*(uint32_t*)(x))
++#endif
++#ifndef le64atoh
++# define le64atoh(x)     le64toh(*(uint64_t*)(x))
++#endif
++
++#ifndef htob16a
++# define htobe16a(a,x)   *(uint16_t*)(a) = htobe16(x)
++#endif
++#ifndef htobe32a
++# define htobe32a(a,x)   *(uint32_t*)(a) = htobe32(x)
++#endif
++#ifndef htobe64a
++# define htobe64a(a,x)   *(uint64_t*)(a) = htobe64(x)
++#endif
++#ifndef htole16a
++# define htole16a(a,x)   *(uint16_t*)(a) = htole16(x)
++#endif
++#ifndef htole32a
++# define htole32a(a,x)   *(uint32_t*)(a) = htole32(x)
++#endif
++#ifndef htole64a
++# define htole64a(a,x)   *(uint64_t*)(a) = htole64(x)
++#endif
++
++#endif /*__BYTEORDER_H*/
+diff --git a/src/libmtp.c b/src/libmtp.c
+index 24382cd..be6666e 100644
+--- a/src/libmtp.c
++++ b/src/libmtp.c
+@@ -6,6 +6,7 @@
+  * Copyright (C) 2007 Ted Bullock <tbullock@canada.com>
+  * Copyright (C) 2007 Tero Saarni <tero.saarni@gmail.com>
+  * Copyright (C) 2008 Florent Mertens <flomertens@gmail.com>
++ * Copyright (c) 2013 - 2015 The Linux Foundation. All rights reserved.
+  *
+  * This library is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU Lesser General Public
+@@ -34,6 +35,13 @@
+  * The files libusb-glue.c/.h are just what they say: an
+  * interface to libusb for the actual, physical USB traffic.
+  */
++//#define MTPDEBUG
++#ifdef MTPDEBUG
++#define MTPLOG ALOGI
++#else
++#define MTPLOG
++#endif
++
+ #include "config.h"
+ #include "libmtp.h"
+ #include "unicode.h"
+@@ -1333,8 +1341,9 @@ static char *get_string_from_object(LIBMTP_mtpdevice_t *device, uint32_t const o
+   if ( device == NULL || object_id == 0) {
+     return NULL;
+   }
+-
++  MTPLOG("get_string_from_object: Before entering ptp_find_object_prop_in_cache for object %d", object_id);
+   prop = ptp_find_object_prop_in_cache(params, object_id, attribute_id);
++  MTPLOG("get_string_from_object: ptp_find_object_prop_in_cache has returned for object %d", object_id);
+   if (prop) {
+     if (prop->propval.str != NULL)
+       return strdup(prop->propval.str);
+@@ -1342,7 +1351,9 @@ static char *get_string_from_object(LIBMTP_mtpdevice_t *device, uint32_t const o
+       return NULL;
+   }
+ 
++  MTPLOG("get_string_from_object: Before entering ptp_mtp_getobjectpropvalue for object %d", object_id);
+   ret = ptp_mtp_getobjectpropvalue(params, object_id, attribute_id, &propval, PTP_DTC_STR);
++  MTPLOG("get_string_from_object: ptp_mtp_getobjectpropvalue has returned for object %d", object_id);
+   if (ret == PTP_RC_OK) {
+     if (propval.str != NULL) {
+       retstring = (char *) strdup(propval.str);
+@@ -1377,14 +1388,18 @@ static uint64_t get_u64_from_object(LIBMTP_mtpdevice_t *device,uint32_t const ob
+     return value_default;
+   }
+ 
++  MTPLOG("get_string_from_object: Before entering ptp_find_object_prop_in_cache for object %d", object_id);
+   prop = ptp_find_object_prop_in_cache(params, object_id, attribute_id);
++  MTPLOG("get_string_from_object: ptp_find_object_prop_in_cache has returned for object %d", object_id);
+   if (prop)
+     return prop->propval.u64;
+ 
++  MTPLOG("get_string_from_object: Before entering ptp_mtp_getobjectpropvalue for object %d", object_id);
+   ret = ptp_mtp_getobjectpropvalue(params, object_id,
+                                    attribute_id,
+                                    &propval,
+                                    PTP_DTC_UINT64);
++  MTPLOG("get_string_from_object: ptp_mtp_getobjectpropvalue has returned for object %d", object_id);
+   if (ret == PTP_RC_OK) {
+     retval = propval.u64;
+   } else {
+@@ -1416,14 +1431,18 @@ static uint32_t get_u32_from_object(LIBMTP_mtpdevice_t *device,uint32_t const ob
+     return value_default;
+   }
+ 
++  MTPLOG("get_u32_from_object: Before entering ptp_find_object_prop_in_cache for object %d", object_id);
+   prop = ptp_find_object_prop_in_cache(params, object_id, attribute_id);
++  MTPLOG("get_u32_from_object: ptp_find_object_prop_in_cache has returned for object %d", object_id);
+   if (prop)
+     return prop->propval.u32;
+ 
++  MTPLOG("get_u32_from_object: Before entering ptp_mtp_getobjectpropvalue for object %d", object_id);
+   ret = ptp_mtp_getobjectpropvalue(params, object_id,
+                                    attribute_id,
+                                    &propval,
+                                    PTP_DTC_UINT32);
++  MTPLOG("get_u32_from_object: ptp_mtp_getobjectpropvalue has returned for object %d", object_id);
+   if (ret == PTP_RC_OK) {
+     retval = propval.u32;
+   } else {
+@@ -1456,14 +1475,18 @@ static uint16_t get_u16_from_object(LIBMTP_mtpdevice_t *device, uint32_t const o
+ 
+   // This O(n) search should not be used so often, since code
+   // using the cached properties don't usually call this function.
++  MTPLOG("get_u16_from_object: Before entering ptp_find_object_prop_in_cache for object %d", object_id);
+   prop = ptp_find_object_prop_in_cache(params, object_id, attribute_id);
++  MTPLOG("get_u16_from_object: ptp_find_object_prop_in_cache has returned for object %d", object_id);
+   if (prop)
+     return prop->propval.u16;
+ 
++  MTPLOG("get_u16_from_object: Before entering ptp_mtp_getobjectpropvalue for object %d", object_id);
+   ret = ptp_mtp_getobjectpropvalue(params, object_id,
+                                    attribute_id,
+                                    &propval,
+                                    PTP_DTC_UINT16);
++  MTPLOG("get_u16_from_object: ptp_mtp_getobjectpropvalue has returned for object %d", object_id);
+   if (ret == PTP_RC_OK) {
+     retval = propval.u16;
+   } else {
+@@ -1497,14 +1520,18 @@ static uint8_t get_u8_from_object(LIBMTP_mtpdevice_t *device, uint32_t const obj
+ 
+   // This O(n) search should not be used so often, since code
+   // using the cached properties don't usually call this function.
++  MTPLOG("get_u8_from_object: Before entering ptp_find_object_prop_in_cache for object %d", object_id);
+   prop = ptp_find_object_prop_in_cache(params, object_id, attribute_id);
++  MTPLOG("get_u8_from_object: ptp_find_object_prop_in_cache has returned for object %d", object_id);
+   if (prop)
+     return prop->propval.u8;
+ 
++  MTPLOG("get_u8_from_object: Before entering ptp_mtp_getobjectpropvalue for object %d", object_id);
+   ret = ptp_mtp_getobjectpropvalue(params, object_id,
+                                    attribute_id,
+                                    &propval,
+                                    PTP_DTC_UINT8);
++  MTPLOG("get_u8_from_object: ptp_mtp_getobjectpropvalue has returned for object %d", object_id);
+   if (ret == PTP_RC_OK) {
+     retval = propval.u8;
+   } else {
+@@ -1816,6 +1843,7 @@ static void parse_extension_descriptor(LIBMTP_mtpdevice_t *mtpdevice,
+  */
+ LIBMTP_mtpdevice_t *LIBMTP_Open_Raw_Device_Uncached(LIBMTP_raw_device_t *rawdevice)
+ {
++  MTPLOG("LIBMTP_Open_Raw_Device_Uncached: Entering LIBMTP_Open_Raw_Device_Uncached");
+   LIBMTP_mtpdevice_t *mtp_device;
+   uint8_t bs = 0;
+   PTPParams *current_params;
+@@ -1835,7 +1863,7 @@ LIBMTP_mtpdevice_t *LIBMTP_Open_Raw_Device_Uncached(LIBMTP_raw_device_t *rawdevi
+     LIBMTP_ERROR("LIBMTP PANIC: connect_usb_devices encountered a memory "
+ 	    "allocation error with device %d on bus %d, trying to continue",
+ 	    rawdevice->devnum, rawdevice->bus_location);
+-
++    MTPLOG("LIBMTP_Open_Raw_Device_Uncached: Leaving LIBMTP_Open_Raw_Device_Uncached: mtp_device == NULL");
+     return NULL;
+   }
+   // Non-cached by default
+@@ -1845,6 +1873,7 @@ LIBMTP_mtpdevice_t *LIBMTP_Open_Raw_Device_Uncached(LIBMTP_raw_device_t *rawdevi
+   current_params = (PTPParams *) malloc(sizeof(PTPParams));
+   if (current_params == NULL) {
+     free(mtp_device);
++	MTPLOG("LIBMTP_Open_Raw_Device_Uncached: Leaving LIBMTP_Open_Raw_Device_Uncached: current_params == NULL");
+     return NULL;
+   }
+   memset(current_params, 0, sizeof(PTPParams));
+@@ -1869,17 +1898,21 @@ LIBMTP_mtpdevice_t *LIBMTP_Open_Raw_Device_Uncached(LIBMTP_raw_device_t *rawdevi
+ 	    "Too old stdlibc, glibc and libiconv?\n");
+     free(current_params);
+     free(mtp_device);
++	MTPLOG("LIBMTP_Open_Raw_Device_Uncached: Leaving LIBMTP_Open_Raw_Device_Uncached: current_params->cd_locale_to_ucs2 == (iconv_t) -1");
+     return NULL;
+   }
+   mtp_device->params = current_params;
+ 
+   /* Create usbinfo, this also opens the session */
++  MTPLOG("LIBMTP_Open_Raw_Device_Uncached: Before entering configure_usb_device");  
+   err = configure_usb_device(rawdevice,
+ 			     current_params,
+ 			     &mtp_device->usbinfo);
++  MTPLOG("LIBMTP_Open_Raw_Device_Uncached: configure_usb_device has returned");
+   if (err != LIBMTP_ERROR_NONE) {
+     free(current_params);
+     free(mtp_device);
++	MTPLOG("LIBMTP_Open_Raw_Device_Uncached: Leaving LIBMTP_Open_Raw_Device_Uncached: err != LIBMTP_ERROR_NONE");
+     return NULL;
+   }
+   ptp_usb = (PTP_USB*) mtp_device->usbinfo;
+@@ -1898,6 +1931,7 @@ LIBMTP_mtpdevice_t *LIBMTP_Open_Raw_Device_Uncached(LIBMTP_raw_device_t *rawdevi
+     free(mtp_device->params);
+     current_params = NULL;
+     free(mtp_device);
++	MTPLOG("LIBMTP_Open_Raw_Device_Uncached: Leaving LIBMTP_Open_Raw_Device_Uncached: ptp_getdeviceinfo != PTP_RC_OK");
+     return NULL;
+   }
+ 
+@@ -2087,7 +2121,7 @@ LIBMTP_mtpdevice_t *LIBMTP_Open_Raw_Device_Uncached(LIBMTP_raw_device_t *rawdevi
+     mtp_device->storage = NULL;
+   }
+ 
+-
++  MTPLOG("LIBMTP_Open_Raw_Device_Uncached: Leaving LIBMTP_Open_Raw_Device_Uncached");
+   return mtp_device;
+ }
+ 
+@@ -2123,7 +2157,9 @@ LIBMTP_mtpdevice_t *LIBMTP_Open_Raw_Device(LIBMTP_raw_device_t *rawdevice)
+    * This has the desired side effect of caching all handles from
+    * the device which speeds up later operations.
+    */
++  MTPLOG("LIBMTP_Open_Raw_Device: Before entering flush_handles");
+   flush_handles(mtp_device);
++  MTPLOG("LIBMTP_Open_Raw_Device: flush_handles has returned, then leaving LIBMTP_Open_Raw_Device");
+   return mtp_device;
+ }
+ 
+@@ -2148,9 +2184,12 @@ int LIBMTP_Read_Event(LIBMTP_mtpdevice_t *device, LIBMTP_event_t *event, uint32_
+    * unless we know we are the sole user on the device. A spinlock or
+    * mutex in the LIBMTP_mtpdevice_t is needed for this to work.
+    */
++  MTPLOG("Libmtp.c: LIBMTP_Read_Event: Entering LIBMTP_Read_Event");
+   PTPParams *params = (PTPParams *) device->params;
+   PTPContainer ptp_event;
++  MTPLOG("Libmtp.c: LIBMTP_Read_Event: Before entering ptp_usb_event_wait");
+   uint16_t ret = ptp_usb_event_wait(params, &ptp_event);
++  MTPLOG("Libmtp.c: LIBMTP_Read_Event: ptp_usb_event_wait has returned");
+   uint16_t code;
+   uint32_t session_id;
+   uint32_t transaction_id;
+@@ -2160,6 +2199,7 @@ int LIBMTP_Read_Event(LIBMTP_mtpdevice_t *device, LIBMTP_event_t *event, uint32_
+ 
+   if (ret != PTP_RC_OK) {
+     /* Device is closing down or other fatal stuff, exit thread */
++	MTPLOG("Libmtp.c: LIBMTP_Read_Event: An error has occurred in ptp_usb_event_wait");
+     return -1;
+   }
+ 
+@@ -2238,6 +2278,7 @@ int LIBMTP_Read_Event(LIBMTP_mtpdevice_t *device, LIBMTP_event_t *event, uint32_
+       break;
+   }
+ 
++  MTPLOG("Libmtp.c: LIBMTP_Read_Event: Leaving LIBMTP_Read_Event");
+   return 0;
+ }
+ 
+@@ -2667,14 +2708,17 @@ static void get_handles_recursively(LIBMTP_mtpdevice_t *device,
+ 				    uint32_t storageid,
+ 				    uint32_t parent)
+ {
++  MTPLOG("get_handles_recursively: Entering get_handles_recursively");
+   PTPObjectHandles currentHandles;
+   int i = 0;
++  MTPLOG("get_handles_recursively: Before entering ptp_getobjecthandles");
+   uint16_t ret = ptp_getobjecthandles(params,
+                                       storageid,
+                                       PTP_GOH_ALL_FORMATS,
+                                       parent,
+                                       &currentHandles);
+ 
++  MTPLOG("get_handles_recursively: ptp_getobjecthandles has returned");
+   if (ret != PTP_RC_OK) {
+     add_ptp_error_to_errorstack(device, ret, "get_handles_recursively(): could not get object handles.");
+     return;
+@@ -2686,8 +2730,10 @@ static void get_handles_recursively(LIBMTP_mtpdevice_t *device,
+   // Now descend into any subdirectories found
+   for (i = 0; i < currentHandles.n; i++) {
+     PTPObject *ob;
++	MTPLOG("get_handles_recursively: Before entering ptp_object_want");
+     ret = ptp_object_want(params,currentHandles.Handler[i],
+ 			  PTPOBJECT_OBJECTINFO_LOADED, &ob);
++	MTPLOG("get_handles_recursively: ptp_object_want has returned");
+     if (ret == PTP_RC_OK) {
+       if (ob->oi.ObjectFormat == PTP_OFC_Association)
+         get_handles_recursively(device, params,
+@@ -2699,6 +2745,7 @@ static void get_handles_recursively(LIBMTP_mtpdevice_t *device,
+     }
+   }
+   free(currentHandles.Handler);
++  MTPLOG("get_handles_recursively: Leaving get_handles_recursively");
+ }
+ 
+ /**
+@@ -2710,12 +2757,14 @@ static void get_handles_recursively(LIBMTP_mtpdevice_t *device,
+  */
+ static void flush_handles(LIBMTP_mtpdevice_t *device)
+ {
++  MTPLOG("flush_handles: Entering flush_handles");
+   PTPParams *params = (PTPParams *) device->params;
+   PTP_USB *ptp_usb = (PTP_USB*) device->usbinfo;
+   int ret;
+   uint32_t i;
+ 
+   if (!device->cached) {
++  	MTPLOG("flush_handles: !device->cached, will return");
+     return;
+   }
+ 
+@@ -2731,6 +2780,7 @@ static void flush_handles(LIBMTP_mtpdevice_t *device)
+       && !FLAG_BROKEN_MTPGETOBJPROPLIST(ptp_usb)
+       && !FLAG_BROKEN_MTPGETOBJPROPLIST_ALL(ptp_usb)) {
+     // Use the fast method. Ignore return value for now.
++    MTPLOG("flush_handles: Before entering get_all_metadata_fast");
+     ret = get_all_metadata_fast(device);
+   }
+ 
+@@ -2738,6 +2788,7 @@ static void flush_handles(LIBMTP_mtpdevice_t *device)
+   // methods instead.
+   if (params->nrofobjects == 0) {
+     // Get all the handles using just standard commands.
++    MTPLOG("flush_handles: params->nrofobjects == 0");
+     if (device->storage == NULL) {
+       get_handles_recursively(device, params,
+ 			      PTP_GOH_ALL_STORAGE,
+@@ -2746,6 +2797,7 @@ static void flush_handles(LIBMTP_mtpdevice_t *device)
+       // Get handles for each storage in turn.
+       LIBMTP_devicestorage_t *storage = device->storage;
+       while(storage != NULL) {
++	  	MTPLOG("flush_handles: Before entering get_handles_recursively for storage %d", storage->id);
+ 	get_handles_recursively(device, params,
+ 				storage->id,
+ 				PTP_GOH_ROOT_PARENT);
+@@ -2763,8 +2815,10 @@ static void flush_handles(LIBMTP_mtpdevice_t *device)
+     PTPObject *ob, *xob;
+ 
+     ob = &params->objects[i];
++	MTPLOG("flush_handles: Before ptp_object_want object %d", i);
+     ret = ptp_object_want(params,params->objects[i].oid,
+ 			  PTPOBJECT_OBJECTINFO_LOADED, &xob);
++	MTPLOG("flush_handles: ptp_object_want has returned object %d", i);
+     if (ret != PTP_RC_OK) {
+ 	LIBMTP_ERROR("broken! %x not found\n", params->objects[i].oid);
+     }
+@@ -2825,6 +2879,7 @@ static void flush_handles(LIBMTP_mtpdevice_t *device)
+       device->default_text_folder = ob->oid;
+     }
+   }
++  MTPLOG("flush_handles: Leaving flush_handles");
+ }
+ 
+ /**
+@@ -2999,6 +3054,7 @@ static int get_storage_freespace(LIBMTP_mtpdevice_t *device,
+ 				 LIBMTP_devicestorage_t *storage,
+ 				 uint64_t *freespace)
+ {
++  MTPLOG("get_storage_freespace: entering get_storage_freespace");
+   PTPParams *params = (PTPParams *) device->params;
+ 
+   // Always query the device about this, since some models explicitly
+@@ -3007,7 +3063,9 @@ static int get_storage_freespace(LIBMTP_mtpdevice_t *device,
+     PTPStorageInfo storageInfo;
+     uint16_t ret;
+ 
++    MTPLOG("get_storage_freespace: Before entering ptp_getstorageinfo");
+     ret = ptp_getstorageinfo(params, storage->id, &storageInfo);
++	MTPLOG("get_storage_freespace: ptp_getstorageinfo has returned");
+     if (ret != PTP_RC_OK) {
+       add_ptp_error_to_errorstack(device, ret,
+ 		"get_storage_freespace(): could not get storage info.");
+@@ -3028,9 +3086,12 @@ static int get_storage_freespace(LIBMTP_mtpdevice_t *device,
+     storage->StorageDescription = storageInfo.StorageDescription;
+     storage->VolumeIdentifier = storageInfo.VolumeLabel;
+   }
+-  if(storage->FreeSpaceInBytes == (uint64_t) -1)
++  if(storage->FreeSpaceInBytes == (uint64_t) -1){
++  	MTPLOG("get_storage_freespace: Leaving get_storage_freespace: storage->FreeSpaceInBytes == -1");
+     return -1;
++  }
+   *freespace = storage->FreeSpaceInBytes;
++  MTPLOG("get_storage_freespace: Leaving get_storage_freespace");
+   return 0;
+ }
+ 
+@@ -3984,6 +4045,7 @@ int LIBMTP_Check_Capability(LIBMTP_mtpdevice_t *device, LIBMTP_devicecap_t cap)
+  */
+ int LIBMTP_Get_Storage(LIBMTP_mtpdevice_t *device, int const sortby)
+ {
++  MTPLOG("LIBMTP_Get_Storage: Entering LIBMTP_Get_Storage");
+   uint32_t i = 0;
+   PTPStorageInfo storageInfo;
+   PTPParams *params = (PTPParams *) device->params;
+@@ -3996,10 +4058,14 @@ int LIBMTP_Get_Storage(LIBMTP_mtpdevice_t *device, int const sortby)
+ 
+   // if (!ptp_operation_issupported(params,PTP_OC_GetStorageIDs))
+   //   return -1;
+-  if (ptp_getstorageids (params, &storageIDs) != PTP_RC_OK)
++  if (ptp_getstorageids (params, &storageIDs) != PTP_RC_OK){
++  	MTPLOG("LIBMTP_Get_Storage: Leaving LIBMTP_Get_Storage: ptp_getstorageids != PTP_RC_OK");
+     return -1;
+-  if (storageIDs.n < 1)
++  }
++  if (storageIDs.n < 1){
++  	MTPLOG("LIBMTP_Get_Storage: Leaving LIBMTP_Get_Storage: storageIDs.n < 1");
+     return -1;
++  }
+ 
+   if (!ptp_operation_issupported(params,PTP_OC_GetStorageInfo)) {
+     for (i = 0; i < storageIDs.n; i++) {
+@@ -4026,17 +4092,21 @@ int LIBMTP_Get_Storage(LIBMTP_mtpdevice_t *device, int const sortby)
+       storageprev = storage;
+     }
+     free(storageIDs.Storage);
++	MTPLOG("LIBMTP_Get_Storage: Leaving LIBMTP_Get_Storage: !ptp_operation_issupported");
+     return 1;
+   } else {
+     for (i = 0; i < storageIDs.n; i++) {
+       uint16_t ret;
++	  MTPLOG("LIBMTP_Get_Storage: Before entering ptp_getstorageinfo: %d",i);
+       ret = ptp_getstorageinfo(params, storageIDs.Storage[i], &storageInfo);
++	  MTPLOG("LIBMTP_Get_Storage: ptp_getstorageinfo has returned: %d",i);
+       if (ret != PTP_RC_OK) {
+ 	add_ptp_error_to_errorstack(device, ret, "LIBMTP_Get_Storage(): "
+ 				    "Could not get storage info.");
+ 	if (device->storage != NULL) {
+           free_storage_list(device);
+ 	}
++	MTPLOG("LIBMTP_Get_Storage: Leaving LIBMTP_Get_Storage: device->storage != NULL");
+ 	return -1;
+       }
+ 
+@@ -4067,6 +4137,7 @@ int LIBMTP_Get_Storage(LIBMTP_mtpdevice_t *device, int const sortby)
+ 
+     sort_storage_by(device,sortby);
+     free(storageIDs.Storage);
++	MTPLOG("LIBMTP_Get_Storage: Leaving LIBMTP_Get_Storage");
+     return 0;
+   }
+ }
+@@ -4246,6 +4317,7 @@ static LIBMTP_file_t *obj2file(LIBMTP_mtpdevice_t *device, PTPObject *ob)
+  */
+ LIBMTP_file_t *LIBMTP_Get_Filemetadata(LIBMTP_mtpdevice_t *device, uint32_t const fileid)
+ {
++  MTPLOG("libmtp.c : LIBMTP_Get_Filemetadata: Entering LIBMTP_Get_Filemetadata");
+   PTPParams *params = (PTPParams *) device->params;
+   uint16_t ret;
+   PTPObject *ob;
+@@ -4253,9 +4325,11 @@ LIBMTP_file_t *LIBMTP_Get_Filemetadata(LIBMTP_mtpdevice_t *device, uint32_t cons
+   // Get all the handles if we haven't already done that
+   // (Only on cached devices.)
+   if (device->cached && params->nrofobjects == 0) {
++  	MTPLOG("libmtp.c : LIBMTP_Get_Filemetadata: Before entering flush_handles");
+     flush_handles(device);
+   }
+ 
++  MTPLOG("libmtp.c : LIBMTP_Get_Filemetadata: Before entering ptp_object_want");
+   ret = ptp_object_want(params, fileid, PTPOBJECT_OBJECTINFO_LOADED|PTPOBJECT_MTPPROPLIST_LOADED, &ob);
+   if (ret != PTP_RC_OK)
+     return NULL;
+@@ -4368,6 +4442,70 @@ LIBMTP_file_t *LIBMTP_Get_Filelisting_With_Callback(LIBMTP_mtpdevice_t *device,
+ }
+ 
+ /**
++ * This returns a list of all files available from a storage
++ * on the current MTP device.
++ *
++ * @param device a pointer to the device to get the file listing for.
++ * @param storage a storage ID to get the file list from
++ * @return a list of files
++ */
++ LIBMTP_file_t *LIBMTP_Get_File_List_For_Storage(LIBMTP_mtpdevice_t *device,
++						    uint32_t const storage)
++{
++  MTPLOG("LIBMTP_Get_File_List_For_Storage: Entering LIBMTP_Get_File_List_For_Storage");
++  uint32_t i = 0;
++  LIBMTP_file_t *retfiles = NULL;
++  LIBMTP_file_t *curfile = NULL;
++  PTPParams *params = (PTPParams *) device->params;
++
++  if (storage == PTP_GOH_ALL_STORAGE) {
++  	MTPLOG("LIBMTP_Get_File_List_For_Storage: Before entering LIBMTP_Get_Filelisting_With_Callback");
++    return LIBMTP_Get_Filelisting_With_Callback(device, NULL, NULL);
++  }
++  // Get all the handles if we haven't already done that
++  if (params->nrofobjects == 0) {
++  	MTPLOG("LIBMTP_Get_File_List_For_Storage: Before entering flush_handles");
++    flush_handles(device);
++  }
++
++  for (i = 0; i < params->nrofobjects; i++) {
++    LIBMTP_file_t *file;
++    PTPObject *ob;
++
++    ob = &params->objects[i];
++
++    if (ob->oi.ObjectFormat == PTP_OFC_Association) {
++      // MTP use this object format for folders which means
++      // these "files" will turn up on a folder listing instead.
++      continue;
++    }
++    if (ob->oi.StorageID != storage) {
++      continue;
++    }
++
++    // Look up metadata
++    MTPLOG("LIBMTP_Get_File_List_For_Storage: before entering obj2file for %dth object %d", i, (int)ob->oid);
++    file = obj2file(device, ob);
++	MTPLOG("LIBMTP_Get_File_List_For_Storage: obj2file has returned for file %s", file->filename);
++    if (file == NULL) {
++      continue;
++    }
++
++    // Add track to a list that will be returned afterwards.
++    if (retfiles == NULL) {
++      retfiles = file;
++      curfile = file;
++    } else {
++      curfile->next = file;
++      curfile = file;
++    }
++  } // Handle counting loop
++  MTPLOG("LIBMTP_Get_File_List_For_Storage: Leaving LIBMTP_Get_File_List_For_Storage");
++  return retfiles;
++}
++
++
++/**
+  * This function retrieves the contents of a certain folder
+  * with id parent on a certain storage on a certain device.
+  * The result contains both files and folders.
+@@ -4385,6 +4523,7 @@ LIBMTP_file_t * LIBMTP_Get_Files_And_Folders(LIBMTP_mtpdevice_t *device,
+ 			     uint32_t const storage,
+ 			     uint32_t const parent)
+ {
++  MTPLOG("LIBMTP_Get_Files_And_Folders: Entering LIBMTP_Get_Files_And_Folders");
+   PTPParams *params = (PTPParams *) device->params;
+   PTP_USB *ptp_usb = (PTP_USB*) device->usbinfo;
+   LIBMTP_file_t *retfiles = NULL;
+@@ -4399,6 +4538,7 @@ LIBMTP_file_t * LIBMTP_Get_Files_And_Folders(LIBMTP_mtpdevice_t *device,
+     // opened as uncached!
+     LIBMTP_ERROR("tried to use %s on a cached device!\n",
+ 		 __func__);
++	MTPLOG("LIBMTP_Get_Files_And_Folders: Leaving LIBMTP_Get_Files_And_Folders: device->cached");
+     return NULL;
+   }
+ 
+@@ -4410,6 +4550,7 @@ LIBMTP_file_t * LIBMTP_Get_Files_And_Folders(LIBMTP_mtpdevice_t *device,
+ 		 "due to missing low-level support to read "
+ 		 "information on individual tracks\n",
+ 		 __func__);
++	MTPLOG("LIBMTP_Get_Files_And_Folders: Leaving LIBMTP_Get_Files_And_Folders: FLAG_BROKEN_GET_OBJECT_PROPVAL(ptp_usb)");
+     return NULL;
+   }
+ 
+@@ -4418,20 +4559,25 @@ LIBMTP_file_t * LIBMTP_Get_Files_And_Folders(LIBMTP_mtpdevice_t *device,
+   else
+     storageid = storage;
+ 
++  MTPLOG("LIBMTP_Get_Files_And_Folders: Before entering ptp_getobjecthandles");
+   ret = ptp_getobjecthandles(params,
+ 			     storageid,
+ 			     PTP_GOH_ALL_FORMATS,
+ 			     parent,
+ 			     &currentHandles);
++  MTPLOG("LIBMTP_Get_Files_And_Folders: ptp_getobjecthandles has returned");
+ 
+   if (ret != PTP_RC_OK) {
+     add_ptp_error_to_errorstack(device, ret,
+ 		"LIBMTP_Get_Files_And_Folders(): could not get object handles.");
++	MTPLOG("LIBMTP_Get_Files_And_Folders: Leaving LIBMTP_Get_Files_And_Folders: ret != PTP_RC_OK");
+     return NULL;
+   }
+ 
+-  if (currentHandles.Handler == NULL || currentHandles.n == 0)
++  if (currentHandles.Handler == NULL || currentHandles.n == 0){
++  	MTPLOG("LIBMTP_Get_Files_And_Folders: Leaving LIBMTP_Get_Files_And_Folders: currentHandles.Handler == NULL");
+     return NULL;
++  }
+ 
+   for (i = 0; i < currentHandles.n; i++) {
+     LIBMTP_file_t *file;
+@@ -4455,6 +4601,7 @@ LIBMTP_file_t * LIBMTP_Get_Files_And_Folders(LIBMTP_mtpdevice_t *device,
+ 
+   // Return a pointer to the original first file
+   // in the big list.
++  MTPLOG("LIBMTP_Get_Files_And_Folders: Leaving LIBMTP_Get_Files_And_Folders");
+   return retfiles;
+ }
+ 
+@@ -4640,6 +4787,7 @@ static void get_track_metadata(LIBMTP_mtpdevice_t *device, uint16_t objectformat
+   /*
+    * If we have a cached, large set of metadata, then use it!
+    */
++  MTPLOG("get_track_metadata: Before entering ptp_object_want");
+   ret = ptp_object_want(params, track->item_id, PTPOBJECT_MTPPROPLIST_LOADED, &ob);
+   if (ob->mtpprops) {
+     prop = ob->mtpprops;
+@@ -4949,9 +5097,12 @@ LIBMTP_track_t *LIBMTP_Get_Trackmetadata(LIBMTP_mtpdevice_t *device, uint32_t co
+   uint16_t ret;
+ 
+   // Get all the handles if we haven't already done that
+-  if (params->nrofobjects == 0)
+-    flush_handles(device);
++  if (params->nrofobjects == 0){
++    MTPLOG("LIBMTP_Get_Trackmetadata: Before entering flush_handles");
++	flush_handles(device);
++  }
+ 
++  MTPLOG("LIBMTP_Get_Trackmetadata: Before entering ptp_object_want");
+   ret = ptp_object_want (params, trackid, PTPOBJECT_OBJECTINFO_LOADED, &ob);
+   if (ret != PTP_RC_OK)
+     return NULL;
+@@ -5151,6 +5302,7 @@ int LIBMTP_Get_File_To_File_Descriptor(LIBMTP_mtpdevice_t *device,
+   PTP_USB *ptp_usb = (PTP_USB*) device->usbinfo;
+   PTPObject *ob;
+ 
++  MTPLOG("LIBMTP_Get_File_To_File_Descriptor: Before entering ptp_object_want");
+   ret = ptp_object_want (params, id, PTPOBJECT_OBJECTINFO_LOADED, &ob);
+   if (ret != PTP_RC_OK) {
+     add_error_to_errorstack(device, LIBMTP_ERROR_GENERAL, "LIBMTP_Get_File_To_File_Descriptor(): Could not get object info.");
+@@ -5216,6 +5368,7 @@ int LIBMTP_Get_File_To_Handler(LIBMTP_mtpdevice_t *device,
+   PTPParams *params = (PTPParams *) device->params;
+   PTP_USB *ptp_usb = (PTP_USB*) device->usbinfo;
+ 
++  MTPLOG("LIBMTP_Get_File_To_Handler: Before entering ptp_object_want");
+   ret = ptp_object_want (params, id, PTPOBJECT_OBJECTINFO_LOADED, &ob);
+   if (ret != PTP_RC_OK) {
+     add_error_to_errorstack(device, LIBMTP_ERROR_GENERAL, "LIBMTP_Get_File_To_File_Descriptor(): Could not get object info.");
+@@ -6975,6 +7128,7 @@ int LIBMTP_Track_Exists(LIBMTP_mtpdevice_t *device,
+   uint16_t ret;
+   PTPObject *ob;
+ 
++  MTPLOG("LIBMTP_Track_Exists: Before entering ptp_object_want");
+   ret = ptp_object_want (params, id, 0, &ob);
+   if (ret == PTP_RC_OK)
+       return -1;
+@@ -7086,7 +7240,9 @@ static LIBMTP_folder_t *get_subfolders_for_folder(LIBMTP_folder_t *list, uint32_
+     /* We know that iter is a child of 'parent', therefore we can safely
+      * hold on to 'iter' locally since no one else will steal it
+      * from the 'list' as we recurse. */
++    MTPLOG("get_subfolders_for_folder: Before entering get_subfolders_for_folder for folder %s", iter->name);
+     children = get_subfolders_for_folder(list, iter->folder_id);
++	MTPLOG("get_subfolders_for_folder: get_subfolders_for_folder has returned for folder %s", iter->name);
+ 
+     curr = iter;
+     iter = iter->sibling;
+@@ -7117,13 +7273,15 @@ static LIBMTP_folder_t *get_subfolders_for_folder(LIBMTP_folder_t *list, uint32_
+  LIBMTP_folder_t *LIBMTP_Get_Folder_List_For_Storage(LIBMTP_mtpdevice_t *device,
+ 						    uint32_t const storage)
+ {
++  MTPLOG("LIBMTP_Get_Folder_List_For_Storage: Entering LIBMTP_Get_Folder_List_For_Storage for storage %d", (int)storage);
+   PTPParams *params = (PTPParams *) device->params;
+   LIBMTP_folder_t head, *rv;
+   int i;
+ 
+   // Get all the handles if we haven't already done that
+   if (params->nrofobjects == 0) {
+-    flush_handles(device);
++    MTPLOG("LIBMTP_Get_Folder_List_For_Storage: params->nrofobjects == 0, then will flush_handles");
++	flush_handles(device);
+   }
+ 
+   /*
+@@ -7175,6 +7333,7 @@ static LIBMTP_folder_t *get_subfolders_for_folder(LIBMTP_folder_t *list, uint32_
+     folder->parent_id = ob->oi.ParentObject;
+     folder->storage_id = ob->oi.StorageID;
+     folder->name = (ob->oi.Filename) ? (char *)strdup(ob->oi.Filename) : NULL;
++	MTPLOG("LIBMTP_Get_Folder_List_For_Storage: the  %dth object is a folder, name is %s", i, folder->name);
+ 
+     // pretend sibling says next, and child says prev.
+     folder->sibling = head.sibling;
+@@ -7184,7 +7343,9 @@ static LIBMTP_folder_t *get_subfolders_for_folder(LIBMTP_folder_t *list, uint32_
+   }
+ 
+   // We begin at the given root folder and get them all recursively
++  MTPLOG("LIBMTP_Get_Folder_List_For_Storage: Before entering get_subfolders_for_folder for root folder");
+   rv = get_subfolders_for_folder(&head, 0x00000000U);
++  MTPLOG("LIBMTP_Get_Folder_List_For_Storage: get_subfolders_for_folder has returned, the first folder in folderlist is %s", rv->name);
+ 
+   // Some buggy devices may have some files in the "root folder"
+   // 0xffffffff so if 0x00000000 didn't return any folders,
+@@ -7198,6 +7359,7 @@ static LIBMTP_folder_t *get_subfolders_for_folder(LIBMTP_folder_t *list, uint32_
+ 
+   // The temp list should be empty. Clean up any orphans just in case.
+   while(head.sibling != &head) {
++  	MTPLOG("LIBMTP_Get_Folder_List_For_Storage: Clean up any orphans just in case");
+     LIBMTP_folder_t *curr = head.sibling;
+ 
+     LIBMTP_INFO("Orphan folder with ID: 0x%08x name: \"%s\" encountered.\n",
+@@ -7210,6 +7372,7 @@ static LIBMTP_folder_t *get_subfolders_for_folder(LIBMTP_folder_t *list, uint32_
+     LIBMTP_destroy_folder_t(curr);
+   }
+ 
++  MTPLOG("LIBMTP_Get_Folder_List_For_Storage: Leaving LIBMTP_Get_Folder_List_For_Storage for storage %d", (int)storage);
+   return rv;
+ }
+ 
+@@ -7464,9 +7627,11 @@ LIBMTP_playlist_t *LIBMTP_Get_Playlist(LIBMTP_mtpdevice_t *device, uint32_t cons
+ 
+   // Get all the handles if we haven't already done that
+   if (params->nrofobjects == 0) {
++  	MTPLOG("LIBMTP_Get_Playlist: Before entering flush_handles");
+     flush_handles(device);
+   }
+ 
++  MTPLOG("LIBMTP_Get_Playlist: Before entering ptp_object_want");
+   ret = ptp_object_want (params, plid, PTPOBJECT_OBJECTINFO_LOADED, &ob);
+   if (ret != PTP_RC_OK)
+     return NULL;
+@@ -8276,6 +8441,7 @@ static void get_album_metadata(LIBMTP_mtpdevice_t *device,
+   /*
+    * If we have a cached, large set of metadata, then use it!
+    */
++  MTPLOG("get_album_metadata: Before entering ptp_object_want");
+   ret = ptp_object_want(params, alb->album_id, PTPOBJECT_MTPPROPLIST_LOADED, &ob);
+   if (ob->mtpprops) {
+     prop = ob->mtpprops;
+@@ -8420,9 +8586,12 @@ LIBMTP_album_t *LIBMTP_Get_Album(LIBMTP_mtpdevice_t *device, uint32_t const albi
+   LIBMTP_album_t *alb;
+ 
+   // Get all the handles if we haven't already done that
+-  if (params->nrofobjects == 0)
++  if (params->nrofobjects == 0){
++  	MTPLOG("LIBMTP_Get_Album: Before entering flush_handles");
+     flush_handles(device);
++  }
+ 
++  MTPLOG("LIBMTP_Get_Album: Before entering ptp_object_want");
+   ret = ptp_object_want(params, albid, PTPOBJECT_OBJECTINFO_LOADED, &ob);
+   if (ret != PTP_RC_OK)
+     return NULL;
+@@ -8716,6 +8885,7 @@ int LIBMTP_Send_Representative_Sample(LIBMTP_mtpdevice_t *device,
+   int supported = 0;
+ 
+   // get the file format for the object we're going to send representative data for
++  MTPLOG("LIBMTP_Send_Representative_Sample: Before entering ptp_object_want");
+   ret = ptp_object_want (params, id, PTPOBJECT_OBJECTINFO_LOADED, &ob);
+   if (ret != PTP_RC_OK) {
+     add_error_to_errorstack(device, LIBMTP_ERROR_GENERAL, "LIBMTP_Send_Representative_Sample(): could not get object info.");
+@@ -8810,6 +8980,7 @@ int LIBMTP_Get_Representative_Sample(LIBMTP_mtpdevice_t *device,
+   int supported = 0;
+ 
+   // get the file format for the object we're going to send representative data for
++  MTPLOG("LIBMTP_Get_Representative_Sample: Before entering ptp_object_want");
+   ret = ptp_object_want (params, id, PTPOBJECT_OBJECTINFO_LOADED, &ob);
+   if (ret != PTP_RC_OK) {
+     add_error_to_errorstack(device, LIBMTP_ERROR_GENERAL, "LIBMTP_Get_Representative_Sample(): could not get object info.");
+@@ -8888,26 +9059,25 @@ int LIBMTP_GetPartialObject(LIBMTP_mtpdevice_t *device, uint32_t const id,
+   PTPParams *params = (PTPParams *) device->params;
+   uint16_t ret;
+ 
+-  if (!ptp_operation_issupported(params, PTP_OC_ANDROID_GetPartialObject64)) {
+-    if  (!ptp_operation_issupported(params, PTP_OC_GetPartialObject)) {
++  if (!ptp_operation_issupported(params, PTP_OC_GetPartialObject)) {
++    if  (!ptp_operation_issupported(params, PTP_OC_ANDROID_GetPartialObject64)) {
+       add_error_to_errorstack(device, LIBMTP_ERROR_GENERAL,
+         "LIBMTP_GetPartialObject: PTP_OC_GetPartialObject not supported");
+-      return -1;
++      return PTP_ERROR_INVALID_OPERATION;
+     }
+ 
++    ret = ptp_android_getpartialobject64(params, id, offset, maxbytes, data, size);
++  } else {
+     if (offset >> 32 != 0) {
+       add_error_to_errorstack(device, LIBMTP_ERROR_GENERAL,
+         "LIBMTP_GetPartialObject: PTP_OC_GetPartialObject only supports 32bit offsets");
+-      return -1;
++      return PTP_ERROR_BADPARAM;
+     }
+-
+     ret = ptp_getpartialobject(params, id, (uint32_t)offset, maxbytes, data, size);
+-  } else {
+-    ret = ptp_android_getpartialobject64(params, id, offset, maxbytes, data, size);
+   }
+   if (ret == PTP_RC_OK)
+       return 0;
+-  return -1;
++  return ret;
+ }
+ 
+ 
+diff --git a/src/libmtp.h b/src/libmtp.h
+new file mode 100644
+index 0000000..77472c7
+--- /dev/null
++++ b/src/libmtp.h
+@@ -0,0 +1,1067 @@
++/**
++ * \file libmtp.h
++ * Interface to the Media Transfer Protocol library.
++ *
++ * Copyright (C) 2005-2013 Linus Walleij <triad@df.lth.se>
++ * Copyright (C) 2005-2008 Richard A. Low <richard@wentnet.com>
++ * Copyright (C) 2007 Ted Bullock <tbullock@canada.com>
++ * Copyright (C) 2008 Florent Mertens <flomertens@gmail.com>
++ * Copyright (c) 2013 - 2015 The Linux Foundation. All rights reserved.
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the
++ * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
++ * Boston, MA 02111-1307, USA.
++ *
++ * <code>
++ * #include <libmtp.h>
++ * </code>
++ */
++#ifndef LIBMTP_H_INCLUSION_GUARD
++#define LIBMTP_H_INCLUSION_GUARD
++
++#define LIBMTP_VERSION 1.1.6
++#define LIBMTP_VERSION_STRING "1.1.6"
++
++/* This handles MSVC pecularities */
++#ifdef _MSC_VER
++#include <windows.h>
++#define __WIN32__
++#define snprintf _snprintf
++#define ssize_t SSIZE_T
++/*
++ * Types that do not exist in Windows
++ * sys/types.h, but they exist in mingw32
++ * sys/types.h.
++ */
++typedef char int8_t;
++typedef unsigned char uint8_t;
++typedef __int16 int16_t;
++typedef unsigned __int16 uint16_t;
++typedef __int32 int32_t;
++typedef unsigned __int32 uint32_t;
++typedef unsigned __int64 uint64_t;
++#endif
++
++#include <stdio.h>
++#include <stdint.h>
++/* We use time_t */
++#include <time.h>
++
++/**
++ * @defgroup types libmtp global type definitions
++ * @{
++ */
++
++/**
++ * The debug flags defined here are the external flags used
++ * by the libmtp library interface.
++ *
++ * Please keep this list in sync with libmtp.c.
++ */
++#define LIBMTP_DEBUG_NONE		0x00
++#define LIBMTP_DEBUG_PTP		0x01
++#define LIBMTP_DEBUG_PLST		0x02
++#define LIBMTP_DEBUG_USB		0x04
++#define LIBMTP_DEBUG_DATA		0x08
++#define LIBMTP_DEBUG_ALL		0xFF
++
++
++/**
++ * The filetypes defined here are the external types used
++ * by the libmtp library interface. The types used internally
++ * as PTP-defined enumerator types is something different.
++ */
++typedef enum {
++  LIBMTP_FILETYPE_FOLDER,
++  LIBMTP_FILETYPE_WAV,
++  LIBMTP_FILETYPE_MP3,
++  LIBMTP_FILETYPE_WMA,
++  LIBMTP_FILETYPE_OGG,
++  LIBMTP_FILETYPE_AUDIBLE,
++  LIBMTP_FILETYPE_MP4,
++  LIBMTP_FILETYPE_UNDEF_AUDIO,
++  LIBMTP_FILETYPE_WMV,
++  LIBMTP_FILETYPE_AVI,
++  LIBMTP_FILETYPE_MPEG,
++  LIBMTP_FILETYPE_ASF,
++  LIBMTP_FILETYPE_QT,
++  LIBMTP_FILETYPE_UNDEF_VIDEO,
++  LIBMTP_FILETYPE_JPEG,
++  LIBMTP_FILETYPE_JFIF,
++  LIBMTP_FILETYPE_TIFF,
++  LIBMTP_FILETYPE_BMP,
++  LIBMTP_FILETYPE_GIF,
++  LIBMTP_FILETYPE_PICT,
++  LIBMTP_FILETYPE_PNG,
++  LIBMTP_FILETYPE_VCALENDAR1,
++  LIBMTP_FILETYPE_VCALENDAR2,
++  LIBMTP_FILETYPE_VCARD2,
++  LIBMTP_FILETYPE_VCARD3,
++  LIBMTP_FILETYPE_WINDOWSIMAGEFORMAT,
++  LIBMTP_FILETYPE_WINEXEC,
++  LIBMTP_FILETYPE_TEXT,
++  LIBMTP_FILETYPE_HTML,
++  LIBMTP_FILETYPE_FIRMWARE,
++  LIBMTP_FILETYPE_AAC,
++  LIBMTP_FILETYPE_MEDIACARD,
++  LIBMTP_FILETYPE_FLAC,
++  LIBMTP_FILETYPE_MP2,
++  LIBMTP_FILETYPE_M4A,
++  LIBMTP_FILETYPE_DOC,
++  LIBMTP_FILETYPE_XML,
++  LIBMTP_FILETYPE_XLS,
++  LIBMTP_FILETYPE_PPT,
++  LIBMTP_FILETYPE_MHT,
++  LIBMTP_FILETYPE_JP2,
++  LIBMTP_FILETYPE_JPX,
++  LIBMTP_FILETYPE_ALBUM,
++  LIBMTP_FILETYPE_PLAYLIST,
++  LIBMTP_FILETYPE_UNKNOWN
++} LIBMTP_filetype_t;
++
++/**
++ * \def LIBMTP_FILETYPE_IS_AUDIO
++ * Audio filetype test.
++ *
++ * For filetypes that can be either audio
++ * or video, use LIBMTP_FILETYPE_IS_AUDIOVIDEO
++ */
++#define LIBMTP_FILETYPE_IS_AUDIO(a)\
++(a == LIBMTP_FILETYPE_WAV ||\
++ a == LIBMTP_FILETYPE_MP3 ||\
++ a == LIBMTP_FILETYPE_MP2 ||\
++ a == LIBMTP_FILETYPE_WMA ||\
++ a == LIBMTP_FILETYPE_OGG ||\
++ a == LIBMTP_FILETYPE_FLAC ||\
++ a == LIBMTP_FILETYPE_AAC ||\
++ a == LIBMTP_FILETYPE_M4A ||\
++ a == LIBMTP_FILETYPE_AUDIBLE ||\
++ a == LIBMTP_FILETYPE_UNDEF_AUDIO)
++
++/**
++ *  \def LIBMTP_FILETYPE_IS_VIDEO
++ *  Video filetype test.
++ *
++ * For filetypes that can be either audio
++ * or video, use LIBMTP_FILETYPE_IS_AUDIOVIDEO
++ */
++#define LIBMTP_FILETYPE_IS_VIDEO(a)\
++(a == LIBMTP_FILETYPE_WMV ||\
++ a == LIBMTP_FILETYPE_AVI ||\
++ a == LIBMTP_FILETYPE_MPEG ||\
++ a == LIBMTP_FILETYPE_UNDEF_VIDEO)
++
++/**
++ *  \def LIBMTP_FILETYPE_IS_AUDIOVIDEO
++ *  Audio and&slash;or video filetype test.
++ */
++#define LIBMTP_FILETYPE_IS_AUDIOVIDEO(a)\
++(a == LIBMTP_FILETYPE_MP4 ||\
++ a == LIBMTP_FILETYPE_ASF ||\
++ a == LIBMTP_FILETYPE_QT)
++
++/**
++ *  \def LIBMTP_FILETYPE_IS_TRACK
++ *  Test if filetype is a track.
++ *  Use this to determine if the File API or Track API
++ *  should be used to upload or download an object.
++ */
++#define LIBMTP_FILETYPE_IS_TRACK(a)\
++(LIBMTP_FILETYPE_IS_AUDIO(a) ||\
++ LIBMTP_FILETYPE_IS_VIDEO(a) ||\
++ LIBMTP_FILETYPE_IS_AUDIOVIDEO(a))
++
++/**
++ *  \def LIBMTP_FILETYPE_IS_IMAGE
++ *  Image filetype test
++ */
++#define LIBMTP_FILETYPE_IS_IMAGE(a)\
++(a == LIBMTP_FILETYPE_JPEG ||\
++a == LIBMTP_FILETYPE_JFIF ||\
++a == LIBMTP_FILETYPE_TIFF ||\
++a == LIBMTP_FILETYPE_BMP ||\
++a == LIBMTP_FILETYPE_GIF ||\
++a == LIBMTP_FILETYPE_PICT ||\
++a == LIBMTP_FILETYPE_PNG ||\
++a == LIBMTP_FILETYPE_JP2 ||\
++a == LIBMTP_FILETYPE_JPX ||\
++a == LIBMTP_FILETYPE_WINDOWSIMAGEFORMAT)
++
++/**
++ *  \def LIBMTP_FILETYPE_IS_ADDRESSBOOK
++ *  Addressbook and Business card filetype test
++ */
++#define LIBMTP_FILETYPE_IS_ADDRESSBOOK(a)\
++(a == LIBMTP_FILETYPE_VCARD2 ||\
++a == LIBMTP_FILETYPE_VCARD3)
++
++/**
++ *  \def LIBMTP_FILETYPE_IS_CALENDAR
++ *  Calendar and Appointment filetype test
++ */
++#define LIBMTP_FILETYPE_IS_CALENDAR(a)\
++(a == LIBMTP_FILETYPE_VCALENDAR1 ||\
++a == LIBMTP_FILETYPE_VCALENDAR2)
++
++/**
++ * The properties defined here are the external types used
++ * by the libmtp library interface.
++ */
++typedef enum {
++  LIBMTP_PROPERTY_StorageID,
++  LIBMTP_PROPERTY_ObjectFormat,
++  LIBMTP_PROPERTY_ProtectionStatus,
++  LIBMTP_PROPERTY_ObjectSize,
++  LIBMTP_PROPERTY_AssociationType,
++  LIBMTP_PROPERTY_AssociationDesc,
++  LIBMTP_PROPERTY_ObjectFileName,
++  LIBMTP_PROPERTY_DateCreated,
++  LIBMTP_PROPERTY_DateModified,
++  LIBMTP_PROPERTY_Keywords,
++  LIBMTP_PROPERTY_ParentObject,
++  LIBMTP_PROPERTY_AllowedFolderContents,
++  LIBMTP_PROPERTY_Hidden,
++  LIBMTP_PROPERTY_SystemObject,
++  LIBMTP_PROPERTY_PersistantUniqueObjectIdentifier,
++  LIBMTP_PROPERTY_SyncID,
++  LIBMTP_PROPERTY_PropertyBag,
++  LIBMTP_PROPERTY_Name,
++  LIBMTP_PROPERTY_CreatedBy,
++  LIBMTP_PROPERTY_Artist,
++  LIBMTP_PROPERTY_DateAuthored,
++  LIBMTP_PROPERTY_Description,
++  LIBMTP_PROPERTY_URLReference,
++  LIBMTP_PROPERTY_LanguageLocale,
++  LIBMTP_PROPERTY_CopyrightInformation,
++  LIBMTP_PROPERTY_Source,
++  LIBMTP_PROPERTY_OriginLocation,
++  LIBMTP_PROPERTY_DateAdded,
++  LIBMTP_PROPERTY_NonConsumable,
++  LIBMTP_PROPERTY_CorruptOrUnplayable,
++  LIBMTP_PROPERTY_ProducerSerialNumber,
++  LIBMTP_PROPERTY_RepresentativeSampleFormat,
++  LIBMTP_PROPERTY_RepresentativeSampleSize,
++  LIBMTP_PROPERTY_RepresentativeSampleHeight,
++  LIBMTP_PROPERTY_RepresentativeSampleWidth,
++  LIBMTP_PROPERTY_RepresentativeSampleDuration,
++  LIBMTP_PROPERTY_RepresentativeSampleData,
++  LIBMTP_PROPERTY_Width,
++  LIBMTP_PROPERTY_Height,
++  LIBMTP_PROPERTY_Duration,
++  LIBMTP_PROPERTY_Rating,
++  LIBMTP_PROPERTY_Track,
++  LIBMTP_PROPERTY_Genre,
++  LIBMTP_PROPERTY_Credits,
++  LIBMTP_PROPERTY_Lyrics,
++  LIBMTP_PROPERTY_SubscriptionContentID,
++  LIBMTP_PROPERTY_ProducedBy,
++  LIBMTP_PROPERTY_UseCount,
++  LIBMTP_PROPERTY_SkipCount,
++  LIBMTP_PROPERTY_LastAccessed,
++  LIBMTP_PROPERTY_ParentalRating,
++  LIBMTP_PROPERTY_MetaGenre,
++  LIBMTP_PROPERTY_Composer,
++  LIBMTP_PROPERTY_EffectiveRating,
++  LIBMTP_PROPERTY_Subtitle,
++  LIBMTP_PROPERTY_OriginalReleaseDate,
++  LIBMTP_PROPERTY_AlbumName,
++  LIBMTP_PROPERTY_AlbumArtist,
++  LIBMTP_PROPERTY_Mood,
++  LIBMTP_PROPERTY_DRMStatus,
++  LIBMTP_PROPERTY_SubDescription,
++  LIBMTP_PROPERTY_IsCropped,
++  LIBMTP_PROPERTY_IsColorCorrected,
++  LIBMTP_PROPERTY_ImageBitDepth,
++  LIBMTP_PROPERTY_Fnumber,
++  LIBMTP_PROPERTY_ExposureTime,
++  LIBMTP_PROPERTY_ExposureIndex,
++  LIBMTP_PROPERTY_DisplayName,
++  LIBMTP_PROPERTY_BodyText,
++  LIBMTP_PROPERTY_Subject,
++  LIBMTP_PROPERTY_Priority,
++  LIBMTP_PROPERTY_GivenName,
++  LIBMTP_PROPERTY_MiddleNames,
++  LIBMTP_PROPERTY_FamilyName,
++  LIBMTP_PROPERTY_Prefix,
++  LIBMTP_PROPERTY_Suffix,
++  LIBMTP_PROPERTY_PhoneticGivenName,
++  LIBMTP_PROPERTY_PhoneticFamilyName,
++  LIBMTP_PROPERTY_EmailPrimary,
++  LIBMTP_PROPERTY_EmailPersonal1,
++  LIBMTP_PROPERTY_EmailPersonal2,
++  LIBMTP_PROPERTY_EmailBusiness1,
++  LIBMTP_PROPERTY_EmailBusiness2,
++  LIBMTP_PROPERTY_EmailOthers,
++  LIBMTP_PROPERTY_PhoneNumberPrimary,
++  LIBMTP_PROPERTY_PhoneNumberPersonal,
++  LIBMTP_PROPERTY_PhoneNumberPersonal2,
++  LIBMTP_PROPERTY_PhoneNumberBusiness,
++  LIBMTP_PROPERTY_PhoneNumberBusiness2,
++  LIBMTP_PROPERTY_PhoneNumberMobile,
++  LIBMTP_PROPERTY_PhoneNumberMobile2,
++  LIBMTP_PROPERTY_FaxNumberPrimary,
++  LIBMTP_PROPERTY_FaxNumberPersonal,
++  LIBMTP_PROPERTY_FaxNumberBusiness,
++  LIBMTP_PROPERTY_PagerNumber,
++  LIBMTP_PROPERTY_PhoneNumberOthers,
++  LIBMTP_PROPERTY_PrimaryWebAddress,
++  LIBMTP_PROPERTY_PersonalWebAddress,
++  LIBMTP_PROPERTY_BusinessWebAddress,
++  LIBMTP_PROPERTY_InstantMessengerAddress,
++  LIBMTP_PROPERTY_InstantMessengerAddress2,
++  LIBMTP_PROPERTY_InstantMessengerAddress3,
++  LIBMTP_PROPERTY_PostalAddressPersonalFull,
++  LIBMTP_PROPERTY_PostalAddressPersonalFullLine1,
++  LIBMTP_PROPERTY_PostalAddressPersonalFullLine2,
++  LIBMTP_PROPERTY_PostalAddressPersonalFullCity,
++  LIBMTP_PROPERTY_PostalAddressPersonalFullRegion,
++  LIBMTP_PROPERTY_PostalAddressPersonalFullPostalCode,
++  LIBMTP_PROPERTY_PostalAddressPersonalFullCountry,
++  LIBMTP_PROPERTY_PostalAddressBusinessFull,
++  LIBMTP_PROPERTY_PostalAddressBusinessLine1,
++  LIBMTP_PROPERTY_PostalAddressBusinessLine2,
++  LIBMTP_PROPERTY_PostalAddressBusinessCity,
++  LIBMTP_PROPERTY_PostalAddressBusinessRegion,
++  LIBMTP_PROPERTY_PostalAddressBusinessPostalCode,
++  LIBMTP_PROPERTY_PostalAddressBusinessCountry,
++  LIBMTP_PROPERTY_PostalAddressOtherFull,
++  LIBMTP_PROPERTY_PostalAddressOtherLine1,
++  LIBMTP_PROPERTY_PostalAddressOtherLine2,
++  LIBMTP_PROPERTY_PostalAddressOtherCity,
++  LIBMTP_PROPERTY_PostalAddressOtherRegion,
++  LIBMTP_PROPERTY_PostalAddressOtherPostalCode,
++  LIBMTP_PROPERTY_PostalAddressOtherCountry,
++  LIBMTP_PROPERTY_OrganizationName,
++  LIBMTP_PROPERTY_PhoneticOrganizationName,
++  LIBMTP_PROPERTY_Role,
++  LIBMTP_PROPERTY_Birthdate,
++  LIBMTP_PROPERTY_MessageTo,
++  LIBMTP_PROPERTY_MessageCC,
++  LIBMTP_PROPERTY_MessageBCC,
++  LIBMTP_PROPERTY_MessageRead,
++  LIBMTP_PROPERTY_MessageReceivedTime,
++  LIBMTP_PROPERTY_MessageSender,
++  LIBMTP_PROPERTY_ActivityBeginTime,
++  LIBMTP_PROPERTY_ActivityEndTime,
++  LIBMTP_PROPERTY_ActivityLocation,
++  LIBMTP_PROPERTY_ActivityRequiredAttendees,
++  LIBMTP_PROPERTY_ActivityOptionalAttendees,
++  LIBMTP_PROPERTY_ActivityResources,
++  LIBMTP_PROPERTY_ActivityAccepted,
++  LIBMTP_PROPERTY_Owner,
++  LIBMTP_PROPERTY_Editor,
++  LIBMTP_PROPERTY_Webmaster,
++  LIBMTP_PROPERTY_URLSource,
++  LIBMTP_PROPERTY_URLDestination,
++  LIBMTP_PROPERTY_TimeBookmark,
++  LIBMTP_PROPERTY_ObjectBookmark,
++  LIBMTP_PROPERTY_ByteBookmark,
++  LIBMTP_PROPERTY_LastBuildDate,
++  LIBMTP_PROPERTY_TimetoLive,
++  LIBMTP_PROPERTY_MediaGUID,
++  LIBMTP_PROPERTY_TotalBitRate,
++  LIBMTP_PROPERTY_BitRateType,
++  LIBMTP_PROPERTY_SampleRate,
++  LIBMTP_PROPERTY_NumberOfChannels,
++  LIBMTP_PROPERTY_AudioBitDepth,
++  LIBMTP_PROPERTY_ScanDepth,
++  LIBMTP_PROPERTY_AudioWAVECodec,
++  LIBMTP_PROPERTY_AudioBitRate,
++  LIBMTP_PROPERTY_VideoFourCCCodec,
++  LIBMTP_PROPERTY_VideoBitRate,
++  LIBMTP_PROPERTY_FramesPerThousandSeconds,
++  LIBMTP_PROPERTY_KeyFrameDistance,
++  LIBMTP_PROPERTY_BufferSize,
++  LIBMTP_PROPERTY_EncodingQuality,
++  LIBMTP_PROPERTY_EncodingProfile,
++  LIBMTP_PROPERTY_BuyFlag,
++  LIBMTP_PROPERTY_UNKNOWN
++} LIBMTP_property_t;
++
++/**
++ * These are the data types
++ */
++typedef enum {
++  LIBMTP_DATATYPE_INT8,
++  LIBMTP_DATATYPE_UINT8,
++  LIBMTP_DATATYPE_INT16,
++  LIBMTP_DATATYPE_UINT16,
++  LIBMTP_DATATYPE_INT32,
++  LIBMTP_DATATYPE_UINT32,
++  LIBMTP_DATATYPE_INT64,
++  LIBMTP_DATATYPE_UINT64,
++} LIBMTP_datatype_t;
++
++/**
++ * These are device capabilities
++ */
++typedef enum {
++  /**
++   * This capability tells whether you can call the funcion getting
++   * partial objects, @see LIBMTP_GetPartialObject()
++   */
++  LIBMTP_DEVICECAP_GetPartialObject,
++  /**
++   * This capability tells whether you can call the function sending
++   * partial objects. @see LIBMTP_SendPartialObject()
++   */
++  LIBMTP_DEVICECAP_SendPartialObject,
++  /**
++   * This capability tells whether you can call the functions editing
++   * objects in-place on a device.
++   * @see LIBMTP_BeginEditObject()
++   * @see LIBMTP_EndEditObject()
++   * @see LIBMTP_TruncateObject()
++   */
++  LIBMTP_DEVICECAP_EditObjects,
++} LIBMTP_devicecap_t;
++
++/**
++ * These are the numbered error codes. You can also
++ * get string representations for errors.
++ */
++typedef enum {
++  LIBMTP_ERROR_NONE,
++  LIBMTP_ERROR_GENERAL,
++  LIBMTP_ERROR_PTP_LAYER,
++  LIBMTP_ERROR_USB_LAYER,
++  LIBMTP_ERROR_MEMORY_ALLOCATION,
++  LIBMTP_ERROR_NO_DEVICE_ATTACHED,
++  LIBMTP_ERROR_STORAGE_FULL,
++  LIBMTP_ERROR_CONNECTING,
++  LIBMTP_ERROR_CANCELLED
++} LIBMTP_error_number_t;
++
++typedef struct LIBMTP_device_entry_struct LIBMTP_device_entry_t; /**< @see LIBMTP_device_entry_struct */
++typedef struct LIBMTP_raw_device_struct LIBMTP_raw_device_t; /**< @see LIBMTP_raw_device_struct */
++typedef struct LIBMTP_error_struct LIBMTP_error_t; /**< @see LIBMTP_error_struct */
++typedef struct LIBMTP_allowed_values_struct LIBMTP_allowed_values_t; /**< @see LIBMTP_allowed_values_struct */
++typedef struct LIBMTP_device_extension_struct LIBMTP_device_extension_t; /** < @see LIBMTP_device_extension_struct */
++typedef struct LIBMTP_mtpdevice_struct LIBMTP_mtpdevice_t; /**< @see LIBMTP_mtpdevice_struct */
++typedef struct LIBMTP_file_struct LIBMTP_file_t; /**< @see LIBMTP_file_struct */
++typedef struct LIBMTP_track_struct LIBMTP_track_t; /**< @see LIBMTP_track_struct */
++typedef struct LIBMTP_playlist_struct LIBMTP_playlist_t; /**< @see LIBMTP_playlist_struct */
++typedef struct LIBMTP_album_struct LIBMTP_album_t; /**< @see LIBMTP_album_struct */
++typedef struct LIBMTP_folder_struct LIBMTP_folder_t; /**< @see LIBMTP_folder_t */
++typedef struct LIBMTP_object_struct LIBMTP_object_t; /**< @see LIBMTP_object_t */
++typedef struct LIBMTP_filesampledata_struct LIBMTP_filesampledata_t; /**< @see LIBMTP_filesample_t */
++typedef struct LIBMTP_devicestorage_struct LIBMTP_devicestorage_t; /**< @see LIBMTP_devicestorage_t */
++
++/**
++ * The callback type definition. Notice that a progress percentage ratio
++ * is easy to calculate by dividing <code>sent</code> by
++ * <code>total</code>.
++ * @param sent the number of bytes sent so far
++ * @param total the total number of bytes to send
++ * @param data a user-defined dereferencable pointer
++ * @return if anything else than 0 is returned, the current transfer will be
++ *         interrupted / cancelled.
++ */
++typedef int (* LIBMTP_progressfunc_t) (uint64_t const sent, uint64_t const total,
++                		void const * const data);
++
++/**
++ * Callback function for get by handler function
++ * @param params the device parameters
++ * @param priv a user-defined dereferencable pointer
++ * @param wantlen the number of bytes wanted
++ * @param data a buffer to write the data to
++ * @param gotlen pointer to the number of bytes actually written
++ *        to data
++ * @return LIBMTP_HANDLER_RETURN_OK if successful,
++ *         LIBMTP_HANDLER_RETURN_ERROR on error or
++ *         LIBMTP_HANDLER_RETURN_CANCEL to cancel the transfer
++ */
++typedef uint16_t (* MTPDataGetFunc)	(void* params, void* priv,
++					uint32_t wantlen, unsigned char *data, uint32_t *gotlen);
++
++/**
++ * Callback function for put by handler function
++ * @param params the device parameters
++ * @param priv a user-defined dereferencable pointer
++ * @param sendlen the number of bytes available
++ * @param data a buffer to read the data from
++ * @param putlen pointer to the number of bytes actually read
++ *        from data
++ * @return LIBMTP_HANDLER_RETURN_OK if successful,
++ *         LIBMTP_HANDLER_RETURN_ERROR on error or
++ *         LIBMTP_HANDLER_RETURN_CANCEL to cancel the transfer
++ */
++typedef uint16_t (* MTPDataPutFunc)	(void* params, void* priv,
++					uint32_t sendlen, unsigned char *data, uint32_t *putlen);
++
++/**
++ * The return codes for the get/put functions
++ */
++#define LIBMTP_HANDLER_RETURN_OK 0
++#define LIBMTP_HANDLER_RETURN_ERROR 1
++#define LIBMTP_HANDLER_RETURN_CANCEL 2
++
++/**
++ * @}
++ * @defgroup structar libmtp data structures
++ * @{
++ */
++
++/**
++ * A data structure to hold MTP device entries.
++ */
++struct LIBMTP_device_entry_struct {
++  const char *vendor; /**< The vendor of this device */
++  uint16_t vendor_id; /**< Vendor ID for this device */
++  const char *product; /**< The product name of this device */
++  uint16_t product_id; /**< Product ID for this device */
++  uint32_t device_flags; /**< Bugs, device specifics etc */
++};
++
++/**
++ * A data structure to hold a raw MTP device connected
++ * to the bus.
++ */
++struct LIBMTP_raw_device_struct {
++  LIBMTP_device_entry_t device_entry; /**< The device entry for this raw device */
++  uint32_t bus_location; /**< Location of the bus, if device available */
++  uint8_t devnum; /**< Device number on the bus, if device available */
++};
++
++/**
++ * A data structure to hold errors from the library.
++ */
++struct LIBMTP_error_struct {
++  LIBMTP_error_number_t errornumber;
++  char *error_text;
++  LIBMTP_error_t *next;
++};
++
++/**
++ * A data structure to hold allowed ranges of values
++ */
++struct LIBMTP_allowed_values_struct {
++  uint8_t   u8max;
++  uint8_t   u8min;
++  uint8_t   u8step;
++  uint8_t*  u8vals;
++  int8_t    i8max;
++  int8_t    i8min;
++  int8_t    i8step;
++  int8_t*   i8vals;
++  uint16_t  u16max;
++  uint16_t  u16min;
++  uint16_t  u16step;
++  uint16_t* u16vals;
++  int16_t   i16max;
++  int16_t   i16min;
++  int16_t   i16step;
++  int16_t*  i16vals;
++  uint32_t  u32max;
++  uint32_t  u32min;
++  uint32_t  u32step;
++  uint32_t* u32vals;
++  int32_t   i32max;
++  int32_t   i32min;
++  int32_t   i32step;
++  int32_t*  i32vals;
++  uint64_t  u64max;
++  uint64_t  u64min;
++  uint64_t  u64step;
++  uint64_t* u64vals;
++  int64_t   i64max;
++  int64_t   i64min;
++  int64_t   i64step;
++  int64_t*  i64vals;
++  /**
++   * Number of entries in the vals array
++   */
++  uint16_t  num_entries;
++  /**
++   * The datatype specifying which of the above is used
++  */
++  LIBMTP_datatype_t datatype;
++  /**
++   * Non zero for range, 0 for enum
++  */
++  int is_range;
++};
++
++/**
++ * MTP device extension holder struct
++ */
++struct LIBMTP_device_extension_struct {
++  /**
++   * Name of extension e.g. "foo.com"
++   */
++  char *name;
++  /**
++   * Major revision of extension
++   */
++  int major;
++  /**
++   * Minor revision of extension
++   */
++  int minor;
++  /**
++   * Pointer to the next extension or NULL if this is the
++   * last extension.
++   */
++  LIBMTP_device_extension_t *next;
++};
++
++/**
++ * Main MTP device object struct
++ */
++struct LIBMTP_mtpdevice_struct {
++  /**
++   * Object bitsize, typically 32 or 64.
++   */
++  uint8_t object_bitsize;
++  /**
++   * Parameters for this device, must be cast into
++   * \c (PTPParams*) before internal use.
++   */
++  void *params;
++  /**
++   * USB device for this device, must be cast into
++   * \c (PTP_USB*) before internal use.
++   */
++  void *usbinfo;
++  /**
++   * The storage for this device, do not use strings in here without
++   * copying them first, and beware that this list may be rebuilt at
++   * any time.
++   * @see LIBMTP_Get_Storage()
++   */
++  LIBMTP_devicestorage_t *storage;
++  /**
++   * The error stack. This shall be handled using the error getting
++   * and clearing functions, not by dereferencing this list.
++   */
++  LIBMTP_error_t *errorstack;
++  /** The maximum battery level for this device */
++  uint8_t maximum_battery_level;
++  /** Default music folder */
++  uint32_t default_music_folder;
++  /** Default playlist folder */
++  uint32_t default_playlist_folder;
++  /** Default picture folder */
++  uint32_t default_picture_folder;
++  /** Default video folder */
++  uint32_t default_video_folder;
++  /** Default organizer folder */
++  uint32_t default_organizer_folder;
++  /** Default ZENcast folder (only Creative devices...) */
++  uint32_t default_zencast_folder;
++  /** Default Album folder */
++  uint32_t default_album_folder;
++  /** Default Text folder */
++  uint32_t default_text_folder;
++  /** Per device iconv() converters, only used internally */
++  void *cd;
++  /** Extension list */
++  LIBMTP_device_extension_t *extensions;
++  /** Whether the device uses caching, only used internally */
++  int cached;
++
++  /** Pointer to next device in linked list; NULL if this is the last device */
++  LIBMTP_mtpdevice_t *next;
++};
++
++/**
++ * MTP file struct
++ */
++struct LIBMTP_file_struct {
++  uint32_t item_id; /**< Unique item ID */
++  uint32_t parent_id; /**< ID of parent folder */
++  uint32_t storage_id; /**< ID of storage holding this file */
++  char *filename; /**< Filename of this file */
++  uint64_t filesize; /**< Size of file in bytes */
++  time_t modificationdate; /**< Date of last alteration of the file */
++  LIBMTP_filetype_t filetype; /**< Filetype used for the current file */
++  LIBMTP_file_t *next; /**< Next file in list or NULL if last file */
++};
++
++/**
++ * MTP track struct
++ */
++struct LIBMTP_track_struct {
++  uint32_t item_id; /**< Unique item ID */
++  uint32_t parent_id; /**< ID of parent folder */
++  uint32_t storage_id; /**< ID of storage holding this track */
++  char *title; /**< Track title */
++  char *artist; /**< Name of recording artist */
++  char *composer; /**< Name of recording composer */
++  char *genre; /**< Genre name for track */
++  char *album; /**< Album name for track */
++  char *date; /**< Date of original recording as a string */
++  char *filename; /**< Original filename of this track */
++  uint16_t tracknumber; /**< Track number (in sequence on recording) */
++  uint32_t duration; /**< Duration in milliseconds */
++  uint32_t samplerate; /**< Sample rate of original file, min 0x1f80 max 0xbb80 */
++  uint16_t nochannels; /**< Number of channels in this recording 0 = unknown, 1 or 2 */
++  uint32_t wavecodec; /**< FourCC wave codec name */
++  uint32_t bitrate; /**< (Average) bitrate for this file min=1 max=0x16e360 */
++  uint16_t bitratetype; /**< 0 = unused, 1 = constant, 2 = VBR, 3 = free */
++  uint16_t rating; /**< User rating 0-100 (0x00-0x64) */
++  uint32_t usecount; /**< Number of times used/played */
++  uint64_t filesize; /**< Size of track file in bytes */
++  time_t modificationdate; /**< Date of last alteration of the track */
++  LIBMTP_filetype_t filetype; /**< Filetype used for the current track */
++  LIBMTP_track_t *next; /**< Next track in list or NULL if last track */
++};
++
++/**
++ * MTP Playlist structure
++ */
++struct LIBMTP_playlist_struct {
++  uint32_t playlist_id; /**< Unique playlist ID */
++  uint32_t parent_id; /**< ID of parent folder */
++  uint32_t storage_id; /**< ID of storage holding this playlist */
++  char *name; /**< Name of playlist */
++  uint32_t *tracks; /**< The tracks in this playlist */
++  uint32_t no_tracks; /**< The number of tracks in this playlist */
++  LIBMTP_playlist_t *next; /**< Next playlist or NULL if last playlist */
++};
++
++/**
++ * MTP Album structure
++ */
++struct LIBMTP_album_struct {
++  uint32_t album_id; /**< Unique playlist ID */
++  uint32_t parent_id; /**< ID of parent folder */
++  uint32_t storage_id; /**< ID of storage holding this album */
++  char *name; /**< Name of album */
++  char *artist; /**< Name of album artist */
++  char *composer; /**< Name of recording composer */
++  char *genre; /**< Genre of album */
++  uint32_t *tracks; /**< The tracks in this album */
++  uint32_t no_tracks; /**< The number of tracks in this album */
++  LIBMTP_album_t *next; /**< Next album or NULL if last album */
++};
++
++/**
++ * MTP Folder structure
++ */
++struct LIBMTP_folder_struct {
++  uint32_t folder_id; /**< Unique folder ID */
++  uint32_t parent_id; /**< ID of parent folder */
++  uint32_t storage_id; /**< ID of storage holding this folder */
++  char *name; /**< Name of folder */
++  LIBMTP_folder_t *sibling; /**< Next folder at same level or NULL if no more */
++  LIBMTP_folder_t *child; /**< Child folder or NULL if no children */
++};
++
++/**
++ * LIBMTP Object RepresentativeSampleData Structure
++ */
++struct LIBMTP_filesampledata_struct {
++  uint32_t width; /**< Width of sample if it is an image */
++  uint32_t height; /**< Height of sample if it is an image */
++  uint32_t duration; /**< Duration in milliseconds if it is audio */
++  LIBMTP_filetype_t filetype; /**< Filetype used for the sample */
++  uint64_t size; /**< Size of sample data in bytes */
++  char *data; /**< Sample data */
++};
++
++/**
++ * LIBMTP Device Storage structure
++ */
++struct LIBMTP_devicestorage_struct {
++  uint32_t id; /**< Unique ID for this storage */
++  uint16_t StorageType; /**< Storage type */
++  uint16_t FilesystemType; /**< Filesystem type */
++  uint16_t AccessCapability; /**< Access capability */
++  uint64_t MaxCapacity; /**< Maximum capability */
++  uint64_t FreeSpaceInBytes; /**< Free space in bytes */
++  uint64_t FreeSpaceInObjects; /**< Free space in objects */
++  char *StorageDescription; /**< A brief description of this storage */
++  char *VolumeIdentifier; /**< A volume identifier */
++  LIBMTP_devicestorage_t *next; /**< Next storage, follow this link until NULL */
++  LIBMTP_devicestorage_t *prev; /**< Previous storage */
++};
++
++/**
++ * LIBMTP Event structure
++ * TODO: add all externally visible events here
++ */
++enum LIBMTP_event_enum {
++  LIBMTP_EVENT_NONE,
++  LIBMTP_EVENT_STORE_ADDED,
++  LIBMTP_EVENT_STORE_REMOVED,
++  LIBMTP_EVENT_OBJECT_ADDED,
++  LIBMTP_EVENT_OBJECT_REMOVED,
++};
++typedef enum LIBMTP_event_enum LIBMTP_event_t;
++
++/** @} */
++
++/* Make functions available for C++ */
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++extern int LIBMTP_debug;
++
++/**
++ * @defgroup internals The libmtp internals API.
++ * @{
++ */
++void LIBMTP_Set_Debug(int);
++void LIBMTP_Init(void);
++int LIBMTP_Get_Supported_Devices_List(LIBMTP_device_entry_t ** const, int * const);
++/**
++ * @}
++ * @defgroup basic The basic device management API.
++ * @{
++ */
++LIBMTP_error_number_t LIBMTP_Detect_Raw_Devices(LIBMTP_raw_device_t **, int *);
++int LIBMTP_Check_Specific_Device(int busno, int devno);
++LIBMTP_mtpdevice_t *LIBMTP_Open_Raw_Device(LIBMTP_raw_device_t *);
++LIBMTP_mtpdevice_t *LIBMTP_Open_Raw_Device_Uncached(LIBMTP_raw_device_t *);
++/* Begin old, legacy interface */
++LIBMTP_mtpdevice_t *LIBMTP_Get_First_Device(void);
++LIBMTP_error_number_t LIBMTP_Get_Connected_Devices(LIBMTP_mtpdevice_t **);
++uint32_t LIBMTP_Number_Devices_In_List(LIBMTP_mtpdevice_t *);
++void LIBMTP_Release_Device_List(LIBMTP_mtpdevice_t*);
++/* End old, legacy interface */
++void LIBMTP_Release_Device(LIBMTP_mtpdevice_t*);
++void LIBMTP_Dump_Device_Info(LIBMTP_mtpdevice_t*);
++int LIBMTP_Reset_Device(LIBMTP_mtpdevice_t*);
++char *LIBMTP_Get_Manufacturername(LIBMTP_mtpdevice_t*);
++char *LIBMTP_Get_Modelname(LIBMTP_mtpdevice_t*);
++char *LIBMTP_Get_Serialnumber(LIBMTP_mtpdevice_t*);
++char *LIBMTP_Get_Deviceversion(LIBMTP_mtpdevice_t*);
++char *LIBMTP_Get_Friendlyname(LIBMTP_mtpdevice_t*);
++int LIBMTP_Set_Friendlyname(LIBMTP_mtpdevice_t*, char const * const);
++char *LIBMTP_Get_Syncpartner(LIBMTP_mtpdevice_t*);
++int LIBMTP_Set_Syncpartner(LIBMTP_mtpdevice_t*, char const * const);
++int LIBMTP_Get_Batterylevel(LIBMTP_mtpdevice_t *,
++			    uint8_t * const,
++			    uint8_t * const);
++int LIBMTP_Get_Secure_Time(LIBMTP_mtpdevice_t *, char ** const);
++int LIBMTP_Get_Device_Certificate(LIBMTP_mtpdevice_t *, char ** const);
++int LIBMTP_Get_Supported_Filetypes(LIBMTP_mtpdevice_t *, uint16_t ** const, uint16_t * const);
++int LIBMTP_Check_Capability(LIBMTP_mtpdevice_t *, LIBMTP_devicecap_t);
++LIBMTP_error_t *LIBMTP_Get_Errorstack(LIBMTP_mtpdevice_t*);
++void LIBMTP_Clear_Errorstack(LIBMTP_mtpdevice_t*);
++void LIBMTP_Dump_Errorstack(LIBMTP_mtpdevice_t*);
++
++#define LIBMTP_STORAGE_SORTBY_NOTSORTED 0
++#define LIBMTP_STORAGE_SORTBY_FREESPACE 1
++#define LIBMTP_STORAGE_SORTBY_MAXSPACE  2
++
++int LIBMTP_Get_Storage(LIBMTP_mtpdevice_t *, int const);
++int LIBMTP_Format_Storage(LIBMTP_mtpdevice_t *, LIBMTP_devicestorage_t *);
++
++/**
++ * Get/set arbitrary properties.  These do not update the cache; should only be used on
++ * properties not stored in structs
++ */
++char *LIBMTP_Get_String_From_Object(LIBMTP_mtpdevice_t *, uint32_t const, LIBMTP_property_t const);
++uint64_t LIBMTP_Get_u64_From_Object(LIBMTP_mtpdevice_t *, uint32_t const,
++      LIBMTP_property_t const, uint64_t const);
++uint32_t LIBMTP_Get_u32_From_Object(LIBMTP_mtpdevice_t *, uint32_t const,
++      LIBMTP_property_t const, uint32_t const);
++uint16_t LIBMTP_Get_u16_From_Object(LIBMTP_mtpdevice_t *, uint32_t const,
++      LIBMTP_property_t const, uint16_t const);
++uint8_t LIBMTP_Get_u8_From_Object(LIBMTP_mtpdevice_t *, uint32_t const,
++      LIBMTP_property_t const, uint8_t const);
++int LIBMTP_Set_Object_String(LIBMTP_mtpdevice_t *, uint32_t const,
++      LIBMTP_property_t const, char const * const);
++int LIBMTP_Set_Object_u32(LIBMTP_mtpdevice_t *, uint32_t const,
++      LIBMTP_property_t const, uint32_t const);
++int LIBMTP_Set_Object_u16(LIBMTP_mtpdevice_t *, uint32_t const,
++      LIBMTP_property_t const, uint16_t const);
++int LIBMTP_Set_Object_u8(LIBMTP_mtpdevice_t *, uint32_t const,
++      LIBMTP_property_t const, uint8_t const);
++char const * LIBMTP_Get_Property_Description(LIBMTP_property_t inproperty);
++int LIBMTP_Is_Property_Supported(LIBMTP_mtpdevice_t*, LIBMTP_property_t const,
++            LIBMTP_filetype_t const);
++int LIBMTP_Get_Allowed_Property_Values(LIBMTP_mtpdevice_t*, LIBMTP_property_t const,
++            LIBMTP_filetype_t const, LIBMTP_allowed_values_t*);
++void LIBMTP_destroy_allowed_values_t(LIBMTP_allowed_values_t*);
++
++/**
++ * @}
++ * @defgroup files The file management API.
++ * @{
++ */
++LIBMTP_file_t *LIBMTP_new_file_t(void);
++void LIBMTP_destroy_file_t(LIBMTP_file_t*);
++char const * LIBMTP_Get_Filetype_Description(LIBMTP_filetype_t);
++LIBMTP_file_t *LIBMTP_Get_Filelisting(LIBMTP_mtpdevice_t *);
++LIBMTP_file_t *LIBMTP_Get_Filelisting_With_Callback(LIBMTP_mtpdevice_t *,
++      LIBMTP_progressfunc_t const, void const * const);
++LIBMTP_file_t *LIBMTP_Get_File_List_For_Storage(LIBMTP_mtpdevice_t*,
++						    uint32_t const);
++LIBMTP_file_t *LIBMTP_Get_File_List_For_Storage_Flush(LIBMTP_mtpdevice_t*,
++						    uint32_t const);
++
++LIBMTP_file_t * LIBMTP_Get_Files_And_Folders(LIBMTP_mtpdevice_t *,
++					     uint32_t const,
++					     uint32_t const);
++LIBMTP_file_t *LIBMTP_Get_Filemetadata(LIBMTP_mtpdevice_t *, uint32_t const);
++int LIBMTP_Get_File_To_File(LIBMTP_mtpdevice_t*, uint32_t, char const * const,
++			LIBMTP_progressfunc_t const, void const * const);
++int LIBMTP_Get_File_To_File_Descriptor(LIBMTP_mtpdevice_t*,
++				       uint32_t const,
++				       int const,
++				       LIBMTP_progressfunc_t const,
++				       void const * const);
++int LIBMTP_Get_File_To_Handler(LIBMTP_mtpdevice_t *,
++			       uint32_t const,
++			       MTPDataPutFunc,
++			       void *,
++			       LIBMTP_progressfunc_t const,
++			       void const * const);
++int LIBMTP_Send_File_From_File(LIBMTP_mtpdevice_t *,
++			       char const * const,
++			       LIBMTP_file_t * const,
++			       LIBMTP_progressfunc_t const,
++			       void const * const);
++int LIBMTP_Send_File_From_File_Descriptor(LIBMTP_mtpdevice_t *,
++					  int const,
++					  LIBMTP_file_t * const,
++					  LIBMTP_progressfunc_t const,
++					  void const * const);
++int LIBMTP_Send_File_From_Handler(LIBMTP_mtpdevice_t *,
++				  MTPDataGetFunc, void *,
++				  LIBMTP_file_t * const,
++				  LIBMTP_progressfunc_t const,
++				  void const * const);
++int LIBMTP_Set_File_Name(LIBMTP_mtpdevice_t *,
++			 LIBMTP_file_t *,
++			 const char *);
++LIBMTP_filesampledata_t *LIBMTP_new_filesampledata_t(void);
++void LIBMTP_destroy_filesampledata_t(LIBMTP_filesampledata_t *);
++int LIBMTP_Get_Representative_Sample_Format(LIBMTP_mtpdevice_t *,
++                        LIBMTP_filetype_t const,
++                        LIBMTP_filesampledata_t **);
++int LIBMTP_Send_Representative_Sample(LIBMTP_mtpdevice_t *, uint32_t const,
++                          LIBMTP_filesampledata_t *);
++int LIBMTP_Get_Representative_Sample(LIBMTP_mtpdevice_t *, uint32_t const,
++                          LIBMTP_filesampledata_t *);
++int LIBMTP_Get_Thumbnail(LIBMTP_mtpdevice_t *, uint32_t const,
++                         unsigned char **data, unsigned int *size);
++
++/**
++ * @}
++ * @defgroup tracks The track management API.
++ * @{
++ */
++LIBMTP_track_t *LIBMTP_new_track_t(void);
++void LIBMTP_destroy_track_t(LIBMTP_track_t*);
++LIBMTP_track_t *LIBMTP_Get_Tracklisting(LIBMTP_mtpdevice_t*);
++LIBMTP_track_t *LIBMTP_Get_Tracklisting_With_Callback(LIBMTP_mtpdevice_t*,
++      LIBMTP_progressfunc_t const, void const * const);
++LIBMTP_track_t *LIBMTP_Get_Tracklisting_With_Callback_For_Storage(LIBMTP_mtpdevice_t*, uint32_t const,
++      LIBMTP_progressfunc_t const, void const * const);
++LIBMTP_track_t *LIBMTP_Get_Trackmetadata(LIBMTP_mtpdevice_t*, uint32_t const);
++int LIBMTP_Get_Track_To_File(LIBMTP_mtpdevice_t*, uint32_t, char const * const,
++			LIBMTP_progressfunc_t const, void const * const);
++int LIBMTP_Get_Track_To_File_Descriptor(LIBMTP_mtpdevice_t*, uint32_t const, int const,
++			LIBMTP_progressfunc_t const, void const * const);
++int LIBMTP_Get_Track_To_Handler(LIBMTP_mtpdevice_t *, uint32_t const, MTPDataPutFunc,
++      void *, LIBMTP_progressfunc_t const, void const * const);
++int LIBMTP_Send_Track_From_File(LIBMTP_mtpdevice_t *,
++			 char const * const, LIBMTP_track_t * const,
++                         LIBMTP_progressfunc_t const,
++			 void const * const);
++int LIBMTP_Send_Track_From_File_Descriptor(LIBMTP_mtpdevice_t *,
++			 int const, LIBMTP_track_t * const,
++                         LIBMTP_progressfunc_t const,
++			 void const * const);
++int LIBMTP_Send_Track_From_Handler(LIBMTP_mtpdevice_t *,
++			 MTPDataGetFunc, void *, LIBMTP_track_t * const,
++                         LIBMTP_progressfunc_t const,
++			 void const * const);
++int LIBMTP_Update_Track_Metadata(LIBMTP_mtpdevice_t *,
++			LIBMTP_track_t const * const);
++int LIBMTP_Track_Exists(LIBMTP_mtpdevice_t *, uint32_t const);
++int LIBMTP_Set_Track_Name(LIBMTP_mtpdevice_t *, LIBMTP_track_t *, const char *);
++/** @} */
++
++/**
++ * @}
++ * @defgroup folders The folder management API.
++ * @{
++ */
++LIBMTP_folder_t *LIBMTP_new_folder_t(void);
++void LIBMTP_destroy_folder_t(LIBMTP_folder_t*);
++LIBMTP_folder_t *LIBMTP_Get_Folder_List(LIBMTP_mtpdevice_t*);
++LIBMTP_folder_t *LIBMTP_Get_Folder_List_For_Storage(LIBMTP_mtpdevice_t*,
++						    uint32_t const);
++LIBMTP_folder_t *LIBMTP_Find_Folder(LIBMTP_folder_t*, uint32_t const);
++uint32_t LIBMTP_Create_Folder(LIBMTP_mtpdevice_t*, char *, uint32_t, uint32_t);
++int LIBMTP_Set_Folder_Name(LIBMTP_mtpdevice_t *, LIBMTP_folder_t *, const char *);
++/** @} */
++
++
++/**
++ * @}
++ * @defgroup playlists The audio/video playlist management API.
++ * @{
++ */
++LIBMTP_playlist_t *LIBMTP_new_playlist_t(void);
++void LIBMTP_destroy_playlist_t(LIBMTP_playlist_t *);
++LIBMTP_playlist_t *LIBMTP_Get_Playlist_List(LIBMTP_mtpdevice_t *);
++LIBMTP_playlist_t *LIBMTP_Get_Playlist(LIBMTP_mtpdevice_t *, uint32_t const);
++int LIBMTP_Create_New_Playlist(LIBMTP_mtpdevice_t *, LIBMTP_playlist_t * const);
++int LIBMTP_Update_Playlist(LIBMTP_mtpdevice_t *, LIBMTP_playlist_t * const);
++int LIBMTP_Set_Playlist_Name(LIBMTP_mtpdevice_t *, LIBMTP_playlist_t *, const char *);
++
++/**
++ * @}
++ * @defgroup albums The audio/video album management API.
++ * @{
++ */
++LIBMTP_album_t *LIBMTP_new_album_t(void);
++void LIBMTP_destroy_album_t(LIBMTP_album_t *);
++LIBMTP_album_t *LIBMTP_Get_Album_List(LIBMTP_mtpdevice_t *);
++LIBMTP_album_t *LIBMTP_Get_Album_List_For_Storage(LIBMTP_mtpdevice_t *, uint32_t const);
++LIBMTP_album_t *LIBMTP_Get_Album(LIBMTP_mtpdevice_t *, uint32_t const);
++int LIBMTP_Create_New_Album(LIBMTP_mtpdevice_t *, LIBMTP_album_t * const);
++int LIBMTP_Update_Album(LIBMTP_mtpdevice_t *, LIBMTP_album_t const * const);
++int LIBMTP_Set_Album_Name(LIBMTP_mtpdevice_t *, LIBMTP_album_t *, const char *);
++
++/**
++ * @}
++ * @defgroup objects The object management API.
++ * @{
++ */
++int LIBMTP_Delete_Object(LIBMTP_mtpdevice_t *, uint32_t);
++int LIBMTP_Set_Object_Filename(LIBMTP_mtpdevice_t *, uint32_t , char *);
++int LIBMTP_GetPartialObject(LIBMTP_mtpdevice_t *, uint32_t const,
++                            uint64_t, uint32_t,
++                            unsigned char **, unsigned int *);
++int LIBMTP_SendPartialObject(LIBMTP_mtpdevice_t *, uint32_t const,
++                             uint64_t, unsigned char *, unsigned int);
++int LIBMTP_BeginEditObject(LIBMTP_mtpdevice_t *, uint32_t const);
++int LIBMTP_EndEditObject(LIBMTP_mtpdevice_t *, uint32_t const);
++int LIBMTP_TruncateObject(LIBMTP_mtpdevice_t *, uint32_t const, uint64_t);
++
++/**
++ * @}
++ * @defgroup files The events API.
++ * @{
++ */
++int LIBMTP_Read_Event(LIBMTP_mtpdevice_t *, LIBMTP_event_t *, uint32_t *);
++
++/** @} */
++
++/* End of C++ exports */
++#ifdef __cplusplus
++}
++#endif
++
++#endif /* LIBMTP_H_INCLUSION_GUARD */
++
+diff --git a/src/libopenusb1-glue.c b/src/libopenusb1-glue.c
+index 55a4961..01b52cd 100644
+--- a/src/libopenusb1-glue.c
++++ b/src/libopenusb1-glue.c
+@@ -7,6 +7,7 @@
+  * Copyright (C) 2006-2011 Marcus Meissner
+  * Copyright (C) 2007 Ted Bullock
+  * Copyright (C) 2008 Chris Bagwell <chris@cnpbagwell.com>
++ * Copyright (c) 2013 - 2015 The Linux Foundation. All rights reserved.
+  *
+  * This library is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU Lesser General Public
+@@ -1149,6 +1150,7 @@ ptp_exit_recv_memory_handler(PTPDataHandler *handler,
+ 
+ uint16_t
+ ptp_usb_sendreq(PTPParams* params, PTPContainer* req) {
++    MTPLOG("ptp_usb_sendreq: Entering ptp_usb_sendreq");
+     uint16_t ret;
+     PTPUSBBulkContainer usbreq;
+     PTPDataHandler memhandler;
+@@ -1174,6 +1176,7 @@ ptp_usb_sendreq(PTPParams* params, PTPContainer* req) {
+     /* send it to responder */
+     towrite = PTP_USB_BULK_REQ_LEN - (sizeof (uint32_t)*(5 - req->Nparam));
+     ptp_init_send_memory_handler(&memhandler, (unsigned char*) &usbreq, towrite);
++    MTPLOG("ptp_usb_sendreq: Before entering ptp_write_func");
+     ret = ptp_write_func(
+             towrite,
+             &memhandler,
+@@ -1191,6 +1194,7 @@ ptp_usb_sendreq(PTPParams* params, PTPContainer* req) {
+                 );
+         ret = PTP_ERROR_IO;
+     }
++    MTPLOG("ptp_usb_sendreq: Leaving ptp_usb_sendreq, return ret == %d", ret);
+     return ret;
+ }
+ 
+diff --git a/src/libusb-glue.h b/src/libusb-glue.h
+index 330dc04..acf21e5 100644
+--- a/src/libusb-glue.h
++++ b/src/libusb-glue.h
+@@ -7,6 +7,7 @@
+  * Copyright (C) 2006-2011 Marcus Meissner
+  * Copyright (C) 2007 Ted Bullock
+  * Copyright (C) 2008 Chris Bagwell <chris@cnpbagwell.com>
++ * Copyright (c) 2013 - 2015 The Linux Foundation. All rights reserved.
+  *
+  * This library is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU Lesser General Public
+@@ -32,7 +33,7 @@
+ 
+ #include "ptp.h"
+ #ifdef HAVE_LIBUSB1
+-#include <libusb-1.0/libusb.h>
++#include "libusb.h"
+ #endif
+ #ifdef HAVE_LIBUSB0
+ #include <usb.h>
+@@ -66,6 +67,8 @@ extern "C" {
+ #ifdef HAVE_LIBUSB1
+ #define USB_BULK_READ libusb_bulk_transfer
+ #define USB_BULK_WRITE libusb_bulk_transfer
++#define USB_INTERRUPT_READ libusb_interrupt_transfer
++#define USB_INTERRUPT_WRITE libusb_interrupt_transfer
+ #endif
+ #ifdef HAVE_LIBUSB0
+ #define USB_BULK_READ usb_bulk_read
+diff --git a/src/libusb1-glue.c b/src/libusb1-glue.c
+index 7dee45f..8ca66ad 100644
+--- a/src/libusb1-glue.c
++++ b/src/libusb1-glue.c
+@@ -7,6 +7,7 @@
+  * Copyright (C) 2006-2012 Marcus Meissner
+  * Copyright (C) 2007 Ted Bullock
+  * Copyright (C) 2008 Chris Bagwell <chris@cnpbagwell.com>
++ * Copyright (c) 2013 - 2015 The Linux Foundation. All rights reserved.
+  *
+  * This library is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU Lesser General Public
+@@ -29,6 +30,13 @@
+  *   use big-endian dates.)
+  *
+  */
++//#define MTPDEBUG
++#ifdef MTPDEBUG
++#define MTPLOG ALOGI
++#else
++#define MTPLOG
++#endif
++
+ #include "config.h"
+ #include "libmtp.h"
+ #include "libusb-glue.h"
+@@ -57,8 +65,10 @@
+ static inline int get_timeout(PTP_USB* ptp_usb)
+ {
+   if (FLAG_LONG_TIMEOUT(ptp_usb)) {
++    MTPLOG("get_timeout: return USB_TIMEOUT_LONG");
+     return USB_TIMEOUT_LONG;
+   }
++  MTPLOG("get_timeout: return USB_TIMEOUT_DEFAULT");
+   return USB_TIMEOUT_DEFAULT;
+ }
+ 
+@@ -955,6 +965,7 @@ ptp_write_func (
+         void            *data,
+         unsigned long   *written
+ ) {
++  MTPLOG("ptp_write_func: Entering ptp_write_func");
+   PTP_USB *ptp_usb = (PTP_USB *)data;
+   unsigned long towrite = 0;
+   int ret = 0;
+@@ -964,6 +975,7 @@ ptp_write_func (
+   // This is the largest block we'll need to read in.
+   bytes = malloc(CONTEXT_BLOCK_SIZE);
+   if (!bytes) {
++    MTPLOG("ptp_write_func: !bytes, return PTP_ERROR_IO");
+     return PTP_ERROR_IO;
+   }
+   while (curwrite < size) {
+@@ -979,23 +991,29 @@ ptp_write_func (
+         towrite -= towrite % ptp_usb->outep_maxpacket;
+       }
+     }
++    MTPLOG("ptp_write_func: Before entering handler->getfunc");
+     int getfunc_ret = handler->getfunc(NULL, handler->priv,towrite,bytes,&towrite);
++    MTPLOG("ptp_write_func: handler->getfunc has returned, getfunc_ret == %d", getfunc_ret);
+     if (getfunc_ret != PTP_RC_OK) {
+       free(bytes);
++      MTPLOG("ptp_write_func: getfunc_ret != PTP_RC_OK, return getfunc_ret");
+       return getfunc_ret;
+     }
+     while (usbwritten < towrite) {
++        MTPLOG("ptp_write_func: Before entering USB_BULK_WRITE");
+ 	    ret = USB_BULK_WRITE(ptp_usb->handle,
+ 				    ptp_usb->outep,
+ 				    bytes+usbwritten,
+ 				    towrite-usbwritten,
+                                     &xwritten,
+ 				    ptp_usb->timeout);
++        MTPLOG("ptp_write_func: USB_BULK_WRITE has returned, ret == %d", ret);
+ 
+ 	    LIBMTP_USB_DEBUG("USB OUT==>\n");
+ 
+ 	    if (ret != LIBUSB_SUCCESS) {
+               free(bytes);
++              MTPLOG("ptp_write_func: ret != LIBUSB_SUCCESS, return PTP_ERROR_IO");
+ 	      return PTP_ERROR_IO;
+ 	    }
+ 	    LIBMTP_USB_DATA(bytes+usbwritten, xwritten, 16);
+@@ -1014,10 +1032,14 @@ ptp_write_func (
+       }
+       if (ptp_usb->current_transfer_callback != NULL) {
+ 	int ret;
++    MTPLOG("ptp_write_func: Before entering ptp_usb->current_transfer_callback");
+ 	ret = ptp_usb->current_transfer_callback(ptp_usb->current_transfer_complete,
+ 						 ptp_usb->current_transfer_total,
+ 						 ptp_usb->current_transfer_callback_data);
++    MTPLOG("ptp_write_func: ptp_usb->current_transfer_callback has returned, ret == %d", ret);
++						 
+ 	if (ret != 0) {
++          MTPLOG("ptp_write_func: ret != 0, return PTP_ERROR_CANCEL");
+           free(bytes);
+ 	  return PTP_ERROR_CANCEL;
+ 	}
+@@ -1032,7 +1054,7 @@ ptp_write_func (
+   }
+ 
+   // If this is the last transfer send a zero write if required
+-  if (ptp_usb->current_transfer_complete >= ptp_usb->current_transfer_total) {
++  /*if (ptp_usb->current_transfer_complete >= ptp_usb->current_transfer_total) {
+     if ((towrite % ptp_usb->outep_maxpacket) == 0) {
+       int xwritten;
+ 
+@@ -1046,10 +1068,13 @@ ptp_write_func (
+                             &xwritten,
+ 			    ptp_usb->timeout);
+     }
+-  }
++  }*/
+ 
+-  if (ret != LIBUSB_SUCCESS)
++  if (ret != LIBUSB_SUCCESS){
++    MTPLOG("ptp_write_func: ret != LIBUSB_SUCCESS, return PTP_ERROR_IO");
+     return PTP_ERROR_IO;
++  }
++  MTPLOG("ptp_write_func: Leaving ptp_write_func, return PTP_RC_OK");
+   return PTP_RC_OK;
+ }
+ 
+@@ -1152,6 +1177,7 @@ ptp_exit_recv_memory_handler (PTPDataHandler *handler,
+ uint16_t
+ ptp_usb_sendreq (PTPParams* params, PTPContainer* req)
+ {
++    MTPLOG("ptp_usb_sendreq: Entering ptp_usb_sendreq");
+ 	uint16_t ret;
+ 	PTPUSBBulkContainer usbreq;
+ 	PTPDataHandler	memhandler;
+@@ -1177,14 +1203,17 @@ ptp_usb_sendreq (PTPParams* params, PTPContainer* req)
+ 	/* send it to responder */
+ 	towrite = PTP_USB_BULK_REQ_LEN-(sizeof(uint32_t)*(5-req->Nparam));
+ 	ptp_init_send_memory_handler (&memhandler, (unsigned char*)&usbreq, towrite);
++    MTPLOG("ptp_usb_sendreq: Before entering ptp_write_func");
+ 	ret=ptp_write_func(
+ 		towrite,
+ 		&memhandler,
+ 		params->data,
+ 		&written
+ 	);
++    MTPLOG("ptp_usb_sendreq: ptp_write_func has returned, ret == %d", ret);
+ 	ptp_exit_send_memory_handler (&memhandler);
+ 	if (ret != PTP_RC_OK && ret != PTP_ERROR_CANCEL) {
++        MTPLOG("ptp_usb_sendreq: ret != PTP_RC_OK && ret != PTP_ERROR_CANCEL, ret = PTP_ERROR_IO");
+ 		ret = PTP_ERROR_IO;
+ 	}
+ 	if (written != towrite && ret != PTP_ERROR_CANCEL && ret != PTP_ERROR_IO) {
+@@ -1192,8 +1221,10 @@ ptp_usb_sendreq (PTPParams* params, PTPContainer* req)
+ 			"PTP: request code 0x%04x sending req wrote only %ld bytes instead of %d",
+ 			req->Code, written, towrite
+ 		);
++        MTPLOG("ptp_usb_sendreq: written != towrite && ret != PTP_ERROR_CANCEL && ret != PTP_ERROR_IO, ret = PTP_ERROR_IO");
+ 		ret = PTP_ERROR_IO;
+ 	}
++    MTPLOG("ptp_usb_sendreq: Leaving ptp_usb_sendreq, return ret == %d", ret);
+ 	return ret;
+ }
+ 
+@@ -1310,7 +1341,11 @@ ptp_usb_getdata (PTPParams* params, PTPContainer* ptp, PTPDataHandler *handler)
+ 			break;
+ 		}
+ 		if (dtoh16(usbdata.type)!=PTP_USB_CONTAINER_DATA) {
+-			ret = PTP_ERROR_DATA_EXPECTED;
++			if (dtoh16(usbdata.type) == PTP_USB_CONTAINER_RESPONSE
++				&& dtoh16(usbdata.code) == PTP_RC_OperationNotSupported)
++				ret = PTP_ERROR_INVALID_OPERATION;
++			else
++				ret = PTP_ERROR_DATA_EXPECTED;
+ 			break;
+ 		}
+ 		if (dtoh16(usbdata.code)!=ptp->Code) {
+@@ -1541,6 +1576,7 @@ ptp_usb_getresp (PTPParams* params, PTPContainer* resp)
+ static inline uint16_t
+ ptp_usb_event (PTPParams* params, PTPContainer* event, int wait)
+ {
++    MTPLOG("Libusb1-glue.c: ptp_usb_event: Entering ptp_usb_event");
+ 	uint16_t ret;
+ 	int result, xread;
+ 	unsigned long rlen;
+@@ -1554,38 +1590,47 @@ ptp_usb_event (PTPParams* params, PTPContainer* event, int wait)
+ 	ret = PTP_RC_OK;
+ 	switch(wait) {
+ 	case PTP_EVENT_CHECK:
+-                result = USB_BULK_READ(ptp_usb->handle,
++		MTPLOG("Libusb1-glue.c: ptp_usb_event: case PTP_EVENT_CHECK");
++		MTPLOG("Libusb1-glue.c: ptp_usb_event: Before entering USB_INTERRUPT_READ");
++                result = USB_INTERRUPT_READ(ptp_usb->handle,
+ 				     ptp_usb->intep,
+ 				     (unsigned char *) &usbevent,
+ 				     sizeof(usbevent),
+ 				     &xread,
+ 				     0);
+-		if (xread == 0)
+-		  result = USB_BULK_READ(ptp_usb->handle,
++		MTPLOG("Libusb1-glue.c: ptp_usb_event: USB_INTERRUPT_READ has returned");
++		if (xread == 0){
++		  MTPLOG("Libusb1-glue.c: ptp_usb_event: if xread == 0");
++		  result = USB_INTERRUPT_READ(ptp_usb->handle,
+ 					 ptp_usb->intep,
+ 					 (unsigned char *) &usbevent,
+ 					 sizeof(usbevent),
+ 				         &xread,
+ 					 0);
++		}
+ 		if (result < 0) ret = PTP_ERROR_IO;
+ 		break;
+ 	case PTP_EVENT_CHECK_FAST:
+-                result = USB_BULK_READ(ptp_usb->handle,
++		MTPLOG("Libusb1-glue.c: ptp_usb_event: case PTP_EVENT_CHECK_FAST");
++                result = USB_INTERRUPT_READ(ptp_usb->handle,
+ 				     ptp_usb->intep,
+ 				     (unsigned char *) &usbevent,
+ 				     sizeof(usbevent),
+ 				     &xread,
+ 				     ptp_usb->timeout);
+-		if (xread == 0)
+-		  result = USB_BULK_READ(ptp_usb->handle,
++		if (xread == 0){
++		  MTPLOG("Libusb1-glue.c: ptp_usb_event: if xread == 0");
++		  result = USB_INTERRUPT_READ(ptp_usb->handle,
+ 					 ptp_usb->intep,
+ 					 (unsigned char *) &usbevent,
+ 					 sizeof(usbevent),
+ 				         &xread,
+ 					 ptp_usb->timeout);
++		}
+ 		if (result < 0) ret = PTP_ERROR_IO;
+ 		break;
+ 	default:
++		MTPLOG("Libusb1-glue.c: ptp_usb_event: case default");
+ 		ret = PTP_ERROR_BADPARAM;
+ 		break;
+ 	}
+@@ -1608,6 +1653,7 @@ ptp_usb_event (PTPParams* params, PTPContainer* event, int wait)
+ 	event->Param1=dtoh32(usbevent.param1);
+ 	event->Param2=dtoh32(usbevent.param2);
+ 	event->Param3=dtoh32(usbevent.param3);
++	MTPLOG("Libusb1-glue.c: ptp_usb_event: Leaving ptp_usb_event");
+ 	return ret;
+ }
+ 
+@@ -1620,7 +1666,10 @@ ptp_usb_event_check (PTPParams* params, PTPContainer* event) {
+ uint16_t
+ ptp_usb_event_wait (PTPParams* params, PTPContainer* event) {
+ 
+-	return ptp_usb_event (params, event, PTP_EVENT_CHECK);
++    MTPLOG("Libusb1-glue.c: ptp_usb_event_wait: Before entering ptp_usb_event");
++	uint16_t res = ptp_usb_event (params, event, PTP_EVENT_CHECK);
++	MTPLOG("Libusb1-glue.c: ptp_usb_event_wait: ptp_usb_event has returned");
++	return res;
+ }
+ 
+ uint16_t
+@@ -1984,6 +2033,7 @@ LIBMTP_error_number_t configure_usb_device(LIBMTP_raw_device_t *device,
+ 					   PTPParams *params,
+ 					   void **usbinfo)
+ {
++  MTPLOG("configure_usb_device: Entering configure_usb_device");
+   PTP_USB *ptp_usb;
+   libusb_device *ldevice;
+   uint16_t ret = 0;
+@@ -1995,8 +2045,10 @@ LIBMTP_error_number_t configure_usb_device(LIBMTP_raw_device_t *device,
+ 
+   /* See if we can find this raw device again... */
+   init_usb_ret = init_usb();
+-  if (init_usb_ret != LIBMTP_ERROR_NONE)
++  if (init_usb_ret != LIBMTP_ERROR_NONE){
++  	MTPLOG("configure_usb_device: Leaving configure_usb_device: init_usb_ret != LIBMTP_ERROR_NONE");
+     return init_usb_ret;
++  }
+ 
+   nrofdevs = libusb_get_device_list(NULL, &devs);
+   for (i = 0; i < nrofdevs ; i++) {
+@@ -2018,6 +2070,7 @@ LIBMTP_error_number_t configure_usb_device(LIBMTP_raw_device_t *device,
+   /* Device has gone since detecting raw devices! */
+   if (!found) {
+     libusb_free_device_list (devs, 0);
++	MTPLOG("configure_usb_device: Leaving configure_usb_device: if (!found)");
+     return LIBMTP_ERROR_NO_DEVICE_ATTACHED;
+   }
+ 
+@@ -2025,6 +2078,7 @@ LIBMTP_error_number_t configure_usb_device(LIBMTP_raw_device_t *device,
+   ptp_usb = (PTP_USB *) malloc(sizeof(PTP_USB));
+   if (ptp_usb == NULL) {
+     libusb_free_device_list (devs, 0);
++	MTPLOG("configure_usb_device: Leaving configure_usb_device: if (ptp_usb == NULL)");
+     return LIBMTP_ERROR_MEMORY_ALLOCATION;
+   }
+   /* Start with a blank slate (includes setting device_flags to 0) */
+@@ -2056,6 +2110,7 @@ LIBMTP_error_number_t configure_usb_device(LIBMTP_raw_device_t *device,
+   if (err) {
+     libusb_free_device_list (devs, 0);
+     LIBMTP_ERROR("LIBMTP PANIC: Unable to find interface & endpoints of device\n");
++	MTPLOG("configure_usb_device: Leaving configure_usb_device: if (err)");
+     return LIBMTP_ERROR_CONNECTING;
+   }
+ 
+@@ -2063,32 +2118,45 @@ LIBMTP_error_number_t configure_usb_device(LIBMTP_raw_device_t *device,
+   ptp_usb->bcdusb = desc.bcdUSB;
+ 
+   /* Attempt to initialize this device */
++  MTPLOG("configure_usb_device: Before entering init_ptp_usb");
+   if (init_ptp_usb(params, ptp_usb, ldevice) < 0) {
++    MTPLOG("configure_usb_device: Unable to initialize device");
+     LIBMTP_ERROR("LIBMTP PANIC: Unable to initialize device\n");
+     libusb_free_device_list (devs, 0);
++	MTPLOG("configure_usb_device: Leaving configure_usb_device, return LIBMTP_ERROR_CONNECTING");
+     return LIBMTP_ERROR_CONNECTING;
+   }
+-
++  MTPLOG("configure_usb_device: init_ptp_usb has returned, ret >= 0");
+   /*
+    * This works in situations where previous bad applications
+    * have not used LIBMTP_Release_Device on exit
+    */
++  MTPLOG("configure_usb_device: Before entering ptp_opensession");
+   if ((ret = ptp_opensession(params, 1)) == PTP_ERROR_IO) {
++    MTPLOG("configure_usb_device: failed to open session, trying again after resetting USB interface");
+     LIBMTP_ERROR("PTP_ERROR_IO: failed to open session, trying again after resetting USB interface\n");
+     LIBMTP_ERROR("LIBMTP libusb: Attempt to reset device\n");
++    MTPLOG("configure_usb_device: Before entering libusb_reset_device to attempt reset device");
+     libusb_reset_device (ptp_usb->handle);
++    MTPLOG("configure_usb_device: libusb_reset_device has returned");
+     close_usb(ptp_usb);
+ 
++    MTPLOG("configure_usb_device: Before entering init_ptp_usb 2nd time");
+     if(init_ptp_usb(params, ptp_usb, ldevice) <0) {
++      MTPLOG("configure_usb_device: Unable to initialize device on 2nd attempt");
+       LIBMTP_ERROR("LIBMTP PANIC: Could not init USB on second attempt\n");
+       libusb_free_device_list (devs, 0);
++	  MTPLOG("configure_usb_device: Leaving configure_usb_device, return LIBMTP_ERROR_CONNECTING");
+       return LIBMTP_ERROR_CONNECTING;
+     }
+ 
+     /* Device has been reset, try again */
++    MTPLOG("configure_usb_device: Before entering ptp_opensession");
+     if ((ret = ptp_opensession(params, 1)) == PTP_ERROR_IO) {
++      MTPLOG("configure_usb_device: failed to open session on 2nd attempt");
+       LIBMTP_ERROR("LIBMTP PANIC: failed to open session on second attempt\n");
+       libusb_free_device_list (devs, 0);
++	  MTPLOG("configure_usb_device: Leaving configure_usb_device, return LIBMTP_ERROR_CONNECTING");
+       return LIBMTP_ERROR_CONNECTING;
+     }
+   }
+@@ -2106,12 +2174,14 @@ LIBMTP_error_number_t configure_usb_device(LIBMTP_raw_device_t *device,
+ 	    ret);
+     libusb_release_interface(ptp_usb->handle, ptp_usb->interface);
+     libusb_free_device_list (devs, 0);
++	MTPLOG("configure_usb_device: Leaving configure_usb_device: if (ret != PTP_RC_SessionAlreadyOpened)");
+     return LIBMTP_ERROR_CONNECTING;
+   }
+ 
+   /* OK configured properly */
+   *usbinfo = (void *) ptp_usb;
+   libusb_free_device_list (devs, 0);
++  MTPLOG("configure_usb_device: Leaving configure_usb_device");
+   return LIBMTP_ERROR_NONE;
+ }
+ 
+diff --git a/src/ptp.c b/src/ptp.c
+index efc01d7..51c4774 100644
+--- a/src/ptp.c
++++ b/src/ptp.c
+@@ -5,6 +5,7 @@
+  * Copyright (C) 2006-2008 Linus Walleij <triad@df.lth.se>
+  * Copyright (C) 2007 Tero Saarni <tero.saarni@gmail.com>
+  * Copyright (C) 2009 Axel Waggershauser <awagger@web.de>
++ * Copyright (c) 2013 - 2015 The Linux Foundation. All rights reserved.
+  *
+  * This library is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU Lesser General Public
+@@ -21,8 +22,15 @@
+  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+  * Boston, MA 02111-1307, USA.
+  */
++//#define MTPDEBUG
++#ifdef MTPDEBUG
++#define MTPLOG ALOGI
++#else
++#define MTPLOG
++#endif
+ 
+ #define _BSD_SOURCE
++
+ #include "config.h"
+ #include "ptp.h"
+ 
+@@ -139,6 +147,8 @@ ptp_transaction_new (PTPParams* params, PTPContainer* ptp,
+ 		     uint16_t flags, uint64_t sendlen,
+ 		     PTPDataHandler *handler
+ ) {
++    if (params->transaction_id == 0x0000000)
++        MTPLOG("ptp_transaction_new: Entering ptp_transaction_new for opensession");
+ 	int 		tries;
+ 	uint16_t	cmd;
+ 
+@@ -149,17 +159,24 @@ ptp_transaction_new (PTPParams* params, PTPContainer* ptp,
+ 	ptp->Transaction_ID=params->transaction_id++;
+ 	ptp->SessionID=params->session_id;
+ 	/* send request */
++    MTPLOG("ptp_transaction_new: Before entering CHECK_PTP_RC");
+ 	CHECK_PTP_RC(params->sendreq_func (params, ptp));
++    MTPLOG("ptp_transaction_new: CHECK_PTP_RC has returned");
+ 	/* is there a dataphase? */
+ 	switch (flags&PTP_DP_DATA_MASK) {
+ 	case PTP_DP_SENDDATA:
+ 		{
++            MTPLOG("ptp_transaction_new: case PTP_DP_SENDDATA");
+ 			uint16_t ret;
++            MTPLOG("ptp_transaction_new: Before entering params->senddata_func");
+ 			ret = params->senddata_func(params, ptp,
+ 						    sendlen, handler);
++            MTPLOG("ptp_transaction_new: params->senddata_func has returned");
+ 			if (ret == PTP_ERROR_CANCEL) {
++                MTPLOG("ptp_transaction_new: Before entering params->cancelreq_func");
+ 				ret = params->cancelreq_func(params, 
+ 							     params->transaction_id-1);
++                MTPLOG("ptp_transaction_new: params->cancelreq_func has returned");
+ 				if (ret == PTP_RC_OK)
+ 					ret = PTP_ERROR_CANCEL;
+ 			}
+@@ -169,6 +186,7 @@ ptp_transaction_new (PTPParams* params, PTPContainer* ptp,
+ 		break;
+ 	case PTP_DP_GETDATA:
+ 		{
++            MTPLOG("ptp_transaction_new: case PTP_DP_GETDATA");
+ 			uint16_t ret;
+ 			ret = params->getdata_func(params, ptp, handler);
+ 			if (ret == PTP_ERROR_CANCEL) {
+@@ -182,8 +200,10 @@ ptp_transaction_new (PTPParams* params, PTPContainer* ptp,
+ 		}
+ 		break;
+ 	case PTP_DP_NODATA:
++        MTPLOG("ptp_transaction_new: case PTP_DP_NODATA");
+ 		break;
+ 	default:
++        MTPLOG("ptp_transaction_new: case default, return PTP_ERROR_BADPARAM");
+ 		return PTP_ERROR_BADPARAM;
+ 	}
+ 	tries = 3;
+@@ -520,6 +540,7 @@ ptp_generic_no_data (PTPParams* params, uint16_t code, unsigned int n_param, ...
+ uint16_t
+ ptp_opensession (PTPParams* params, uint32_t session)
+ {
++    MTPLOG("ptp_opensession: Entering ptp_opensession");
+ 	uint16_t ret;
+ 	PTPContainer ptp;
+ 
+@@ -540,9 +561,12 @@ ptp_opensession (PTPParams* params, uint32_t session)
+ 	ptp.Code=PTP_OC_OpenSession;
+ 	ptp.Param1=session;
+ 	ptp.Nparam=1;
++    MTPLOG("ptp_opensession: Before entering ptp_transaction_new");
+ 	ret=ptp_transaction_new(params, &ptp, PTP_DP_NODATA, 0, NULL);
++    MTPLOG("ptp_opensession: ptp_transaction_new has returned, ret == %d", ret);
+ 	/* now set the global session id to current session number */
+ 	params->session_id=session;
++    MTPLOG("ptp_opensession: Leaving ptp_opensession return ret == %d", ret);
+ 	return ret;
+ }
+ 
+@@ -648,6 +672,7 @@ ptp_getobjecthandles (PTPParams* params, uint32_t storage,
+ 			uint32_t objectformatcode, uint32_t associationOH,
+ 			PTPObjectHandles* objecthandles)
+ {
++    MTPLOG("ptp.c: ptp_getobjecthandles: Entering ptp_getobjecthandles");
+ 	uint16_t ret;
+ 	PTPContainer ptp;
+ 	unsigned char* oh=NULL;
+@@ -663,6 +688,12 @@ ptp_getobjecthandles (PTPParams* params, uint32_t storage,
+ 	ret=ptp_transaction(params, &ptp, PTP_DP_GETDATA, 0, &oh, &len);
+ 	if (ret == PTP_RC_OK) {
+ 		ptp_unpack_OH(params, oh, objecthandles, len);
++#ifdef MTPDEBUG
++        int i=0;
++        for (; i<objecthandles->n; ++i){
++            ALOGI("ptp.c: ptp_getobjecthandles: the %dth handle is %d", i+1, (int)(objecthandles->Handler[i]));
++		}
++#endif
+ 	} else {
+ 		if (	(storage == 0xffffffff) &&
+ 			(objectformatcode == 0) &&
+@@ -677,6 +708,7 @@ ptp_getobjecthandles (PTPParams* params, uint32_t storage,
+ 		}
+ 	}
+ 	free(oh);
++	MTPLOG("ptp.c: ptp_getobjecthandles: Leaving ptp_getobjecthandles");
+ 	return ret;
+ }
+ 
+@@ -838,6 +870,7 @@ ptp_getobjectinfo (PTPParams* params, uint32_t handle,
+ 	ret=ptp_transaction(params, &ptp, PTP_DP_GETDATA, 0, &oi, &len);
+ 	if (ret == PTP_RC_OK) ptp_unpack_OI(params, oi, objectinfo, len);
+ 	free(oi);
++	MTPLOG("ptp.c: ptp_getobjectinfo: handle is %d, objectinfo->Filename is %s", (int)handle, objectinfo->Filename);
+ 	return ret;
+ }
+ 
+@@ -5461,7 +5494,9 @@ ptp_find_object_prop_in_cache(PTPParams *params, uint32_t const handle, uint32_t
+ 	PTPObject	*ob;
+ 	uint16_t	ret;
+ 
++    MTPLOG("ptp.c: ptp_find_object_prop_in_cache: Before entering ptp_object_find");
+ 	ret = ptp_object_find (params, handle, &ob);
++	MTPLOG("ptp.c: ptp_find_object_prop_in_cache: ptp_object_find has returned");
+ 	if (ret != PTP_RC_OK)
+ 		return NULL;
+ 	prop = ob->mtpprops;
+@@ -5480,7 +5515,9 @@ ptp_remove_object_from_cache(PTPParams *params, uint32_t handle)
+ 	PTPObject	*ob;
+ 	uint16_t	ret;
+ 
++    MTPLOG("ptp.c: ptp_remove_object_from_cache: Before entering ptp_object_find");
+ 	ret = ptp_object_find (params, handle, &ob);
++	MTPLOG("ptp.c: ptp_remove_object_from_cache: ptp_object_find has returned");
+ 	if (ret != PTP_RC_OK)
+ 		return;
+ 	i = ob-params->objects;
+@@ -5497,12 +5534,13 @@ ptp_remove_object_from_cache(PTPParams *params, uint32_t handle)
+ static int _cmp_ob (const void *a, const void *b) {
+ 	PTPObject *oa = (PTPObject*)a;
+ 	PTPObject *ob = (PTPObject*)b;
+-
++    MTPLOG("ptp.c: _cmp_ob: return compare results: %d and %d", oa->oid, ob->oid);
+ 	return oa->oid - ob->oid;
+ }
+ 	
+ void
+ ptp_objects_sort (PTPParams *params) {
++    MTPLOG("ptp.c: ptp_objects_sort: Entering ptp_objects_sort");
+ 	qsort (params->objects, params->nrofobjects, sizeof(PTPObject), _cmp_ob);
+ }
+ 
+@@ -5512,9 +5550,11 @@ ptp_object_find (PTPParams *params, uint32_t handle, PTPObject **retob) {
+ 	PTPObject	tmpob;
+ 
+ 	tmpob.oid = handle;
++	MTPLOG("ptp.c: ptp_object_find: Before bsearch");
+ 	*retob = bsearch (&tmpob, params->objects, params->nrofobjects, sizeof(tmpob), _cmp_ob);
+ 	if (!*retob)
+ 		return PTP_RC_GeneralError;
++	MTPLOG("ptp.c: ptp_object_find: object has been find by bsearch");
+ 	return PTP_RC_OK;
+ }
+ 
+@@ -5528,6 +5568,7 @@ ptp_object_find_or_insert (PTPParams *params, uint32_t handle, PTPObject **retob
+ 	if (!handle) return PTP_RC_GeneralError;
+ 	*retob = NULL;
+ 	if (!params->nrofobjects) {
++		MTPLOG("ptp.c: ptp_object_find_or_insert: params->nrofobjects == 0");
+ 		params->objects = calloc(1,sizeof(PTPObject));
+ 		params->nrofobjects = 1;
+ 		params->objects[0].oid = handle;
+@@ -5553,12 +5594,15 @@ ptp_object_find_or_insert (PTPParams *params, uint32_t handle, PTPObject **retob
+ 	}
+ 	if (params->objects[begin].oid == handle) {
+ 		*retob = &params->objects[begin];
++		MTPLOG("ptp.c: ptp_object_find_or_insert: have found in position %d", begin);
+ 		return PTP_RC_OK;
+ 	}
+ 	if (params->objects[end].oid == handle) {
+ 		*retob = &params->objects[end];
++		MTPLOG("ptp.c: ptp_object_find_or_insert: have found in position %d", end);
+ 		return PTP_RC_OK;
+ 	}
++	MTPLOG("ptp.c: ptp_object_find_or_insert: not found, need insert");
+ 	if ((begin == 0) && (handle < params->objects[0].oid)) {
+ 		insertat=begin;
+ 	} else {
+@@ -5567,6 +5611,7 @@ ptp_object_find_or_insert (PTPParams *params, uint32_t handle, PTPObject **retob
+ 		else
+ 			insertat=begin+1;
+ 	}
++	MTPLOG("ptp.c: ptp_object_find_or_insert: will insert in position %d", insertat);
+ 	/*ptp_debug (params, "inserting oid %x at [%x,%x], begin=%d, end=%d, insertat=%d\n", handle, params->objects[begin].oid, params->objects[end].oid, begin, end, insertat);*/
+ 	newobs = realloc (params->objects, sizeof(PTPObject)*(params->nrofobjects+1));
+ 	if (!newobs) return PTP_RC_GeneralError;
+@@ -5595,13 +5640,17 @@ ptp_object_want (PTPParams *params, uint32_t handle, int want, PTPObject **retob
+ 		ptp_debug (params, "ptp_object_want: querying handle 0?\n");
+ 		return PTP_RC_GeneralError;
+ 	}
++	MTPLOG("ptp.c: ptp_object_want: Before entering ptp_object_find_or_insert");
+ 	ret = ptp_object_find_or_insert (params, handle, &ob);
++	MTPLOG("ptp.c: ptp_object_want: ptp_object_find_or_insert has returned");
+ 	if (ret != PTP_RC_OK)
+ 		return PTP_RC_GeneralError;
+ 	*retob = ob;
+ 	/* Do we have all of it already? */
+-	if ((ob->flags & want) == want)
++	if ((ob->flags & want) == want){
++		MTPLOG("ptp.c: ptp_object_want: (ob->flags & want) == want, will return");
+ 		return PTP_RC_OK;
++    }
+ 
+ #define X (PTPOBJECT_OBJECTINFO_LOADED|PTPOBJECT_STORAGEID_LOADED|PTPOBJECT_PARENTOBJECT_LOADED)
+ 	if ((want & X) && ((ob->flags & X) != X)) {
+@@ -5610,10 +5659,11 @@ ptp_object_want (PTPParams *params, uint32_t handle, int want, PTPObject **retob
+ 		/* One EOS issue, where getobjecthandles(root) returns obs without root flag. */
+ 		if (ob->flags & PTPOBJECT_PARENTOBJECT_LOADED)
+ 			saveparent = ob->oi.ParentObject;
+-
++        MTPLOG("ptp.c: ptp_object_want: before entering ptp_getobjectinfo");
+ 		ret = ptp_getobjectinfo (params, handle, &ob->oi);
+ 		if (ret != PTP_RC_OK) {
+ 			/* kill it from the internal list ... */
++			MTPLOG("ptp.c: ptp_object_want: ret != PTP_RC_OK");
+ 			ptp_remove_object_from_cache(params, handle);
+ 			return ret;
+ 		}
+@@ -5835,5 +5885,6 @@ uint16_t
+ ptp_add_object_to_cache(PTPParams *params, uint32_t handle)
+ {
+ 	PTPObject *ob;
++	MTPLOG("ptp.c: ptp_add_object_to_cache: Before entering ptp_object_want");
+ 	return ptp_object_want (params, handle, PTPOBJECT_OBJECTINFO_LOADED|PTPOBJECT_MTPPROPLIST_LOADED, &ob);
+ }
+diff --git a/src/ptp.h b/src/ptp.h
+index 5702a6f..29c133e 100644
+--- a/src/ptp.h
++++ b/src/ptp.h
+@@ -3,6 +3,7 @@
+  * Copyright (C) 2001 Mariusz Woloszyn <emsi@ipartners.pl>
+  * Copyright (C) 2003-2012 Marcus Meissner <marcus@jet.franken.de>
+  * Copyright (C) 2006-2008 Linus Walleij <triad@df.lth.se>
++ * Copyright (c) 2013 - 2015 The Linux Foundation. All rights reserved.
+  *
+  * This library is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU Lesser General Public
+@@ -659,6 +660,7 @@ typedef struct _PTPIPHeader PTPIPHeader;
+ #define PTP_ERROR_BADPARAM		0x02FC
+ #define PTP_ERROR_CANCEL		0x02FB
+ #define PTP_ERROR_TIMEOUT		0x02FA
++#define PTP_ERROR_INVALID_OPERATION	0x02F9
+ 
+ /* PTP Event Codes */
+ 

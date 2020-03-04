@@ -1,0 +1,46 @@
+From 8ce8b973909c3db0b5047bc6e68eddcb5255746b Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Tue, 12 Apr 2016 17:19:29 +0800
+Subject: [PATCH 21/31] Set display-aspect-ratio and overlay properties
+ separately
+
+Change-Id: I323a3a1a3a9da7f16c3c4c63171332bf2cad1c37
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ sys/v4l2/gstv4l2sink.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2sink.c b/sys/v4l2/gstv4l2sink.c
+index de6478d..85e9ef5 100644
+--- a/sys/v4l2/gstv4l2sink.c
++++ b/sys/v4l2/gstv4l2sink.c
+@@ -260,7 +260,7 @@ enum
+ static void
+ gst_v4l2sink_force_aspect_ratio (GstV4l2Sink * v4l2sink)
+ {
+-  if (!v4l2sink->disp_aspect_ratio && v4l2sink->overlay_fields_set)
++  if (!v4l2sink->disp_aspect_ratio)
+     return;
+ 
+   if (GST_V4L2_IS_OPEN (v4l2sink->v4l2object)) {
+@@ -281,7 +281,7 @@ gst_v4l2sink_force_aspect_ratio (GstV4l2Sink * v4l2sink)
+         format.fmt.win.w.top, format.fmt.win.w.left,
+         format.fmt.win.w.width, format.fmt.win.w.height);
+ 
+-	if (!v4l2sink->overlay_fields_set && v4l2sink->disp_aspect_ratio && v4l2sink->video_width > 0 && v4l2sink->video_height > 0)
++	if (v4l2sink->disp_aspect_ratio && v4l2sink->video_width > 0 && v4l2sink->video_height > 0)
+ 	{
+ 		float toleration;
+ 
+@@ -331,7 +331,7 @@ gst_v4l2sink_force_aspect_ratio (GstV4l2Sink * v4l2sink)
+ static void
+ gst_v4l2sink_sync_overlay_fields (GstV4l2Sink * v4l2sink)
+ {
+-  if (!v4l2sink->disp_aspect_ratio && !v4l2sink->overlay_fields_set) 
++  if (!v4l2sink->overlay_fields_set)
+     return;
+ 
+   if (GST_V4L2_IS_OPEN (v4l2sink->v4l2object)) {
+-- 
+1.9.1
+

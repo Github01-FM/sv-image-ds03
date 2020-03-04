@@ -1,0 +1,35 @@
+From 140a8cef32d4d0e87030c7f5407d5d09b9576180 Mon Sep 17 00:00:00 2001
+From: Hugh Guan <hhguan@codeaurora.org>
+Date: Fri, 11 Mar 2016 14:26:27 +0800
+Subject: [PATCH 2/2] fix tizen_3.0_ivi improper function call
+
+Signed-off-by: Hugh Guan <hhguan@codeaurora.org>
+---
+ src/pulsecore/sink-input.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/src/pulsecore/sink-input.c b/src/pulsecore/sink-input.c
+index d419884..b2cfd8a 100644
+--- a/src/pulsecore/sink-input.c
++++ b/src/pulsecore/sink-input.c
+@@ -3,6 +3,7 @@
+ 
+   Copyright 2004-2006 Lennart Poettering
+   Copyright 2006 Pierre Ossman <ossman@cendio.se> for Cendio AB
++  Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ 
+   PulseAudio is free software; you can redistribute it and/or modify
+   it under the terms of the GNU Lesser General Public License as published
+@@ -636,7 +637,8 @@ int pa_sink_input_new(
+ 
+ fail:
+     if (i) {
+-        pa_sink_input_unlink(i);
++        if (PA_SINK_INPUT_IS_LINKED(i->state))
++            pa_sink_input_unlink(i);
+         pa_sink_input_unref(i);
+     }
+ 
+-- 
+1.9.1
+

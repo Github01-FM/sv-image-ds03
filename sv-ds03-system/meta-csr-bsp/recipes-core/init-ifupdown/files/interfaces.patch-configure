@@ -1,0 +1,10 @@
+--- interfaces.org	2016-07-27 16:04:18.263127235 +0800
++++ interfaces	2016-07-27 16:04:31.775807989 +0800
+@@ -16,6 +16,7 @@
+ # Wired or wireless interfaces
+ auto eth0
+ iface eth0 inet dhcp
++auto eth1
+ iface eth1 inet dhcp
+ 
+ # Ethernet/RNDIS gadget (g_ether)

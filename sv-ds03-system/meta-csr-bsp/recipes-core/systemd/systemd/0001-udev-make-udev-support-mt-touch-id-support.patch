@@ -1,0 +1,27 @@
+From e62e5c457fdd6be0fcf473128005c017327b66a3 Mon Sep 17 00:00:00 2001
+From: Guoying Zhang <Guoying.Zhang@csr.com>
+Date: Thu, 25 Jun 2015 15:36:29 +0800
+Subject: [PATCH] udev: make udev support mt touch id support
+
+Signed-off-by: Guoying Zhang <Guoying.Zhang@csr.com>
+---
+ src/udev/udev-builtin-input_id.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/udev/udev-builtin-input_id.c b/src/udev/udev-builtin-input_id.c
+index 1a1121e..941681d 100644
+--- a/src/udev/udev-builtin-input_id.c
++++ b/src/udev/udev-builtin-input_id.c
+@@ -109,7 +109,8 @@ static void test_pointers (struct udev_device *dev,
+         }
+ 
+         if (test_bit (EV_ABS, bitmask_ev) &&
+-            test_bit (ABS_X, bitmask_abs) && test_bit (ABS_Y, bitmask_abs)) {
++            ((test_bit (ABS_MT_POSITION_X, bitmask_abs) && test_bit (ABS_MT_POSITION_Y, bitmask_abs)) ||
++            (test_bit (ABS_X, bitmask_abs) && test_bit (ABS_Y, bitmask_abs)))) {
+                 if (test_bit (BTN_STYLUS, bitmask_key) || test_bit (BTN_TOOL_PEN, bitmask_key))
+                         udev_builtin_add_property(dev, test, "ID_INPUT_TABLET", "1");
+                 else if (test_bit (BTN_TOOL_FINGER, bitmask_key) && !test_bit (BTN_TOOL_PEN, bitmask_key))
+-- 
+1.9.1
+

@@ -1,0 +1,167 @@
+ui_print("========================================");
+assert(getprop("ro.product.brand")=="CSR" && getprop("ro.product.name")=="sirfsocv7" && getprop("ro.product.device")=="sirfsocv7");
+
+show_progress(0.03,2);
+ui_print("[updater_script]write u-boot to boot partition ...\n");
+assert(package_extract_file("u-boot.csr","/tmp/u-boot.csr"));
+ifelse(
+	write_uboot("/tmp/u-boot.csr","/dev/nandblk0")!="/dev/nandblk0",
+	assert(write_uboot("/tmp/u-boot.csr","/dev/mmcblk0")));
+ifelse(
+	is_location_valid("/dev/mmcblk0boot0")=="/dev/mmcblk0boot0",
+	write_uboot("/tmp/u-boot.csr","/dev/mmcblk0boot0"));
+delete("/tmp/u-boot.csr");
+ui_print("[updater-script]done\n");
+
+ui_print("[updater_script]write freertos to MTD partition ...\n");
+assert(package_extract_file("freertos.bin","/tmp/freertos.bin"));
+
+ifelse(
+	write_freertos("/tmp/freertos.bin","/dev/mtd0")!="/dev/mtd0",
+	ui_print("[updater-script] fail\n"));
+	
+delete("/tmp/freertos.bin");
+ui_print("[updater-script]done\n");
+
+ui_print("[updater_script]write radar image to desay data area ...\n");
+assert(package_extract_file("RvcCompositePPM","/tmp/RvcCompositePPM"));
+
+ifelse(
+	write_radar_image("/tmp/RvcCompositePPM","/dev/nandblk0")!="/dev/nandblk0",
+	assert(write_radar_image("/tmp/RvcCompositePPM","/dev/mmcblk0")));
+	
+delete("/tmp/RvcCompositePPM");
+ui_print("[updater-script]done\n");
+
+show_progress(0.07,5);
+ui_print("[updater_script]write images to boot partition ...\n");
+ifelse(
+	is_location_valid("/dev/nandblk0p2")=="/dev/nandblk0p2",
+	assert(mount("ext4","EMMC","/dev/nandblk0p2","/boot")),
+	assert(mount("ext4","EMMC","/dev/mmcblk0p2","/boot")));
+
+ifelse(
+	is_location_valid("/boot/boot.cfg")=="/boot/boot.cfg",
+	run(
+		package_extract_file("csrvisor.bin", "/boot/csrvisor.bin"),
+		ifelse(
+			get_image_index("/boot/boot.cfg", "kernel_index")=="1",
+			run(
+                                ui_print("boot: kernel index = 1\n");
+				ifelse(
+					package_extract_file("zImage", "/tmp/zImage")=="t",
+					ifelse(
+						package_extract_file("dtb","/tmp/dtb")=="t",
+						run(
+							delete("/boot/zImage-v2");
+							package_extract_file("zImage", "/boot/zImage-v2"),
+							delete("/boot/dtb-v2");
+							package_extract_file("dtb", "/boot/dtb-v2"),
+							delete("/boot/zImage-v1");
+							package_extract_file("zImage", "/boot/zImage-v1"),
+							delete("/boot/dtb-v1");
+							package_extract_file("dtb", "/boot/dtb-v1")),
+						abort()),
+					abort()),
+				set_image_index("/boot/boot.cfg", "kernel_index", "2")),
+			run(
+                                ui_print("boot: kernel index = 2\n");
+				ifelse(
+					package_extract_file("zImage", "/tmp/zImage")=="t",
+					ifelse(
+						package_extract_file("dtb","/tmp/dtb")=="t",
+						run(
+							delete("/boot/zImage-v1");
+							package_extract_file("zImage", "/boot/zImage-v1"),
+							delete("/boot/dtb-v1");
+							package_extract_file("dtb", "/boot/dtb-v1"),
+							delete("/boot/zImage-v2");
+							package_extract_file("zImage", "/boot/zImage-v2"),
+							delete("/boot/dtb-v2");
+							package_extract_file("dtb", "/boot/dtb-v2")),
+						abort()),
+					abort()),
+				set_image_index("/boot/boot.cfg", "kernel_index", "1"))),
+		ifelse(
+			get_image_index("/boot/boot.cfg", "recovery_index")=="1",
+			run(
+                                ui_print("boot: recovery=1\n");
+				ifelse(
+					package_extract_file("recovery.img", "/tmp/recovery.img")=="t",
+					ifelse(
+						package_extract_file("dtb","/tmp/rcv_dtb")=="t",
+						run(
+							delete("/boot/recovery.img-v2");
+							package_extract_file("recovery.img", "/boot/recovery.img-v2"),
+							delete("/boot/rcv_dtb-v2");
+							package_extract_file("recovery-dtb", "/boot/rcv_dtb-v2"),
+							delete("/boot/recovery.img-v1");
+							package_extract_file("recovery.img", "/boot/recovery.img-v1"),
+							delete("/boot/rcv_dtb-v1");
+							package_extract_file("recovery-dtb", "/boot/rcv_dtb-v1"),
+							set_image_index("/boot/boot.cfg", "recovery_index", "2"))))),
+			run(
+                                ui_print("boot: recovery=2\n");
+				ifelse(
+					package_extract_file("recovery.img", "/tmp/recovery.img")=="t",
+					ifelse(
+						package_extract_file("dtb","/tmp/rcv_dtb")=="t",
+						run(
+							delete("/boot/recovery.img-v1");
+							package_extract_file("recovery.img", "/boot/recovery.img-v1"),
+							delete("/boot/rcv_dtb-v1");
+							package_extract_file("recovery-dtb", "/boot/rcv_dtb-v1"),
+							delete("/boot/recovery.img-v2");
+							package_extract_file("recovery.img", "/boot/recovery.img-v2"),
+							delete("/boot/rcv_dtb-v2");
+							package_extract_file("recovery-dtb", "/boot/rcv_dtb-v2"),
+							set_image_index("/boot/boot.cfg", "recovery_index", "1"))))))),
+	run(
+		package_extract_file("zImage","/boot/zImage-v1"),
+		package_extract_file("zImage","/boot/zImage-v2"),
+		package_extract_file("dtb","/boot/dtb-v1"),
+		package_extract_file("dtb","/boot/dtb-v2"),
+		package_extract_file("recovery.img","/boot/recovery.img-v1"),
+		package_extract_file("recovery.img","/boot/recovery.img-v2"),
+		package_extract_file("recovery-dtb","/boot/rcv_dtb-v1"),
+		package_extract_file("recovery-dtb","/boot/rcv_dtb-v2"),
+		package_extract_file("csrvisor.bin", "/boot/csrvisor.bin"),
+		package_extract_file("boot.cfg", "/boot/boot.cfg")));
+
+ui_print("[updater-script]done\n");
+
+unmount("/boot");
+ui_print("[updater-script]umount boot done\n");
+
+show_progress(0.04,2);
+ui_print("[updater-script]mount root partition ...");
+ifelse(
+	is_location_valid("/dev/nandblk0p3")=="/dev/nandblk0p3",
+	assert(format_ext4("/dev/nandblk0p3", "root"), mount("ext4","EMMC","/dev/nandblk0p3","/root")),
+	assert(format_ext4("dev/mmcblk0p3", "root"), mount("ext4","EMMC","/dev/mmcblk0p3","/root")));
+ui_print("[updater-script]done\n");
+
+show_progress(0.5,30);
+ui_print("[updater-script]write package to root partition ...\n");
+assert(package_extract_dir("root","/root"));
+run_program("/bin/busybox", "mknod", "/root/dev/console", "c", "5", "1");
+run_program("/bin/busybox", "mknod", "/root/dev/null", "c", "1", "3");
+ui_print("[updater-script]done\n");
+
+set_perm_recursive(0, 0, 0755, 0755, "/root");
+set_perm_recursive(0, 0, 0755, 0644, "/root/lib/systemd/system");
+
+show_progress(0.04, 2);
+ui_print("[updater-script]mount data partition ...");
+ifelse(
+	is_location_valid("/dev/nandblk0p7")=="/dev/nandblk0p7",
+	assert(format_ext4("/dev/nandblk0p7", "data"), mount("ext4","EMMC","/dev/nandblk0p7","/data")),
+	assert(format_ext4("dev/mmcblk0p7", "data"), mount("ext4","EMMC","/dev/mmcblk0p7","/data")));
+ui_print("[updater-script]done\n");
+
+show_progress(0.01,1);
+ui_print("[updater-script]write package to data partition ...\n");
+assert(package_extract_dir("data","/data"));
+
+show_progress(0.01, 5);
+ui_print("[updater-script]updater script finished!\n");

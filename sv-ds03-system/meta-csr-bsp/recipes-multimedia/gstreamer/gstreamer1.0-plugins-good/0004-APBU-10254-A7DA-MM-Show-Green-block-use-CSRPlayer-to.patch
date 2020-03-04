@@ -1,0 +1,31 @@
+From 602cccf0570d1f9698bc28f46f1724fd4416f635 Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Wed, 27 May 2015 18:20:25 +0800
+Subject: [PATCH 4/8] APBU-10254 [A7DA][MM]Show Green block use CSRPlayer to
+ play some video clips
+
+Disable the buffer copy if V4L2 receive the same buffer which is already queued.
+
+Change-Id: I9a32c8b0a1495f0c52a11278dd0bff9b149fd8d8
+Signed-off-by: Xiaofeng Fei <xfei@codeaurora.org>
+---
+ sys/v4l2/gstv4l2bufferpool.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/sys/v4l2/gstv4l2bufferpool.c b/sys/v4l2/gstv4l2bufferpool.c
+index 588725c..331ea4c 100644
+--- a/sys/v4l2/gstv4l2bufferpool.c
++++ b/sys/v4l2/gstv4l2bufferpool.c
+@@ -1865,7 +1865,8 @@ gst_v4l2_buffer_pool_process (GstV4l2BufferPool * pool, GstBuffer ** buf)
+           index = group->buffer.index;
+           if (pool->buffers[index] != NULL) {
+             GST_LOG_OBJECT (pool, "buffer %i already queued, copying", index);
+-            goto copying;
++            /* Same buffer is queued to v4l2, just ignore it */
++            goto done;
+           }
+ 
+           /* we can queue directly */
+-- 
+1.9.1
+

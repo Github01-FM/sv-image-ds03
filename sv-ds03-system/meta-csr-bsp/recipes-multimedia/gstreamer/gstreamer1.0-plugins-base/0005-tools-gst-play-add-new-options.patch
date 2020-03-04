@@ -1,0 +1,288 @@
+From 56650592a2a1bc21600e23711c01b620b765de11 Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Fri, 29 Apr 2016 12:49:06 +0800
+Subject: [PATCH 5/8] tools: gst-play: add new options
+
+1. Fix compile warnings
+2. Add forcing display aspect ratio options when v4l2sink
+3. Dynamically change overlay left/top/width/height properties
+4. Indent
+
+Change-Id: Ia22e8dd50117e74ddf70aea4eb717b8a02b7a7d6
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ tools/gst-play.c | 172 +++++++++++++++++++++++++++++++++++++++++--------------
+ 1 file changed, 128 insertions(+), 44 deletions(-)
+
+diff --git a/tools/gst-play.c b/tools/gst-play.c
+index d6dbc7e..53fb96f 100644
+--- a/tools/gst-play.c
++++ b/tools/gst-play.c
+@@ -70,11 +70,11 @@ typedef enum
+ 
+ typedef struct
+ {
+-	gint left;
+-	gint top;
+-	gint width;
+-	gint height;
+-}DispRect;
++  guint left;
++  guint top;
++  guint width;
++  guint height;
++} DispRect;
+ 
+ typedef struct
+ {
+@@ -105,6 +105,7 @@ typedef struct
+   /* for v4l2sink only */
+   DispRect rect;
+   gboolean v4l2sink;
++  gboolean aspect;
+ 
+ } GstPlay;
+ 
+@@ -126,7 +127,6 @@ static void gst_play_printf (const gchar * format, ...) G_GNUC_PRINTF (1, 2);
+ 
+ static void keyboard_cb (const gchar * key_input, gpointer user_data);
+ static void relative_seek (GstPlay * play, gdouble percent);
+-
+ static void
+ gst_play_printf (const gchar * format, ...)
+ {
+@@ -153,7 +153,7 @@ gst_play_printf (const gchar * format, ...)
+ 
+ static GstPlay *
+ play_new (gchar ** uris, const gchar * audio_sink, const gchar * video_sink,
+-    gboolean gapless, gdouble initial_volume, DispRect rect)
++    gboolean gapless, gboolean aspect, gdouble initial_volume, DispRect rect)
+ {
+   GstElement *sink, *playbin;
+   GstPlay *play;
+@@ -193,20 +193,23 @@ play_new (gchar ** uris, const gchar * audio_sink, const gchar * video_sink,
+     else
+       g_warning ("Couldn't create specified video sink '%s'", video_sink);
+ 
+-    if (!strcmp (video_sink, "v4l2sink"))
+-	{
+-		g_print ("video sink %s\n", video_sink);
+-		g_print ("(x, y, w, h) is (%d, %d, %d, %d)\n", rect.left, rect.top, rect.width, rect.height);
+-		g_object_set (G_OBJECT (sink), "overlay-top", rect.top, NULL);
+-		g_object_set (G_OBJECT (sink), "overlay-left", rect.left, NULL);
+-		g_object_set (G_OBJECT (sink), "overlay-width", rect.width, NULL);
+-		g_object_set (G_OBJECT (sink), "overlay-height", rect.height, NULL);
+-
+-		g_object_set (play->playbin, "flags", 66, NULL);
+-
+-		play->rect = rect;
+-		play->v4l2sink = TRUE;
+-	}
++    if (!strcmp (video_sink, "v4l2sink")) {
++      g_print ("video sink %s\n", video_sink);
++      g_print
++          ("(x, y, w, h) is (%d, %d, %d, %d), force display aspect ratio: %s\n",
++          rect.left, rect.top, rect.width, rect.height,
++          aspect ? "true" : "false");
++      g_object_set (G_OBJECT (sink), "overlay-top", rect.top, NULL);
++      g_object_set (G_OBJECT (sink), "overlay-left", rect.left, NULL);
++      g_object_set (G_OBJECT (sink), "overlay-width", rect.width, NULL);
++      g_object_set (G_OBJECT (sink), "overlay-height", rect.height, NULL);
++
++      g_object_set (play->playbin, "flags", 66, NULL);
++
++      play->rect = rect;
++      play->v4l2sink = TRUE;
++      play->aspect = aspect;
++    }
+   }
+ 
+   play->loop = g_main_loop_new (NULL, FALSE);
+@@ -289,14 +292,69 @@ play_set_mute (GstPlay * play)
+   gboolean mute;
+ 
+   mute = gst_stream_volume_get_mute (GST_STREAM_VOLUME (play->playbin));
+-  g_print (_("Mute: %s"), mute?"True":"False");
++  g_print (_("Mute: %s"), mute ? "True" : "False");
+   g_print ("                  \n");
+ 
+   gst_stream_volume_set_mute (GST_STREAM_VOLUME (play->playbin), !mute);
+-  g_print (_("Set mute: %s"), !mute?"True":"False");
++  g_print (_("Set mute: %s"), !mute ? "True" : "False");
+   g_print ("                  \n");
+ }
+ 
++static void
++play_set_overlay (GstPlay * play, guint mode)
++{
++  GstElement *sink;
++  DispRect rect;
++  gint32 rand;
++
++  if (!play->v4l2sink) {
++    g_printerr (_("Only works when v4l2sink!\n"));
++    return;
++  }
++
++  /* init */
++  sink = NULL;
++  rect.top = 0;
++  rect.left = 0;
++  rect.width = 1024;
++  rect.height = 600;
++
++  g_object_get (play->playbin, "video-sink", &sink, NULL);
++  g_print ("video sink %s\n", gst_element_get_name (sink));
++  g_object_get (G_OBJECT (sink), "overlay-top", &rect.top, NULL);
++  g_object_get (G_OBJECT (sink), "overlay-left", &rect.left, NULL);
++  g_object_get (G_OBJECT (sink), "overlay-width", &rect.width, NULL);
++  g_object_get (G_OBJECT (sink), "overlay-height", &rect.height, NULL);
++  g_print ("(x, y, w, h) is (%d, %d, %d, %d)\n", rect.left, rect.top,
++      rect.width, rect.height);
++
++  switch (mode) {
++    case 0:
++      rand = g_random_int_range (0, 1024);
++      g_object_set (G_OBJECT (sink), "overlay-left", rand, NULL);
++      g_print ("Setting leftmost coordinate to %d\n", rand);
++      break;
++    case 1:
++      rand = g_random_int_range (0, 600);
++      g_object_set (G_OBJECT (sink), "overlay-top", rand, NULL);
++      g_print ("Setting topmost coordinate to %d\n", rand);
++      break;
++    case 2:
++      rand = g_random_int_range (0, 1024 - rect.left);
++      g_object_set (G_OBJECT (sink), "overlay-width", rand, NULL);
++      g_print ("Setting width to %d\n", rand);
++      break;
++    case 3:
++      rand = g_random_int_range (0, 600 - rect.top);
++      g_object_set (G_OBJECT (sink), "overlay-height", rand, NULL);
++      g_print ("Setting height to %d\n", rand);
++      break;
++    default:
++      g_print ("No such mode. Nothing changes\n");
++      break;
++  }
++}
++
+ /* returns TRUE if something was installed and we should restart playback */
+ /* returns TRUE if something was installed and we should restart playback */
+ static gboolean
+@@ -577,21 +635,24 @@ play_uri (GstPlay * play, const gchar * next_uri)
+ 
+   g_object_set (play->playbin, "uri", next_uri, NULL);
+ 
+-  if (play->v4l2sink)
+-  {
+-      sink = gst_element_factory_make ("v4l2sink", NULL);
+-	  if (sink != NULL)
+-		  g_object_set (play->playbin, "video-sink", sink, NULL);
+-	  else
+-		  g_warning ("Couldn't create v4l2 video sink");
+-
+-	  g_print ("video sink %s\n", gst_object_get_name(sink));
+-	  rect = play->rect;
+-	  g_print ("(x, y, w, h) is (%d, %d, %d, %d)\n", rect.left, rect.top, rect.width, rect.height);
+-	  g_object_set (G_OBJECT (sink), "overlay-top", rect.top, NULL);
+-	  g_object_set (G_OBJECT (sink), "overlay-left", rect.left, NULL);
+-	  g_object_set (G_OBJECT (sink), "overlay-width", rect.width, NULL);
+-	  g_object_set (G_OBJECT (sink), "overlay-height", rect.height, NULL);
++  if (play->v4l2sink) {
++    sink = gst_element_factory_make ("v4l2sink", NULL);
++    if (sink != NULL)
++      g_object_set (play->playbin, "video-sink", sink, NULL);
++    else
++      g_warning ("Couldn't create v4l2 video sink");
++
++    g_print ("video sink %s\n", gst_element_get_name (sink));
++    rect = play->rect;
++    g_print
++        ("(x, y, w, h) is (%d, %d, %d, %d), force display aspect ratio: %s\n",
++        rect.left, rect.top, rect.width, rect.height,
++        play->aspect ? "true" : "false");
++    g_object_set (G_OBJECT (sink), "display-aspect-ratio", play->aspect, NULL);
++    g_object_set (G_OBJECT (sink), "overlay-top", rect.top, NULL);
++    g_object_set (G_OBJECT (sink), "overlay-left", rect.left, NULL);
++    g_object_set (G_OBJECT (sink), "overlay-width", rect.width, NULL);
++    g_object_set (G_OBJECT (sink), "overlay-height", rect.height, NULL);
+   }
+ 
+   switch (gst_element_set_state (play->playbin, GST_STATE_PAUSED)) {
+@@ -1041,6 +1102,10 @@ print_keyboard_help (void)
+     "v", N_("change video track")}, {
+     "s", N_("change subtitle track")}, {
+     "m", N_("mute/unmute")}, {
++    "x", N_("change overlay-left; v4l2sink only; debug usage only")}, {
++    "y", N_("change overlay-top; v4l2sink only; debug usage only")}, {
++    "w", N_("change overlay-widht; v4l2sink only; debug usage only")}, {
++    "h", N_("change overlay-height; v4l2sink only; debug usage only")}, {
+   "k", N_("show keyboard shortcuts")},};
+   guint i, chars_to_pad, desc_len, max_desc_len = 0;
+ 
+@@ -1134,6 +1199,18 @@ keyboard_cb (const gchar * key_input, gpointer user_data)
+     case 'm':
+       play_set_mute (play);
+       break;
++    case 'x':
++      play_set_overlay (play, 0);
++      break;
++    case 'y':
++      play_set_overlay (play, 1);
++      break;
++    case 'w':
++      play_set_overlay (play, 2);
++      break;
++    case 'h':
++      play_set_overlay (play, 3);
++      break;
+       /* fall through */
+     default:
+       if (strcmp (key_input, GST_PLAY_KB_ARROW_RIGHT) == 0) {
+@@ -1163,6 +1240,7 @@ main (int argc, char **argv)
+   gboolean interactive = TRUE;
+   gboolean gapless = FALSE;
+   gboolean shuffle = FALSE;
++  gboolean aspect = FALSE;
+   gdouble volume = -1;
+   gchar **filenames = NULL;
+   gchar *audio_sink = NULL;
+@@ -1188,14 +1266,20 @@ main (int argc, char **argv)
+         N_("Disable interactive control via the keyboard"), NULL},
+     {"volume", 0, 0, G_OPTION_ARG_DOUBLE, &volume,
+         N_("Volume"), NULL},
+-    {"overlay-top", 'y', 0, G_OPTION_ARG_INT, &rect.top,
+-        N_("The topmost (y) coordinate of the video overlay; top left corner of screen is 0,0; for v4l2sink only"), NULL},
+     {"overlay-left", 'x', 0, G_OPTION_ARG_INT, &rect.left,
+-        N_("The leftmost (x) coordinate of the video overlay; top left corner of screen is 0,0; for v4l2sink only"), NULL},
++          N_
++          ("The leftmost (x) coordinate of the video overlay; top left corner of screen is 0,0; v4l2sink only"),
++        NULL},
++    {"overlay-top", 'y', 0, G_OPTION_ARG_INT, &rect.top,
++          N_
++          ("The topmost (y) coordinate of the video overlay; top left corner of screen is 0,0; v4l2sink only"),
++        NULL},
+     {"overlay-width", 'w', 0, G_OPTION_ARG_INT, &rect.width,
+-        N_("The width of the video overlay; for v4l2sink only"), NULL},
++        N_("The width of the video overlay; v4l2sink only"), NULL},
+     {"overlay-height", 'h', 0, G_OPTION_ARG_INT, &rect.height,
+-        N_("The height of the video overlay; for v4l2sink only"), NULL},
++        N_("The height of the video overlay; v4l2sink only"), NULL},
++    {"display-aspect-ratio", 'd', 0, G_OPTION_ARG_NONE, &aspect,
++        N_("Force display aspect ratio; v4l2sink only"), NULL},
+     {"playlist", 0, 0, G_OPTION_ARG_FILENAME, &playlist_file,
+         N_("Playlist file containing input media files"), NULL},
+     {"quiet", 'q', 0, G_OPTION_ARG_NONE, &quiet,
+@@ -1307,7 +1391,7 @@ main (int argc, char **argv)
+     shuffle_uris (uris, num);
+ 
+   /* prepare */
+-  play = play_new (uris, audio_sink, video_sink, gapless, volume, rect);
++  play = play_new (uris, audio_sink, video_sink, gapless, aspect, volume, rect);
+ 
+   if (play == NULL) {
+     g_printerr
+-- 
+1.9.1
+

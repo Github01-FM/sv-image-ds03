@@ -1,0 +1,28 @@
+From 16098e93792912f0086e365730972b9974633277 Mon Sep 17 00:00:00 2001
+From: Michael Olbrich <m.olbrich@pengutronix.de>
+Date: Fri, 6 Nov 2015 11:32:34 +0100
+Subject: [PATCH] journal: reduce minimum journal file size to 512 KiB
+
+For low end embedded systems 4 MiB for each journal file is a lot of
+memory. Journald will use at least 512 KiB even if JOURNAL_FILE_SIZE_MIN is
+set to less than that so just use 512 KiB.
+---
+ src/journal/journal-file.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/journal/journal-file.c b/src/journal/journal-file.c
+index e00a0d7..f9ff954 100644
+--- a/src/journal/journal-file.c
++++ b/src/journal/journal-file.c
+@@ -48,7 +48,7 @@
+ #define COMPRESSION_SIZE_THRESHOLD (512ULL)
+ 
+ /* This is the minimum journal file size */
+-#define JOURNAL_FILE_SIZE_MIN (4ULL*1024ULL*1024ULL)           /* 4 MiB */
++#define JOURNAL_FILE_SIZE_MIN (512ULL*1024ULL)                 /* 512 KiB */
+ 
+ /* These are the lower and upper bounds if we deduce the max_use value
+  * from the file system size */
+-- 
+1.9.1
+

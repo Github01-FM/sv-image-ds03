@@ -1,0 +1,3 @@
+SANITY_VERSION 1
+TMPDIR /home/ubuntu/work/saic_ap31/RN2_SAIC_AP31_Radio/sv-ds03-system/tmp
+SSTATE_DIR /home/ubuntu/work/saic_ap31/RN2_SAIC_AP31_Radio/sv-ds03-system/sstate-cache

@@ -1,0 +1,11 @@
+prefix=/usr
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: wayland-egl
+Description: CSR Graphics SDK implementation of wayland-egl
+Version: 9.0
+Requires:
+Libs: -L${libdir} -lwayland-egl
+Cflags: -I{includedir}/EGL/ -I${includedir}

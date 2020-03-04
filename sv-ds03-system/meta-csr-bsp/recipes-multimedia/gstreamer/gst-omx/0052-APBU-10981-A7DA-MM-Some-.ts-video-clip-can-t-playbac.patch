@@ -1,0 +1,61 @@
+From 2b91cc6edadc275faff975b0c45393cb628457c0 Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Fri, 20 Nov 2015 10:45:10 +0800
+Subject: [PATCH 52/67] APBU-10981 [A7DA][MM]Some .ts video clip can't
+ playback(Always)
+
+The video container indicate it is progressive streamer, but the
+vxd decoded report it is interlace video.
+
+gst-omx should update caps when it find the interlace mode is
+changed, so that v4l2sink will set right field to v4l2 driver.
+
+Change-Id: I18add2abed2034aedb3a249be7d2b33280553845
+Signed-off-by: Xiaofeng Fei <xfei@codeaurora.org>
+---
+ omx/gstomxvideodec.c | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 620d435..b07dc12 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -1625,6 +1625,17 @@ gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self,OMX_CONFIG_RECT
+             self->input_state->info.par_d = aspect_ratio.nDenominator;
+         }
+     }
++
++    //Check interlace mode, update caps if needed
++    if (self->dec->interlaced) {
++      if (self->input_state->info.interlace_mode == GST_VIDEO_INTERLACE_MODE_PROGRESSIVE)
++        self->input_state->info.interlace_mode = GST_VIDEO_INTERLACE_MODE_INTERLEAVED;
++    }
++    else {
++      if (self->input_state->info.interlace_mode != GST_VIDEO_INTERLACE_MODE_PROGRESSIVE)
++        self->input_state->info.interlace_mode = GST_VIDEO_INTERLACE_MODE_PROGRESSIVE;
++    }
++
+     //End of IMG specific code
+   self->input_state->info.par_n = 1; 
+   self->input_state->info.par_d = 1;
+@@ -1907,6 +1918,17 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+             self->input_state->info.par_d = aspect_ratio.nDenominator;
+         }
+       }
++
++      // Check interlace mode, update caps if needed
++      if (self->dec->interlaced) {
++        if (self->input_state->info.interlace_mode == GST_VIDEO_INTERLACE_MODE_PROGRESSIVE)
++          self->input_state->info.interlace_mode = GST_VIDEO_INTERLACE_MODE_INTERLEAVED;
++      }
++      else {
++        if (self->input_state->info.interlace_mode != GST_VIDEO_INTERLACE_MODE_PROGRESSIVE)
++          self->input_state->info.interlace_mode = GST_VIDEO_INTERLACE_MODE_PROGRESSIVE;
++      }
++
+       //End of IMG specific code
+ 
+       self->input_state->info.par_n = 1; 
+-- 
+1.9.1
+

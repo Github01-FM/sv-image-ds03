@@ -1,0 +1,236 @@
+From f39ff8f6c28c12e5fe7e19215eeb46fb9ab66e03 Mon Sep 17 00:00:00 2001
+From: Lihui <lwen@qti.qualcomm.com>
+Date: Thu, 14 Jan 2016 11:00:43 +0800
+Subject: [PATCH] fix bug that setting src/dst rect has wrong effect
+
+Now disable scale and transform for buffer
+
+Change-Id: I10e95767100e284230c9ca5e85b99438d4a49488
+Signed-off-by: Lihui <lwen@qti.qualcomm.com>
+---
+ src/compositor-fbdev.c | 177 ++++++++++++++++++++++++++-----------------------
+ 1 file changed, 95 insertions(+), 82 deletions(-)
+
+diff --git a/src/compositor-fbdev.c b/src/compositor-fbdev.c
+index eaf7fb6..1dadb76 100644
+--- a/src/compositor-fbdev.c
++++ b/src/compositor-fbdev.c
+@@ -341,17 +341,94 @@ static uint32_t get_aligned_height(uint32_t height, int fmt)
+         return height;
+ }
+ 
++/* This function only fail(return -1) when region is outside bounding,
++ * at this time the value of sbox is meaningless, just skip it.
++ * We don't care clip here since it will be done by vdsscomp. */
++static int
++get_src_crop_region(struct fbdev_output *output, struct weston_view *view,
++		pixman_box32_t *sbox)
++{
++	struct weston_buffer_viewport *vp;
++	int ret = 0;
++
++	vp = &view->surface->buffer_viewport;
++
++	/* ignore any tranform/scale since our pipe don't support it */
++	if (vp->buffer.src_width == wl_fixed_from_int(-1)) {
++		sbox->x1 = 0;
++		sbox->y1 = 0;
++		sbox->x2 = view->surface->buffer_ref.buffer->width;
++		sbox->y2 = view->surface->buffer_ref.buffer->height;
++	} else {
++		pixman_region32_t rect, bounding;
++
++		sbox->x1 = wl_fixed_to_int(vp->buffer.src_x);
++		sbox->y1 = wl_fixed_to_int(vp->buffer.src_y);
++		sbox->x2 = wl_fixed_to_int(vp->buffer.src_x +
++					vp->buffer.src_width);
++		sbox->y2 = wl_fixed_to_int(vp->buffer.src_y +
++					vp->buffer.src_height);
++
++		pixman_region32_init_rect(&rect, sbox->x1, sbox->y1,
++					sbox->x2 - sbox->x1,
++					sbox->y2 - sbox->y1);
++		pixman_region32_init_rect(&bounding, 0, 0,
++				view->surface->buffer_ref.buffer->width,
++				view->surface->buffer_ref.buffer->height);
++		pixman_region32_intersect(&rect, &rect, &bounding);
++
++		/* skip any src which is outside the buffer bounding */
++		if (!pixman_region32_not_empty(&rect))
++			ret = -1;
++
++		pixman_region32_fini(&rect);
++		pixman_region32_fini(&bounding);
++	}
++
++	return ret;
++}
++
++/* This function only fail(return -1) when region is outside bounding,
++ * at this time the value of dbox is meaningless, just skip it.
++ * We don't care clip here since it will be done by vdsscomp. */
++static int
++get_dst_display_region(struct fbdev_output *output, struct weston_view *view,
++			pixman_box32_t *dbox)
++{
++	pixman_region32_t rect;
++	pixman_box32_t *extent;
++	int ret = 0;
++
++	/* ignore any output transform/scale since we don't support it */
++	pixman_region32_init(&rect);
++	pixman_region32_copy(&rect, &view->transform.boundingbox);
++	extent = pixman_region32_extents(&rect);
++	*dbox = *extent;
++
++	/* skip any dst which is outside the output bounding */
++	pixman_region32_intersect(&rect, &rect, &output->base.region);
++	if (!pixman_region32_not_empty(&rect))
++		ret = -1;
++
++	pixman_region32_fini(&rect);
++
++	return ret;
++}
++
+ static bool
+ fbdev_output_check_overlay_assignment(struct fbdev_output *output,
+ 				struct weston_view *ev)
+ {
+ 	struct weston_buffer *buffer = ev->surface->buffer_ref.buffer;
+ 	struct weston_buffer_viewport *viewport = &ev->surface->buffer_viewport;
++	pixman_box32_t src, dst;
+ 	uint32_t fmt;
+ 
+ 	/*TODO: need to check these conditions */
+ 	if (buffer == NULL ||
+ 		!buffer->shm_buffer||
++		viewport->buffer.transform ||
++		viewport->buffer.scale != 1 ||
+ 		output->base.transform != viewport->buffer.transform ||
+ 		ev->output_mask != (1u << output->base.id))
+ 		return false;
+@@ -363,8 +440,22 @@ fbdev_output_check_overlay_assignment(struct fbdev_output *output,
+ 	if(!is_support_fmt(fmt))
+ 		return false;
+ 
+-	/* Only YUV overlay can support scaling */
+-	if (viewport->buffer.scale != 1 && !is_YUV(fmt))
++	/* Skip surface with 1x1 buffer */
++	if (wl_shm_buffer_get_width(buffer->shm_buffer) == 1 &&
++		wl_shm_buffer_get_height(buffer->shm_buffer) == 1)
++		return false;
++
++	/* Check if src/dst is outside of bounding */
++	if (get_src_crop_region(output, ev, &src))
++		return false;
++
++	if (get_dst_display_region(output, ev, &dst))
++		return false;
++
++	/* Only yuv surface support scaling */
++	if (((src.x2 - src.x1) != (dst.x2 - dst.x1) ||
++		(src.y2 - src.y1) != (dst.y2 - dst.y1)) &&
++		!is_YUV(fmt))
+ 		return false;
+ 
+ 	if (output->ovl_cnt >= MAX_OVERLAY_PIPE)
+@@ -454,84 +545,6 @@ fbdev_assign_planes(struct weston_output *base)
+ 	output->has_GPU_layer = has_GPU_layer;
+ }
+ 
+-static pixman_box32_t
+-get_src_crop_region(struct fbdev_output *output, struct weston_view *view)
+-{
+-	struct weston_buffer_viewport *viewport;
+-	wl_fixed_t sx1, sy1, sx2, sy2;
+-	pixman_region32_t rect;
+-	pixman_box32_t *box, tbox, ret;
+-	int32_t width, height;
+-
+-	pixman_region32_init(&rect);
+-	pixman_region32_intersect(&rect, &view->transform.boundingbox,
+-				  &output->base.region);
+-	box = pixman_region32_extents(&rect);
+-
+-	/* Why need to translate int to fixed? */
+-	weston_view_from_global_fixed(view,
+-				      wl_fixed_from_int(box->x1),
+-				      wl_fixed_from_int(box->y1),
+-				      &sx1, &sy1);
+-	weston_view_from_global_fixed(view,
+-				      wl_fixed_from_int(box->x2),
+-				      wl_fixed_from_int(box->y2),
+-				      &sx2, &sy2);
+-
+-	viewport = &view->surface->buffer_viewport;
+-	width = view->surface->width;
+-	height = view->surface->height;
+-	if (sx1 < 0)
+-		sx1 = 0;
+-	if (sy1 < 0)
+-		sy1 = 0;
+-	if (sx2 > wl_fixed_from_int(width))
+-		sx2 = wl_fixed_from_int(width);
+-	if (sy2 > wl_fixed_from_int(height))
+-		sy2 = wl_fixed_from_int(height);
+-
+-	tbox.x1 = sx1;
+-	tbox.y1 = sy1;
+-	tbox.x2 = sx2;
+-	tbox.y2 = sy2;
+-
+-	ret = weston_transformed_rect(wl_fixed_from_int(width),
+-				       wl_fixed_from_int(height),
+-				       viewport->buffer.transform,
+-				       viewport->buffer.scale,
+-				       tbox);
+-
+-	ret.x1 = wl_fixed_to_int(ret.x1);
+-	ret.y1 = wl_fixed_to_int(ret.y1);
+-	ret.x2 = wl_fixed_to_int(ret.x2);
+-	ret.y2 = wl_fixed_to_int(ret.y2);
+-
+-	pixman_region32_fini(&rect);
+-	return ret;
+-}
+-
+-static pixman_box32_t
+-get_dst_display_region(struct fbdev_output *output, struct weston_view *view)
+-{
+-	pixman_region32_t rect;
+-	pixman_box32_t *box, ret;
+-
+-	pixman_region32_init(&rect);
+-	pixman_region32_intersect(&rect, &view->transform.boundingbox,
+-				&output->base.region);
+-	pixman_region32_translate(&rect, -output->base.x, -output->base.y);
+-	box = pixman_region32_extents(&rect);
+-	ret = weston_transformed_rect(output->base.width,
+-				output->base.height,
+-				output->base.transform,
+-				output->base.current_scale,
+-				*box);
+-
+-	pixman_region32_fini(&rect);
+-	return ret;
+-}
+-
+-
+ static void
+ setup_overlay_info(struct vdsscomp_layer_info *info,
+ 		uint32_t width, uint32_t height, uint32_t shm_fmt,
+@@ -708,8 +721,8 @@ fbdev_output_process_overlay(struct fbdev_output *output,
+ 		 * position (note the caller has called weston_view_update_transform()
+ 		 * for us already).
+ 		 */
+-		sbox = get_src_crop_region(output, ev);
+-		dbox = get_dst_display_region(output, ev);
++		get_src_crop_region(output, ev, &sbox);
++		get_dst_display_region(output, ev, &dbox);
+ 
+ 		memset(&layer_info, 0, sizeof(layer_info));
+ 		setup_overlay_info(&layer_info, width, height, fmt,
+-- 
+1.9.1
+

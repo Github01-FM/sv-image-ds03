@@ -1,0 +1,26 @@
+From 350adbe13db62c8cd6420fe62f0e9f61fdf5f418 Mon Sep 17 00:00:00 2001
+From: Laisheng Hu <laisheng@codeaurora.org>
+Date: Wed, 11 Feb 2015 08:58:16 +0800
+Subject: [PATCH 17/67] modify log level for timestamp
+
+Change-Id: I1241e20f9e96d5e7c7d77cf15d0dc2cf04288f0d
+---
+ omx/gstomxvideodec.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 02efc1c..cfc25b8 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -1945,7 +1945,7 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+ 				GST_BUFFER_DURATION (frame->output_buffer) =
+ 				gst_util_uint64_scale (buf->omx_buf->nTickCount, GST_SECOND,
+ 				OMX_TICKS_PER_SECOND);
+-				GST_ERROR_OBJECT (self,
++				GST_DEBUG_OBJECT (self,
+ 				"v4l2 out time: %" GST_TIME_FORMAT ", omx time: %" G_GINT64_FORMAT,
+ 				frame->output_buffer->pts, buf->omx_buf->nTimeStamp) ;
+ 			}
+-- 
+1.9.1
+

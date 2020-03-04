@@ -1,0 +1,25 @@
+From 8bcf17719238def29d4a681b607db7882dac2572 Mon Sep 17 00:00:00 2001
+From: Guoying Zhang <Guoying.Zhang@csr.com>
+Date: Wed, 29 Apr 2015 16:49:17 +0800
+Subject: [PATCH] systemd: remove unneed getty@tty1.service for csr bsp
+
+Signed-off-by: Guoying Zhang <Guoying.Zhang@csr.com>
+---
+ Makefile.am | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index 4028112..2d19469 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -5856,7 +5856,6 @@ USER_UNIT_ALIASES += \
+ 
+ GENERAL_ALIASES += \
+ 	$(systemunitdir)/remote-fs.target $(pkgsysconfdir)/system/multi-user.target.wants/remote-fs.target \
+-	$(systemunitdir)/getty@.service $(pkgsysconfdir)/system/getty.target.wants/getty@tty1.service \
+ 	$(pkgsysconfdir)/user $(sysconfdir)/xdg/systemd/user \
+ 	$(dbussystemservicedir)/org.freedesktop.systemd1.service $(dbussessionservicedir)/org.freedesktop.systemd1.service
+ 
+-- 
+1.9.1
+

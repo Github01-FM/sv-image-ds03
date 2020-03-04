@@ -1,0 +1,26 @@
+From b595320bde2340904a7a1450f9fc3c48884d7487 Mon Sep 17 00:00:00 2001
+From: Laisheng Hu <laisheng@codeaurora.org>
+Date: Thu, 15 Jan 2015 13:21:22 +0800
+Subject: [PATCH 12/67] set pool to buffer for cast case
+
+Change-Id: I395a346fc9c25a0981330137b171953f80ff98db
+---
+ omx/gstomxvideodec.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 7d21514..1bd3fbe 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -1927,7 +1927,7 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+ #endif
+ 			if(frame->output_buffer)		
+ 			{
+-
++				frame->output_buffer->pool = gst_video_decoder_get_buffer_pool (GST_VIDEO_DECODER (self));
+ 				GST_BUFFER_PTS (frame->output_buffer) =
+ 				gst_util_uint64_scale (buf->omx_buf->nTimeStamp, GST_SECOND,
+ 				OMX_TICKS_PER_SECOND);
+-- 
+1.9.1
+

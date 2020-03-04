@@ -1,0 +1,31 @@
+From d846022f2711437f142531a41e191677d62f2448 Mon Sep 17 00:00:00 2001
+From: Jie Zhou <zhojie@codeaurora.org>
+Date: Tue, 19 Apr 2016 14:09:19 +0800
+Subject: [PATCH 22/31] APBU-11786 bugfix
+
+when current segment is finished, check the stop_time, if it reaches
+the end of stream, we drop next segment and go to EOS
+
+Change-Id: Idb4221ee34237cbaf30da79543a76dbfe241d477
+Signed-off-by: Jie Zhou <zhojie@codeaurora.org>
+---
+ gst/isomp4/qtdemux.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/gst/isomp4/qtdemux.c b/gst/isomp4/qtdemux.c
+index 49195fb..908e03a 100644
+--- a/gst/isomp4/qtdemux.c
++++ b/gst/isomp4/qtdemux.c
+@@ -4467,7 +4467,8 @@ next_segment:
+   {
+     GST_DEBUG_OBJECT (qtdemux, "segment %d ended ", stream->segment_index);
+ 
+-    if (stream->segment_index == stream->n_segments - 1) {
++    /* Jie: Drop next segment and go to EOS if current segment stop_time reach the end of stream */
++    if (stream->segment_index == stream->n_segments - 1 || segment->stop_time >= qtdemux->segment.stop) {
+       /* are we at the end of the last segment, we're EOS */
+       stream->time_position = GST_CLOCK_TIME_NONE;
+     } else {
+-- 
+1.9.1
+

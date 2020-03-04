@@ -1,0 +1,28 @@
+From d13a7c5cbadd1904dc1a97f633924099aa607830 Mon Sep 17 00:00:00 2001
+From: Flame Chen <Flame.Chen@csr.com>
+Date: Fri, 29 Jan 2016 18:07:12 +0800
+Subject: [PATCH] correct the format map between wayland format and vdss
+ format!
+
+Change-Id: I216922e9e94ec09c419d199c24a55601ab682193
+Signed-off-by: Flame Chen <Flame.Chen@csr.com>
+---
+ src/compositor-fbdev.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/compositor-fbdev.c b/src/compositor-fbdev.c
+index 1dadb76..184d091 100644
+--- a/src/compositor-fbdev.c
++++ b/src/compositor-fbdev.c
+@@ -253,7 +253,7 @@ static int convert_shmfmt_to_vdss(int fmt)
+ 			return VDSSCOMP_PIXELFORMAT_8888;
+ 		case WL_SHM_FORMAT_YUYV:
+ 		case WL_SHM_FORMAT_YUYV_TWO_FIELDS:
+-			return VDSSCOMP_PIXELFORMAT_YVYU;
++			return VDSSCOMP_PIXELFORMAT_YUYV;
+ 		case WL_SHM_FORMAT_NV12_VXD_INTERLACED:
+ 		case WL_SHM_FORMAT_NV12_VXD:
+ 			return VDSSCOMP_PIXELFORMAT_NV12;
+-- 
+1.9.1
+

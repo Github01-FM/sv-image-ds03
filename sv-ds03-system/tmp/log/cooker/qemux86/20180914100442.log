@@ -1,0 +1,6 @@
+ERROR:  OE-core's config sanity checker detected a potential misconfiguration.
+    Either fix the cause of this error or at your own risk disable the checker (see sanity.conf).
+    Following is the list of potential problems / advisories:
+
+    Error, TMPDIR has changed location. You need to either move it back to /home/ubuntu/work/saic_ap31/RN2_SAIC_AP31_Radio/sv-ds03-system/tmp or rebuild
+

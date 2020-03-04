@@ -1,0 +1,167 @@
+From 4af8338dc0d56a68762a31e3b4f01a85a6e854c0 Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Wed, 6 Jul 2016 16:23:50 +0800
+Subject: [PATCH 29/31] CSRSupport 68154 bugfix
+
+Ensure we don't process buffer during flushing
+
+Change-Id: I8a84135ae66f11e86fa08aaea63e54e6e7b4eb89
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ sys/v4l2/gstv4l2bufferpool.c |  8 +++++++-
+ sys/v4l2/gstv4l2bufferpool.h |  2 +-
+ sys/v4l2/gstv4l2object.c     |  5 -----
+ sys/v4l2/gstv4l2object.h     |  6 ------
+ sys/v4l2/gstv4l2sink.c       | 22 ++--------------------
+ 5 files changed, 10 insertions(+), 33 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2bufferpool.c b/sys/v4l2/gstv4l2bufferpool.c
+index 35a5493..5c9dcac 100644
+--- a/sys/v4l2/gstv4l2bufferpool.c
++++ b/sys/v4l2/gstv4l2bufferpool.c
+@@ -949,6 +949,7 @@ gst_v4l2_buffer_pool_flush_start (GstBufferPool * bpool)
+   GST_DEBUG_OBJECT (pool, "start flushing");
+ 
+   gst_poll_set_flushing (pool->poll, TRUE);
++  g_atomic_int_set (&pool->flushing, 1);
+ 
+   GST_OBJECT_LOCK (pool);
+   pool->empty = FALSE;
+@@ -1019,6 +1020,7 @@ streamon:
+     gst_v4l2_buffer_pool_streamon (pool);
+ 
+   gst_poll_set_flushing (pool->poll, FALSE);
++  g_atomic_int_set (&pool->flushing, 0);
+ }
+ 
+ static GstFlowReturn
+@@ -1574,6 +1576,7 @@ gst_v4l2_buffer_pool_init (GstV4l2BufferPool * pool)
+   pool->can_poll_device = TRUE;
+   g_cond_init (&pool->empty_cond);
+   pool->empty = TRUE;
++  g_atomic_int_set (&pool->flushing, 0);
+ }
+ 
+ static void
+@@ -1754,7 +1757,10 @@ gst_v4l2_buffer_pool_process (GstV4l2BufferPool * pool, GstBuffer ** buf)
+   g_return_val_if_fail (gst_buffer_pool_is_active (bpool), GST_FLOW_ERROR);
+ 
+   if (GST_BUFFER_POOL_IS_FLUSHING (pool))
+-    return GST_FLOW_FLUSHING;
++    if (V4L2_TYPE_IS_OUTPUT (obj->type))
++      return GST_FLOW_OK;
++    else
++      return GST_FLOW_FLUSHING;
+ 
+   switch (obj->type) {
+     case V4L2_BUF_TYPE_VIDEO_CAPTURE:
+diff --git a/sys/v4l2/gstv4l2bufferpool.h b/sys/v4l2/gstv4l2bufferpool.h
+index 4c2f5cd..922a4ce 100644
+--- a/sys/v4l2/gstv4l2bufferpool.h
++++ b/sys/v4l2/gstv4l2bufferpool.h
+@@ -83,7 +83,7 @@ struct _GstV4l2BufferPool
+   guint copy_threshold;      /* when our pool runs lower, start handing out copies */
+ 
+   gboolean streaming;
+-  gboolean flushing;
++  gint flushing;
+ 
+   GstBuffer *buffers[VIDEO_MAX_FRAME];
+ 
+diff --git a/sys/v4l2/gstv4l2object.c b/sys/v4l2/gstv4l2object.c
+index ffa76f8..70d2bec 100644
+--- a/sys/v4l2/gstv4l2object.c
++++ b/sys/v4l2/gstv4l2object.c
+@@ -453,9 +453,6 @@ gst_v4l2_object_new (GstElement * element,
+ 
+   v4l2object->no_initial_format = FALSE;
+ 
+-  g_mutex_init(&v4l2object->lock);
+-  g_cond_init(&v4l2object->cond);
+-
+   return v4l2object;
+ }
+ 
+@@ -481,8 +478,6 @@ gst_v4l2_object_destroy (GstV4l2Object * v4l2object)
+     gst_caps_unref (v4l2object->probed_caps);
+   }
+ 
+-  g_mutex_clear(&v4l2object->lock);
+-  g_cond_clear(&v4l2object->cond);
+   g_free (v4l2object);
+ }
+ 
+diff --git a/sys/v4l2/gstv4l2object.h b/sys/v4l2/gstv4l2object.h
+index cb2491b..ead335c 100644
+--- a/sys/v4l2/gstv4l2object.h
++++ b/sys/v4l2/gstv4l2object.h
+@@ -53,9 +53,6 @@ G_BEGIN_DECLS
+ GType gst_v4l2_io_mode_get_type (void);
+ 
+ #define GST_V4L2_OBJECT(obj) (GstV4l2Object *)(obj)
+-#define GST_V4L2_OBJECT_LOCK(obj)   (g_mutex_lock(&obj->lock))
+-#define GST_V4L2_OBJECT_TRYLOCK(obj)   (g_mutex_trylock(&obj->lock))
+-#define GST_V4L2_OBJECT_UNLOCK(obj) (g_mutex_unlock(&obj->lock))
+ 
+ typedef enum {
+   GST_V4L2_IO_AUTO          = 0,
+@@ -178,9 +175,6 @@ struct _GstV4l2Object {
+   /* Allow to skip reading initial format through G_FMT. Some devices
+    * just fails if you don't call S_FMT first. (ex: M2M decoders) */
+   gboolean no_initial_format;
+-
+-  GMutex lock;
+-  GCond cond;
+ };
+ 
+ struct _GstV4l2ObjectClassHelper {
+diff --git a/sys/v4l2/gstv4l2sink.c b/sys/v4l2/gstv4l2sink.c
+index a6c9da3..abae784 100644
+--- a/sys/v4l2/gstv4l2sink.c
++++ b/sys/v4l2/gstv4l2sink.c
+@@ -543,11 +543,6 @@ gst_v4l2sink_change_state (GstElement * element, GstStateChange transition)
+       if (!gst_v4l2_object_open (v4l2sink->v4l2object))
+         return GST_STATE_CHANGE_FAILURE;
+       break;
+-	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+-	  g_atomic_int_set(&v4l2sink->to_paused, 1);
+-	  if (!GST_V4L2_OBJECT_TRYLOCK(v4l2sink->v4l2object))
+-		  g_cond_wait(&v4l2sink->v4l2object->cond, &v4l2sink->v4l2object->lock);
+-	  break;
+     default:
+       break;
+   }
+@@ -555,11 +550,6 @@ gst_v4l2sink_change_state (GstElement * element, GstStateChange transition)
+   ret = GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
+ 
+   switch (transition) {
+-	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
+-	  g_atomic_int_set(&v4l2sink->to_paused, 0);
+-	  GST_V4L2_OBJECT_UNLOCK(v4l2sink->v4l2object);
+-	  g_cond_signal(&v4l2sink->v4l2object->cond);
+-	  break;
+     case GST_STATE_CHANGE_PAUSED_TO_READY:
+       if (!gst_v4l2_object_stop (v4l2sink->v4l2object))
+         return GST_STATE_CHANGE_FAILURE;
+@@ -707,16 +697,8 @@ gst_v4l2sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
+       goto activate_failed;
+   }
+ 
+-  if (g_atomic_int_get(&v4l2sink->to_paused) == 0)
+-  {
+-	  if (!GST_V4L2_OBJECT_TRYLOCK(obj))
+-		  g_cond_wait(&obj->cond, &obj->lock);
+-
+-	  ret = gst_v4l2_buffer_pool_process (GST_V4L2_BUFFER_POOL_CAST (obj->pool), &buf);
+-
+-	  GST_V4L2_OBJECT_UNLOCK(obj);
+-	  g_cond_signal(&obj->cond);
+-  }
++  ret = gst_v4l2_buffer_pool_process (GST_V4L2_BUFFER_POOL_CAST (obj->pool),
++      &buf);
+ 
+   return ret;
+ 
+-- 
+1.9.1
+

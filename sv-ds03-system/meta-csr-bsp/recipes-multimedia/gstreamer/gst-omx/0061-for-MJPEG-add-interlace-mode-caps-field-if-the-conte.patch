@@ -1,0 +1,54 @@
+From a2027c64619e6c8ab89f35ad5897af77e2888594 Mon Sep 17 00:00:00 2001
+From: Jie Zhou <zhojie@codeaurora.org>
+Date: Fri, 27 May 2016 13:47:08 +0800
+Subject: [PATCH 61/67] for MJPEG, add interlace-mode caps field if the content
+ is interlaced
+
+Change-Id: I3085fd949e3543cf00291f7de81bb11027defaee
+Signed-off-by: Jie Zhou <zhojie@codeaurora.org>
+---
+ omx/gstomxmjpegvideoenc.c |  4 ++++
+ omx/gstomxvideodec.c      | 10 ++++++++++
+ 2 files changed, 14 insertions(+)
+
+diff --git a/omx/gstomxmjpegvideoenc.c b/omx/gstomxmjpegvideoenc.c
+index 9a246bd..653ed67 100644
+--- a/omx/gstomxmjpegvideoenc.c
++++ b/omx/gstomxmjpegvideoenc.c
+@@ -241,8 +241,12 @@ gst_omx_mjpeg_video_enc_get_caps (GstOMXVideoEnc * enc, GstOMXPort * port,
+     GstVideoCodecState * state)
+ {
+   GstCaps *caps;
++  GstVideoInfo *info = &state->info;
+ 
+   caps = gst_caps_new_empty_simple ("image/jpeg");
++  //if interleaved, add a caps info and pass it to muxer
++  if (GST_VIDEO_INFO_IS_INTERLACED(info))
++    gst_caps_set_simple (caps, "interlace-mode", G_TYPE_STRING, "interleaved", NULL);
+ 
+   return caps;
+ }
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index be02761..7767628 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -2660,6 +2660,16 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+      info->fps_n = 20000000;
+   }
+ 
++  GstStructure *s;
++  const gchar *imode;
++  s = gst_caps_get_structure (state->caps, 0);
++  /* for jpeg, check if the contant is interleaved */
++  if (gst_structure_has_name(s, "image/jpeg")) {
++    imode = gst_structure_get_string (s, "interlace-mode");
++    if (imode && (g_str_equal(imode, "interleaved")))
++      info->interlace_mode = GST_VIDEO_INTERLACE_MODE_INTERLEAVED;
++  }
++
+   if (GST_VIDEO_INFO_IS_INTERLACED(info))
+     self->dec->interlaced = TRUE;
+   else
+-- 
+1.9.1
+

@@ -1,0 +1,30 @@
+commit 4be4e6caf6f7be326e79ca089ee51bd3e4ea8d53
+Author: Flame Chen <Flame.Chen@csr.com>
+Date:   Thu Jun 11 10:39:43 2015 +0800
+
+    After import a dma fd, we need call ion free to decrease ref count...
+    
+    Signed-off-by: Flame Chen <Flame.Chen@csr.com>
+
+diff --git a/src/gl-renderer.c b/src/gl-renderer.c
+index c71d1d6..2a2c068 100644
+--- a/src/gl-renderer.c
++++ b/src/gl-renderer.c
+@@ -1165,13 +1165,16 @@ static int
+ is_dma_buf(int fd)
+ {
+ 	struct ion_fd_data sFdData = {};
++	struct ion_handle_data sHandleData = {};
+ 	int err;
+ 
+ 	sFdData.fd = fd;
+-
+ 	err = ioctl(fb_fd, ION_IOC_IMPORT, &sFdData);
+ 	if(err)
+ 		return 0;
++
++	sHandleData.handle = sFdData.handle;
++	ioctl(fb_fd, ION_IOC_FREE, &sHandleData);
+ 	return 1;
+ }
+ 

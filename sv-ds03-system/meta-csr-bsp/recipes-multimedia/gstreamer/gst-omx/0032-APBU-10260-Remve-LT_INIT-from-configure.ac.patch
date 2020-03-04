@@ -1,0 +1,25 @@
+From 998e39e737113bca2cdcafd387e8d78832e523f0 Mon Sep 17 00:00:00 2001
+From: xf02 <xfei@codeaurora.org>
+Date: Sun, 12 Apr 2015 16:27:21 +0800
+Subject: [PATCH 32/67] APBU-10260: Remve LT_INIT from configure.ac
+
+---
+ configure.ac | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index adb6748..be519c5 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -51,8 +51,6 @@ AC_SUBST(GST_API_VERSION)
+ AC_DEFINE_UNQUOTED(GST_API_VERSION, "$GST_API_VERSION",
+   [GStreamer API Version])
+ 
+-LT_INIT
+-
+ AG_GST_LIBTOOL_PREPARE
+ AS_LIBTOOL(GST, 0, 0, 0)
+ 
+-- 
+1.9.1
+

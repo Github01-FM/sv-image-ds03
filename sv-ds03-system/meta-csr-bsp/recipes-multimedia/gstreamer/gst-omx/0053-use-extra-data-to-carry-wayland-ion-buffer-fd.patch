@@ -1,0 +1,157 @@
+From a57f5dde5481eb45d874546db77f91a327eb267b Mon Sep 17 00:00:00 2001
+From: Laisheng Hu <laisheng@codeaurora.org>
+Date: Fri, 11 Dec 2015 15:12:34 +0800
+Subject: [PATCH 53/67] use extra data to carry wayland ion buffer fd
+
+Change-Id: I2151f021d10d3fdaba7dd778ab7e8937144ea403
+Signed-off-by: Laisheng Hu <laisheng@codeaurora.org>
+---
+ omx/gstomx.c         | 30 ++++++++++++++++++++----------
+ omx/gstomx.h         | 10 +++++++++-
+ omx/gstomxvideodec.c | 13 +++++++++----
+ 3 files changed, 38 insertions(+), 15 deletions(-)
+
+diff --git a/omx/gstomx.c b/omx/gstomx.c
+index dce0184..e262ab5 100644
+--- a/omx/gstomx.c
++++ b/omx/gstomx.c
+@@ -1688,7 +1688,7 @@ static OMX_ERRORTYPE gst_omx_port_deallocate_buffers_unlocked (GstOMXPort *
+ /* NOTE: Must be called while holding comp->lock, uses comp->messages_lock */
+ static OMX_ERRORTYPE
+ gst_omx_port_allocate_buffers_unlocked (GstOMXPort * port,
+-    const GList * buffers, const GList * images, guint n)
++    const GList * buffers, const GList * images, guint n,gboolean wl_ion_buffer)
+ {
+   GstOMXComponent *comp;
+   OMX_ERRORTYPE err = OMX_ErrorNone;
+@@ -1742,12 +1742,22 @@ gst_omx_port_allocate_buffers_unlocked (GstOMXPort * port,
+ 
+     if (buffers) {
+ #ifdef _USE_V4L2_BUFFER_
+-      GstMapInfo info;
+-      gst_buffer_map (l->data, &info, GST_MAP_READ);
+-      gst_buffer_unmap (l->data, &info);
+-      err =
++      if(wl_ion_buffer)
++      {
++        GstWlShmMemory *wlmem = (GstWlShmMemory *)gst_buffer_peek_memory (l->data, 0);
++        err =
+           OMX_UseBuffer (comp->handle, &buf->omx_buf, port->index, buf,
+-      port->port_def.nBufferSize, info.data);
++            port->port_def.nBufferSize, wlmem->data);
++      }
++      else
++      {
++        GstMapInfo info;
++        gst_buffer_map (l->data, &info, GST_MAP_READ);
++        gst_buffer_unmap (l->data, &info);
++        err =
++          OMX_UseBuffer (comp->handle, &buf->omx_buf, port->index, buf,
++          port->port_def.nBufferSize, info.data);
++      }
+ #else
+       err =
+         OMX_UseBuffer (comp->handle, &buf->omx_buf, port->index, buf,
+@@ -1805,7 +1815,7 @@ gst_omx_port_allocate_buffers (GstOMXPort * port)
+   g_return_val_if_fail (port != NULL, OMX_ErrorUndefined);
+ 
+   g_mutex_lock (&port->comp->lock);
+-  err = gst_omx_port_allocate_buffers_unlocked (port, NULL, NULL, -1);
++  err = gst_omx_port_allocate_buffers_unlocked (port, NULL, NULL, -1,FALSE);
+   g_mutex_unlock (&port->comp->lock);
+ 
+   return err;
+@@ -1813,7 +1823,7 @@ gst_omx_port_allocate_buffers (GstOMXPort * port)
+ 
+ /* NOTE: Uses comp->lock and comp->messages_lock */
+ OMX_ERRORTYPE
+-gst_omx_port_use_buffers (GstOMXPort * port, const GList * buffers)
++gst_omx_port_use_buffers (GstOMXPort * port, const GList * buffers,gboolean wl_ion_buffer)
+ {
+   OMX_ERRORTYPE err;
+   guint n;
+@@ -1822,7 +1832,7 @@ gst_omx_port_use_buffers (GstOMXPort * port, const GList * buffers)
+ 
+   g_mutex_lock (&port->comp->lock);
+   n = g_list_length ((GList *) buffers);
+-  err = gst_omx_port_allocate_buffers_unlocked (port, buffers, NULL, n);
++  err = gst_omx_port_allocate_buffers_unlocked (port, buffers, NULL, n,wl_ion_buffer);
+   g_mutex_unlock (&port->comp->lock);
+ 
+   return err;
+@@ -1839,7 +1849,7 @@ gst_omx_port_use_eglimages (GstOMXPort * port, const GList * images)
+ 
+   g_mutex_lock (&port->comp->lock);
+   n = g_list_length ((GList *) images);
+-  err = gst_omx_port_allocate_buffers_unlocked (port, NULL, images, n);
++  err = gst_omx_port_allocate_buffers_unlocked (port, NULL, images, n,FALSE);
+   g_mutex_unlock (&port->comp->lock);
+ 
+   return err;
+diff --git a/omx/gstomx.h b/omx/gstomx.h
+index 09f30be..a42690d 100644
+--- a/omx/gstomx.h
++++ b/omx/gstomx.h
+@@ -305,6 +305,14 @@ struct _GstOMXClassData {
+   GstOmxComponentType type;
+ };
+ 
++typedef struct _GstWlShmMemory
++{
++  GstMemory parent;
++  gpointer data;
++  gint fd;
++
++} GstWlShmMemory;
++
+ GKeyFile *        gst_omx_get_configuration (void);
+ 
+ const gchar *     gst_omx_error_to_string (OMX_ERRORTYPE err);
+@@ -349,7 +357,7 @@ OMX_ERRORTYPE     gst_omx_port_set_flushing (GstOMXPort *port, GstClockTime time
+ gboolean          gst_omx_port_is_flushing (GstOMXPort *port);
+ 
+ OMX_ERRORTYPE     gst_omx_port_allocate_buffers (GstOMXPort *port);
+-OMX_ERRORTYPE     gst_omx_port_use_buffers (GstOMXPort *port, const GList *buffers);
++OMX_ERRORTYPE     gst_omx_port_use_buffers (GstOMXPort *port, const GList *buffers,gboolean wl_ion_buffer);
+ OMX_ERRORTYPE     gst_omx_port_use_eglimages (GstOMXPort *port, const GList *images);
+ OMX_ERRORTYPE     gst_omx_port_deallocate_buffers (GstOMXPort *port);
+ OMX_ERRORTYPE     gst_omx_port_populate (GstOMXPort *port);
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index b07dc12..96bf67b 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -1164,7 +1164,7 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
+         gst_buffer_map (buffer, &info, GST_MAP_READ);
+ 
+ #ifndef ANDROID
+-        if (!self->wl_ion_buffer && ((guint32) (info.data) & 0xFFF)) {
++        if ((guint32) (info.data) & 0xFFF) {
+           gst_buffer_unmap (buffer, &info);
+ 
+           g_list_free_full (buffers, (GDestroyNotify) gst_buffer_unref);
+@@ -1179,14 +1179,19 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
+           goto done;
+         }
+ #endif
+-
+-        g_hash_table_insert (self->omx_buffer_map, info.data, buffer);
++        if(self->wl_ion_buffer)
++        {
++          GstWlShmMemory *wlmem = (GstWlShmMemory *)gst_buffer_peek_memory (buffer, 0);
++          g_hash_table_insert (self->omx_buffer_map, wlmem->data, buffer);
++        }
++        else
++         g_hash_table_insert (self->omx_buffer_map, info.data, buffer);
+         GST_DEBUG_OBJECT(self, "acquire buffer info.data = %p %p",buffer,info.data);
+         gst_buffer_unmap (buffer, &info);
+       }
+     }
+ 
+-    err = gst_omx_port_use_buffers (port, buffers);
++    err = gst_omx_port_use_buffers (port, buffers,self->wl_ion_buffer);
+     if (err != OMX_ErrorNone) {
+       GST_INFO_OBJECT (self,
+           "Failed to pass v4l2 buffers to port: %s (0x%08x)",
+-- 
+1.9.1
+

@@ -1,0 +1,44 @@
+From d632ebe18e3fa3e225522fe05f18220714062069 Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Mon, 18 Jul 2016 17:45:09 +0800
+Subject: [PATCH 30/31] APBU-12190 bugfix
+
+Process dqueue failed return value
+
+Change-Id: I749e4d19fd85b996af40c73ab8cf3e3f7082a9c5
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ sys/v4l2/gstv4l2bufferpool.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/sys/v4l2/gstv4l2bufferpool.c b/sys/v4l2/gstv4l2bufferpool.c
+index 5c9dcac..ee0a7b0 100644
+--- a/sys/v4l2/gstv4l2bufferpool.c
++++ b/sys/v4l2/gstv4l2bufferpool.c
+@@ -1991,6 +1991,8 @@ gst_v4l2_buffer_pool_process (GstV4l2BufferPool * pool, GstBuffer ** buf)
+                 */
+                 gst_buffer_unref (out);
+             }
++            else if (ret == GST_FLOW_FLUSHING)
++              goto dequeue_failed;
+           }
+           break;
+         }
+@@ -2045,6 +2047,14 @@ queue_failed:
+     GST_ERROR_OBJECT (pool, "failed to queue buffer");
+     return ret;
+   }
++dequeue_failed:
++  {
++    GST_DEBUG_OBJECT (pool, "failed to dequeue buffer");
++    if (V4L2_TYPE_IS_OUTPUT (obj->type))
++      return GST_FLOW_OK;
++    else
++      return ret;
++  }
+ start_failed:
+   {
+     GST_ERROR_OBJECT (pool, "failed to start streaming");
+-- 
+1.9.1
+

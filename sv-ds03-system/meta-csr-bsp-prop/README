@@ -1,0 +1,25 @@
+The OpenEmbedded/Yocto BSP layer for CSR platforms.
+
+Dependencies
+============
+
+This layer depends on:
+
+ YOCTO :  http://git.yoctoproject.org/cgit.cgi
+ Branch : dizzy
+ 
+ OPENEMBDEDED : http://cgit.openembedded.org/meta-openembedded/
+ Branch : dizzy
+
+ Linaro : http://git.linaro.org/openembedded/meta-linaro.git
+ Branch : dizzy 35b44a3ef4b361865cfaf5e2b490cda4158368c5
+
+ Qt 5  : https://github.com/meta-qt5/meta-qt5.git
+ Branch : dizzy bb20ed60fc596098940f18bd2418a8bdc866bec3
+
+How to build:
+============
+$cd poky
+$TEMPLATECONF=meta-csr/conf source oe-init-build-env
+$bitbake csr-image-qt5
+

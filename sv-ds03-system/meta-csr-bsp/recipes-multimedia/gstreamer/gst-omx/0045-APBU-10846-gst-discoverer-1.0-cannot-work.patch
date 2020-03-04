@@ -1,0 +1,58 @@
+From e2bcc767296218d52640c7cdc8386212f977eba4 Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Mon, 24 Aug 2015 15:40:07 +0800
+Subject: [PATCH 45/67] APBU-10846 gst-discoverer-1.0 cannot work
+
+Set allocation parameters to guarantee 4K-byte aligned output buffers
+
+Change-Id: Ibf9f70ad5aaa5e6232b2bd24f6922081c49f5e29
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ omx/gstomxvideodec.c | 24 +++++++++++++++++++++++-
+ 1 file changed, 23 insertions(+), 1 deletion(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index a6ce3ef..b8088a4 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -3355,6 +3355,29 @@ gst_omx_video_dec_decide_allocation (GstVideoDecoder * bdec, GstQuery * query)
+   GstStructure *config;
+   GstCaps *caps;
+ 
++  GstAllocator *allocator;
++  GstAllocationParams params;
++  gboolean update_allocator;
++
++  /* Set allocation parameters to guarantee 4K-byte aligned output buffers */
++  if (gst_query_get_n_allocation_params (query) > 0) {
++    gst_query_parse_nth_allocation_param (query, 0, &allocator, &params);
++    update_allocator = TRUE;
++  } else {
++    allocator = NULL;
++    gst_allocation_params_init (&params);
++    update_allocator = FALSE;
++  }
++
++  params.align = MAX (params.align, 4095);
++
++  if (update_allocator)
++    gst_query_set_nth_allocation_param (query, 0, allocator, &params);
++  else
++    gst_query_add_allocation_param (query, allocator, &params);
++  if (allocator)
++    gst_object_unref (allocator);
++
+ #if defined (USE_OMX_TARGET_RPI) && defined (HAVE_GST_GL)
+   {
+     gint i, n;
+@@ -3422,7 +3445,6 @@ gst_omx_video_dec_decide_allocation (GstVideoDecoder * bdec, GstQuery * query)
+ #ifdef _USE_V4L2_BUFFER_
+   {
+     OMX_INDEXTYPE index;
+-    GstAllocator *allocator;
+     gst_query_parse_nth_allocation_param (query, 0, &allocator, NULL);
+     OMX_EXT_PARAM_ENABLEWLIONBUFFERTYPE enable_wlionbuf;
+ 
+-- 
+1.9.1
+

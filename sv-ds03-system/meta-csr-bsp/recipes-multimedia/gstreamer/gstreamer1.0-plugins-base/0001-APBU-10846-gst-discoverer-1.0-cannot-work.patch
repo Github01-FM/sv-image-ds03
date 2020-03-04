@@ -1,0 +1,32 @@
+From 84a007b324f6536f5ffad171136dec794f01f930 Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Mon, 24 Aug 2015 15:35:50 +0800
+Subject: [PATCH] APBU-10846 gst-discoverer-1.0 cannot work
+
+Add videometa into query to ensure hardware decoder adds alignment  info into pool config, so that system allocator allocs the correct memory size which hardware decoder will used.
+
+Change-Id: I5163219156ce0180debeecd2d40a220fb00977de
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ gst-libs/gst/video/gstvideodecoder.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/gst-libs/gst/video/gstvideodecoder.c b/gst-libs/gst/video/gstvideodecoder.c
+index f8a5869..94c90cc 100644
+--- a/gst-libs/gst/video/gstvideodecoder.c
++++ b/gst-libs/gst/video/gstvideodecoder.c
+@@ -3691,6 +3691,11 @@ gst_video_decoder_negotiate_pool (GstVideoDecoder * decoder, GstCaps * caps)
+ 
+   if (!gst_pad_peer_query (decoder->srcpad, query)) {
+     GST_DEBUG_OBJECT (decoder, "didn't get downstream ALLOCATION hints");
++    /* add videometa into query to ensure hardware decoder adds alignment info into pool config,
++     * so that system allocator allocs the correct memory size which hardware decoder will used.
++     */
++    GST_WARNING_OBJECT (decoder, "Adding Video Meta into allocation query");
++    gst_query_add_allocation_meta (query, GST_VIDEO_META_API_TYPE, NULL);
+   }
+ 
+   g_assert (klass->decide_allocation != NULL);
+-- 
+1.9.1
+

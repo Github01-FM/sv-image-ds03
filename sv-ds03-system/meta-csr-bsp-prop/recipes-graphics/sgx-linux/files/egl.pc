@@ -1,0 +1,11 @@
+prefix=/usr
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: egl
+Description: CSR Graphics SDK implementation of EGL
+Version: 10.11.2580795
+Requires:
+Libs: -L${libdir} -lEGL -lGLESv2 -lIMGegl
+Cflags: -I{includedir}/EGL/ -I${includedir}

@@ -1,0 +1,48 @@
+From 03345319f0b46cd40831826b6e1c004019af5158 Mon Sep 17 00:00:00 2001
+From: Laisheng Hu <laisheng@codeaurora.org>
+Date: Tue, 20 Jan 2015 16:56:14 +0800
+Subject: [PATCH 15/67] enable use buffer mode
+
+Change-Id: Id538a7ff8efba16b1ecb6b90e76bbfc92144d439
+---
+ omx/gstomxvideodec.c | 10 ++++++++++
+ omx/gstomxvideodec.h |  2 +-
+ 2 files changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 3e6864b..02efc1c 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -1045,6 +1045,16 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
+       {
+ 	  GstMapInfo info;
+ 	  gst_buffer_map (buffer, &info, GST_MAP_READ);
++	  if ((guint32) (info.data) & 0xFFF) {
++		gst_buffer_unmap (buffer, &info);
++
++		g_list_free_full (buffers, (GDestroyNotify) gst_buffer_unref);
++		buffers = NULL;
++		err = OMX_ErrorResourcesLost;
++		goto done;
++	
++	  }
++
+ 	  g_hash_table_insert (self->omx_buffer_map, info.data, buffer);
+ 	  printf("acquire buffer info.data = %p %p\n",buffer,info.data);
+ 	  gst_buffer_unmap (buffer, &info);
+diff --git a/omx/gstomxvideodec.h b/omx/gstomxvideodec.h
+index e5346af..5dcdfcb 100644
+--- a/omx/gstomxvideodec.h
++++ b/omx/gstomxvideodec.h
+@@ -33,7 +33,7 @@
+ 
+ G_BEGIN_DECLS
+ 
+-//#define _USE_V4L2_BUFFER_
++#define _USE_V4L2_BUFFER_
+ 
+ #define GST_TYPE_OMX_VIDEO_DEC \
+   (gst_omx_video_dec_get_type())
+-- 
+1.9.1
+

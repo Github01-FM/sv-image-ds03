@@ -1,0 +1,222 @@
+From c5363039da263d76eea5e879eac0bcd142577023 Mon Sep 17 00:00:00 2001
+From: xf02 <xfei@codeaurora.org>
+Date: Thu, 14 May 2015 19:56:51 +0800
+Subject: [PATCH 37/67] APBU-10313 [A7 H264]Gallery pop out:Can't play this
+ video,when do seek
+
+Because gst-omx do not release the buffer with nFiledLen is 0, then this
+buffer can not be referenced by omx anymore. So sometimes omx will stop
+decode because it has no enough output buffers.
+
+Change-Id: I5cf83c2d6cd27a6f43ec1246acf681f5ce91938d
+Signed-off-by: xf02 <xfei@codeaurora.org>
+---
+ omx/gstomx.c         |  7 +++-
+ omx/gstomx.h         |  3 ++
+ omx/gstomxvideodec.c | 93 +++++++++++++++++++++++++++++++++-------------------
+ omx/gstomxvideodec.h |  3 --
+ 4 files changed, 68 insertions(+), 38 deletions(-)
+
+diff --git a/omx/gstomx.c b/omx/gstomx.c
+index 6f9ae64..276b7e1 100644
+--- a/omx/gstomx.c
++++ b/omx/gstomx.c
+@@ -1733,13 +1733,18 @@ gst_omx_port_allocate_buffers_unlocked (GstOMXPort * port,
+     g_ptr_array_add (port->buffers, buf);
+ 
+     if (buffers) {
++#ifdef _USE_V4L2_BUFFER_
+       GstMapInfo info;
+       gst_buffer_map (l->data, &info, GST_MAP_READ);
+       gst_buffer_unmap (l->data, &info);
+-      //printf("pBuffer = %p\n",info.data);
+       err =
+           OMX_UseBuffer (comp->handle, &buf->omx_buf, port->index, buf,
+       port->port_def.nBufferSize, info.data);
++#else
++      err =
++        OMX_UseBuffer (comp->handle, &buf->omx_buf, port->index, buf,
++          port->port_def.nBufferSize, l->data);
++#endif
+       buf->eglimage = FALSE;
+     } else if (images) {
+       err =
+diff --git a/omx/gstomx.h b/omx/gstomx.h
+index 7ba4ef0..5850d13 100644
+--- a/omx/gstomx.h
++++ b/omx/gstomx.h
+@@ -60,6 +60,9 @@
+ 
+ G_BEGIN_DECLS
+ 
++#define _USE_V4L2_BUFFER_
++#define _OMX_ASYNC_FILL_BUFFER_
++
+ #define GST_OMX_INIT_STRUCT(st) G_STMT_START { \
+   memset ((st), 0, sizeof (*(st))); \
+   (st)->nSize = sizeof (*(st)); \
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 67b48a3..7a86d51 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -181,8 +181,23 @@ _omx_out_buffer_create (GstOMXVideoDec * dec, const GstBuffer * buf,
+     pOutBuf->pBuffer = pBuffer;
+     gst_mini_object_set_qdata (GST_MINI_OBJECT_CAST (out_buf),
+         dec->omx_outbuf_quark, pOutBuf, _omx_out_buffer_destroy);
+-  } else {
++
++    GST_BUFFER_PTS (out_buf) =
++      gst_util_uint64_scale (pBuffer->omx_buf->nTimeStamp, GST_SECOND,
++        OMX_TICKS_PER_SECOND);
++
++    if (pBuffer->omx_buf->nTickCount != 0)
++      GST_BUFFER_DURATION (out_buf) =
++        gst_util_uint64_scale (pBuffer->omx_buf->nTickCount, GST_SECOND,
++          OMX_TICKS_PER_SECOND);
++
++    GST_DEBUG_OBJECT (dec,
++	  "v4l2 out time: %" GST_TIME_FORMAT ", omx time: %" G_GINT64_FORMAT,
++	  GST_TIME_ARGS (out_buf->pts), pBuffer->omx_buf->nTimeStamp);
++  }
++  else {
+     g_slice_free (OMX_DECODER_OUT_BUFFER, pOutBuf);
++	g_assert(0);
+   }
+   return out_buf;
+ }
+@@ -1915,12 +1930,14 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+ #ifdef _USE_V4L2_BUFFER_
+ #ifdef _OMX_ASYNC_FILL_BUFFER_
+       outbuf = _omx_out_buffer_create (self,
+-          g_hash_table_lookup (self->omx_buffer_map, buf->omx_buf->pBuffer), buf);
++        g_hash_table_lookup (self->omx_buffer_map, buf->omx_buf->pBuffer), buf);
++
++      buf = NULL;
+ #else
+       outbuf =
+          gst_buffer_ref (g_hash_table_lookup (self->omx_buffer_map,
+            buf->omx_buf->pBuffer));
+-#endif
++
+       if(outbuf) {
+         GST_BUFFER_PTS (outbuf) =
+         gst_util_uint64_scale (buf->omx_buf->nTimeStamp, GST_SECOND,
+@@ -1933,6 +1950,7 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+         "v4l2 out time: %" GST_TIME_FORMAT ", omx time: %" G_GINT64_FORMAT,
+         GST_TIME_ARGS (outbuf->pts), buf->omx_buf->nTimeStamp) ;
+       }
++#endif
+ #else
+       outbuf =
+           gst_video_decoder_allocate_output_buffer (GST_VIDEO_DECODER (self));
+@@ -1996,34 +2014,41 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+       buf = NULL;
+     } else {
+ #ifdef _USE_V4L2_BUFFER_
+-		if (buf->omx_buf)
+-		{
++      if (buf->omx_buf) {
+ #ifdef _OMX_ASYNC_FILL_BUFFER_
+-			frame->output_buffer =
+-			_omx_out_buffer_create (self, g_hash_table_lookup (self->omx_buffer_map,buf->omx_buf->pBuffer), buf);
++        frame->output_buffer = _omx_out_buffer_create (self,
++          g_hash_table_lookup (self->omx_buffer_map,
++            buf->omx_buf->pBuffer),
++          buf);
++
++        buf = NULL;
+ #else
++        frame->output_buffer = gst_buffer_ref (
++          g_hash_table_lookup (self->omx_buffer_map,
++            buf->omx_buf->pBuffer));
++
++        if(frame->output_buffer) {
++          GST_BUFFER_PTS (frame->output_buffer) =
++            gst_util_uint64_scale (buf->omx_buf->nTimeStamp,
++              GST_SECOND, OMX_TICKS_PER_SECOND);
+ 
+-			frame->output_buffer =
+-			gst_buffer_ref (g_hash_table_lookup (self->omx_buffer_map,
+-					buf->omx_buf->pBuffer));  
++          if (buf->omx_buf->nTickCount != 0)
++            GST_BUFFER_DURATION (frame->output_buffer) =
++              gst_util_uint64_scale (buf->omx_buf->nTickCount,
++                GST_SECOND, OMX_TICKS_PER_SECOND);
++
++          GST_DEBUG_OBJECT (self,
++            "v4l2 out time: %" GST_TIME_FORMAT ", omx time: %" G_GINT64_FORMAT,
++            GST_TIME_ARGS (frame->output_buffer->pts), buf->omx_buf->nTimeStamp
++          );
++        }
+ #endif
+-			if(frame->output_buffer)		
+-			{
+-				GST_BUFFER_PTS (frame->output_buffer) =
+-				gst_util_uint64_scale (buf->omx_buf->nTimeStamp, GST_SECOND,
+-				OMX_TICKS_PER_SECOND);
+-				if (buf->omx_buf->nTickCount != 0)
+-				GST_BUFFER_DURATION (frame->output_buffer) =
+-				gst_util_uint64_scale (buf->omx_buf->nTickCount, GST_SECOND,
+-				OMX_TICKS_PER_SECOND);
+-				GST_DEBUG_OBJECT (self,
+-				"v4l2 out time: %" GST_TIME_FORMAT ", omx time: %" G_GINT64_FORMAT,
+-				GST_TIME_ARGS (frame->output_buffer->pts), buf->omx_buf->nTimeStamp) ;
+-			}
+-			flow_ret =
+-			gst_video_decoder_finish_frame (GST_VIDEO_DECODER (self), frame);
+-			frame = NULL;	
+-		}
++
++        flow_ret =
++          gst_video_decoder_finish_frame (GST_VIDEO_DECODER (self), frame);
++
++        frame = NULL;
++      }
+ #else
+       if ((flow_ret =
+               gst_video_decoder_allocate_output_frame (GST_VIDEO_DECODER
+@@ -2058,13 +2083,13 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+   GST_DEBUG_OBJECT (self, "Read frame from component");
+ 
+   GST_DEBUG_OBJECT (self, "Finished frame: %s", gst_flow_get_name (flow_ret));
+-#if !defined _USE_V4L2_BUFFER_ || !defined _OMX_ASYNC_FILL_BUFFER_  
+-	if (buf) {
+-		err = gst_omx_port_release_buffer (port, buf);
+-		if (err != OMX_ErrorNone)
+-		goto release_error;
+-	}
+-#endif
++
++  if (buf) {
++    err = gst_omx_port_release_buffer (port, buf);
++      if (err != OMX_ErrorNone)
++        goto release_error;
++  }
++
+   self->downstream_flow_ret = flow_ret;
+ 
+   if (flow_ret != GST_FLOW_OK)
+diff --git a/omx/gstomxvideodec.h b/omx/gstomxvideodec.h
+index 5dcdfcb..32d32e7 100644
+--- a/omx/gstomxvideodec.h
++++ b/omx/gstomxvideodec.h
+@@ -33,8 +33,6 @@
+ 
+ G_BEGIN_DECLS
+ 
+-#define _USE_V4L2_BUFFER_
+-
+ #define GST_TYPE_OMX_VIDEO_DEC \
+   (gst_omx_video_dec_get_type())
+ #define GST_OMX_VIDEO_DEC(obj) \
+@@ -92,7 +90,6 @@ struct _GstOMXVideoDec
+ #ifdef _USE_V4L2_BUFFER_
+   GHashTable *omx_buffer_map;
+ #endif
+-#define _OMX_ASYNC_FILL_BUFFER_
+ #ifdef _OMX_ASYNC_FILL_BUFFER_
+   GQuark omx_outbuf_quark;
+ #endif 
+-- 
+1.9.1
+

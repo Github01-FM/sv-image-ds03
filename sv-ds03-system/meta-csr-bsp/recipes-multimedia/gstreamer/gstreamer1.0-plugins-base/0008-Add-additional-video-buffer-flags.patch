@@ -1,0 +1,42 @@
+From 14e784865efd39b2f1c7f803033842dcae240855 Mon Sep 17 00:00:00 2001
+From: Alan Wang <wbo@codeaurora.org>
+Date: Thu, 23 Jun 2016 20:26:17 +0800
+Subject: [PATCH 8/8] Add additional video buffer flags.
+
+Add GST_VIDEO_BUFFER_FLAG_TWO_FIELDS and GST_VIDEO_BUFFER_FLAG_SEQ_TB
+that indicate this buffer holds two fields.
+
+Change-Id: If66ca6e130bbc187087453defbea65f1666a7415
+Signed-off-by: Alan Wang <wbo@codeaurora.org>
+---
+ gst-libs/gst/video/video-frame.h | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/gst-libs/gst/video/video-frame.h b/gst-libs/gst/video/video-frame.h
+index 020d6e1..0c481a3 100644
+--- a/gst-libs/gst/video/video-frame.h
++++ b/gst-libs/gst/video/video-frame.h
+@@ -151,6 +151,10 @@ gboolean    gst_video_frame_copy_plane    (GstVideoFrame *dest, const GstVideoFr
+  * @GST_VIDEO_BUFFER_FLAG_FIRST_IN_BUNDLE: When conveying stereo/multiview content with
+  *                                     frame-by-frame methods, this flag marks the first buffer
+  *                                      in a bundle of frames that belong together.
++ * @GST_VIDEO_BUFFER_FLAG_TWOFIELDS:   If the #GstBuffer contains two fields and fields are in
++ *                                     sequential order then set this flag.
++ * @GST_VIDEO_BUFFER_FLAG_SEQ_TB:      If GST_VIDEO_BUFFER_FLAG_TWOFIELDS set, this flag
++ *                                     indicates the sequence of two fields is top field first.
+  * @GST_VIDEO_BUFFER_FLAG_LAST:        Offset to define more flags
+  *
+  * Additional video buffer flags. These flags can potentially be used on any
+@@ -165,6 +169,9 @@ typedef enum {
+   GST_VIDEO_BUFFER_FLAG_MULTIPLE_VIEW = (GST_BUFFER_FLAG_LAST << 4),
+   GST_VIDEO_BUFFER_FLAG_FIRST_IN_BUNDLE = (GST_BUFFER_FLAG_LAST << 5),
+ 
++  GST_VIDEO_BUFFER_FLAG_TWOFIELDS = (GST_BUFFER_FLAG_LAST << 6),
++  GST_VIDEO_BUFFER_FLAG_SEQ_TB = (GST_BUFFER_FLAG_LAST << 7),
++
+   GST_VIDEO_BUFFER_FLAG_LAST        = (GST_BUFFER_FLAG_LAST << 8)
+ } GstVideoBufferFlags;
+ 
+-- 
+1.9.1
+

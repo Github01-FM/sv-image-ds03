@@ -1,0 +1,61 @@
+From ea28e4b0a1c6bf4b6f84eb8fd1ae1fb970f6b985 Mon Sep 17 00:00:00 2001
+From: Yiming Cao <cyiming@codeaurora.org>
+Date: Thu, 23 Apr 2015 10:19:31 +0800
+Subject: [PATCH 34/67] APBU-10311,APBU-10314,APBU-10315: resolve failure of
+ playback exit of some clips
+
+On Android, the max buffer count can be allocated is not adjustable
+dynamically unless recycle all allocated buffers and reset the
+buffercount. For we adjust the  buffer flow for normal condition,
+so just reuse it for EOS buffer flow.
+
+Change-Id: I0bc619f66bd2a535f14c9e4a518869f3f4488944
+Signed-off-by: Yiming Cao <cyiming@codeaurora.org>
+---
+ omx/gstomxvideodec.c | 23 +++++++++++++++++++++++
+ 1 file changed, 23 insertions(+)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 4d417e2..50e3795 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -1912,6 +1912,28 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+       buf = NULL;
+     } else {
+       
++#ifdef _USE_V4L2_BUFFER_
++#ifdef _OMX_ASYNC_FILL_BUFFER_
++      outbuf = _omx_out_buffer_create (self,
++          g_hash_table_lookup (self->omx_buffer_map, buf->omx_buf->pBuffer), buf);
++#else
++      outbuf =
++         gst_buffer_ref (g_hash_table_lookup (self->omx_buffer_map,
++           buf->omx_buf->pBuffer));
++#endif
++      if(outbuf) {
++        GST_BUFFER_PTS (outbuf) =
++        gst_util_uint64_scale (buf->omx_buf->nTimeStamp, GST_SECOND,
++        OMX_TICKS_PER_SECOND);
++        if (buf->omx_buf->nTickCount != 0)
++            GST_BUFFER_DURATION (outbuf) =
++              gst_util_uint64_scale (buf->omx_buf->nTickCount, GST_SECOND,
++              OMX_TICKS_PER_SECOND);
++        GST_DEBUG_OBJECT (self,
++        "v4l2 out time: %" GST_TIME_FORMAT ", omx time: %" G_GINT64_FORMAT,
++        GST_TIME_ARGS (outbuf->pts), buf->omx_buf->nTimeStamp) ;
++      }
++#else
+       outbuf =
+           gst_video_decoder_allocate_output_buffer (GST_VIDEO_DECODER (self));
+       if (!gst_omx_video_dec_fill_buffer (self, buf, outbuf)) {
+@@ -1919,6 +1941,7 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+         gst_omx_port_release_buffer (port, buf);
+         goto invalid_buffer;
+       }
++#endif
+     }
+ 
+     flow_ret = gst_pad_push (GST_VIDEO_DECODER_SRC_PAD (self), outbuf);
+-- 
+1.9.1
+

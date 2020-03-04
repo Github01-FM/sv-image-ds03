@@ -1,0 +1,10 @@
+diff --git a/ivi-layermanagement-examples/CMakeLists.txt b/ivi-layermanagement-examples/CMakeLists.txt
+index 416b00c..9f3de31 100644
+--- a/ivi-layermanagement-examples/CMakeLists.txt
++++ b/ivi-layermanagement-examples/CMakeLists.txt
+@@ -28,4 +28,4 @@ add_subdirectory(EGLWLMockNavigation)
+ add_subdirectory(EGLWLInputEventExample)
+ add_subdirectory(layer-add-surfaces)
+ add_subdirectory(multi-touch-viewer)
+-add_subdirectory(simple-ivi-share)
++#add_subdirectory(simple-ivi-share)

@@ -1,0 +1,146 @@
+From 426febbf292f03367f8dd764b3395ac9ac860741 Mon Sep 17 00:00:00 2001
+From: Alan Wang <wbo@codeaurora.org>
+Date: Wed, 14 Sep 2016 19:35:08 +0800
+Subject: [PATCH 67/67] Support video_full_range_flag of h264 stream.
+
+If video_full_range_flag is detected from h264 stream, set a specific
+Buffer flag to video output frame. So that, v4l2sink can utilize this
+flag on video output frame to set a new format NJ12 for full range
+video.
+
+Change-Id: Ia67bd6cf5974b69ad0068ebf2706370b3cf9db48
+Signed-off-by: Alan Wang <wbo@codeaurora.org>
+---
+ omx/gstomxvideodec.c | 74 +++++++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 73 insertions(+), 1 deletion(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 9d35b8e..c453a90 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -96,6 +96,16 @@ typedef struct _OMX_IMG_METADATA {
+ 
+ /* IMG Vendor specific code ends*/
+ 
++/* QTIL Vendor specific code begins */
++#define QC_VIDEO_LIMITED_RANGE (1 << 23)
++#define QC_VIDEO_FULL_RANGE    (1 << 24)
++
++typedef guint8 (* IS_Video_Full_Range) (guint8 * input, guint32 len);
++IS_Video_Full_Range is_video_full_range = NULL;
++
++GModule *module = NULL;
++/* QTIL Vendor specific code ends */
++
+ /* prototypes */
+ static void gst_omx_video_dec_finalize (GObject * object);
+ 
+@@ -416,6 +426,24 @@ gst_omx_video_dec_init (GstOMXVideoDec * self)
+   self->rotation = DEFAULT_ROTATION;
+   g_mutex_init (&self->drain_lock);
+   g_cond_init (&self->drain_cond);
++
++  /* QTIL vendor specific code begins */
++  module = g_module_open ("/usr/lib/libomxcore.so",
++          G_MODULE_BIND_LAZY | G_MODULE_BIND_LOCAL);
++
++  if (!module) {
++    GST_ERROR_OBJECT (self, "load externel LIBRARY failed");
++  }
++
++  if (!g_module_symbol (module, "QC_IS_FullRangeVideo",
++              (gpointer *)&is_video_full_range) ||
++                is_video_full_range == NULL) {
++    GST_WARNING_OBJECT (self, "Symbol QC_IS_FullRangeVideo is not found !");
++    g_module_close (module);
++    module = NULL;
++  }
++  /* QTIL vendor specific code ends */
++
+ }
+ 
+ static gboolean
+@@ -641,6 +669,13 @@ gst_omx_video_dec_finalize (GObject * object)
+   g_mutex_clear (&self->drain_lock);
+   g_cond_clear (&self->drain_cond);
+ 
++  /* QTIL vendor specific code begins */
++  if (module) {
++    g_module_close (module);
++    module = NULL;
++  }
++  /* QTIL vendor specific code ends */
++
+   G_OBJECT_CLASS (gst_omx_video_dec_parent_class)->finalize (object);
+ }
+ 
+@@ -2258,6 +2293,16 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+         }
+ #endif
+ 
++        /* QTIL vendor specific code begins */
++        if (GST_BUFFER_FLAG_IS_SET (frame->input_buffer,
++                    QC_VIDEO_FULL_RANGE)) {
++            GST_BUFFER_FLAG_SET (frame->output_buffer, QC_VIDEO_FULL_RANGE);
++        } else if (GST_BUFFER_FLAG_IS_SET (frame->input_buffer,
++                    QC_VIDEO_LIMITED_RANGE)) {
++            GST_BUFFER_FLAG_SET (frame->output_buffer, QC_VIDEO_LIMITED_RANGE);
++        }
++        /* QTIL vendor specific code ends */
++
+         flow_ret =
+           gst_video_decoder_finish_frame (GST_VIDEO_DECODER (self), frame);
+ 
+@@ -2688,7 +2733,7 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+   GstStructure *s;
+   const gchar *imode;
+   s = gst_caps_get_structure (state->caps, 0);
+-  /* for jpeg, check if the contant is interleaved */
++  /* for jpeg, check if the content is interleaved */
+   if (gst_structure_has_name(s, "image/jpeg")) {
+     imode = gst_structure_get_string (s, "interlace-mode");
+     if (imode && (g_str_equal(imode, "interleaved")))
+@@ -3188,6 +3233,7 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
+   GstBuffer *codec_data = NULL;
+   guint offset = 0, size;
+   GstClockTime timestamp, duration;
++  gint8 videoFullRangeFlag = -1;
+   OMX_ERRORTYPE err;
+ 
+   self = GST_OMX_VIDEO_DEC (decoder);
+@@ -3368,6 +3414,32 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
+         buf->omx_buf->pBuffer + buf->omx_buf->nOffset,
+         buf->omx_buf->nFilledLen);
+ 
++    /* QTIL vendor specific code begins */
++    if (!g_strcmp0(self->dec->name, "AVC") &&
++            is_video_full_range) {
++      GST_DEBUG_OBJECT (self,
++              "Checking if the Stream has video_full_range flag");
++      videoFullRangeFlag = is_video_full_range (buf->omx_buf->pBuffer,
++              buf->omx_buf->nFilledLen);
++
++      /* videoFullRangeFlag
++       * 1  : input_buffer is sps and video_full_range_flag was set
++       * 0  : input_buffer is sps and video_full_range_flag was NOT set
++       * -1 : input_buffer is NOT sps
++       *      ( can't tell full range info from non-sps buffer)
++       **/
++      if (videoFullRangeFlag == 1) {
++        GST_DEBUG_OBJECT (self,
++              "Setting video_full_range flag");
++        GST_BUFFER_FLAG_SET(frame->input_buffer, QC_VIDEO_FULL_RANGE);
++      } else if (videoFullRangeFlag == 0) {
++        GST_DEBUG_OBJECT (self,
++              "Setting video_limited_range flag");
++        GST_BUFFER_FLAG_SET(frame->input_buffer, QC_VIDEO_LIMITED_RANGE);
++      }
++    }
++    /* QTIL vendor specific code ends */
++
+     if (timestamp != GST_CLOCK_TIME_NONE) {
+       buf->omx_buf->nTimeStamp =
+           gst_util_uint64_scale (timestamp, OMX_TICKS_PER_SECOND, GST_SECOND);
+-- 
+1.9.1
+

@@ -1,0 +1,340 @@
+From a4fa43e581fe291502e0224315f9f83fe7be7c94 Mon Sep 17 00:00:00 2001
+From: Jie Zhou <zhojie@codeaurora.org>
+Date: Fri, 20 Nov 2015 14:13:48 +0800
+Subject: [PATCH 51/67] Add img specific definitions for OMX IL header 1.2.0
+
+Change-Id: Ia1ffc6f9818cbc402c78983d20e366c226ac7d85
+Signed-off-by: Jie Zhou <zhojie@codeaurora.org>
+---
+ omx/openmax/OMX_IVCommon.h  |   8 ++
+ omx/openmax/OMX_Index.h     |  12 ++-
+ omx/openmax/OMX_RoleNames.h |   1 +
+ omx/openmax/OMX_Video.h     | 229 ++++++++++++++++++++++++++++++++++++++++++--
+ 4 files changed, 240 insertions(+), 10 deletions(-)
+
+diff --git a/omx/openmax/OMX_IVCommon.h b/omx/openmax/OMX_IVCommon.h
+index f51dd30..c60312e 100644
+--- a/omx/openmax/OMX_IVCommon.h
++++ b/omx/openmax/OMX_IVCommon.h
+@@ -108,6 +108,14 @@ typedef enum OMX_COLOR_FORMATTYPE {
+     OMX_COLOR_Format24BitRGBA6666,
+     OMX_COLOR_FormatKhronosExtensions = 0x6F000000, /**< Reserved region for introducing Khronos Standard Extensions */ 
+     OMX_COLOR_FormatVendorStartUnused = 0x7F000000, /**< Reserved region for introducing Vendor Extensions */
++    OMX_COLOR_FormatYUV444PackedSemiPlanar         = 0x7F000001,  /**< Added by IMG tu support YUV444 packed semi-planar format */
++    OMX_COLOR_FormatYVU444PackedSemiPlanar         = 0x7F000002,  /**< Added by IMG tu support YVU444 packed semi-planar format */
++    OMX_COLOR_Format10bitMsbYUV420PackedSemiPlanar = 0x7F000003,  /**< Added by IMG to support 10-bit Msb YUV420 packed semi-planar format */
++    OMX_COLOR_Format10bitMsbYVU420PackedSemiPlanar = 0x7F000004,  /**< Added by IMG to support 10-bit Msb YVU420 packed semi-planar format */
++    OMX_COLOR_Format10bitMsbYUV422PackedSemiPlanar = 0x7F000005,  /**< Added by IMG to support 10-bit Msb YVU422 packed semi-planar format */
++    OMX_COLOR_Format10bitMsbYVU422PackedSemiPlanar = 0x7F000006,  /**< Added by IMG to support 10-bit Msb YVU422 packed semi-planar format */
++    OMX_COLOR_Format10bitMsbYUV444PackedSemiPlanar = 0x7F000007,  /**< Added by IMG to support 10-bit Msb YUV444 packed semi-planar format */
++    OMX_COLOR_Format10bitMsbYVU444PackedSemiPlanar = 0x7F000008,  /**< Added by IMG to support 10-bit Msb YVU444 packed semi-planar format */
+     OMX_COLOR_FormatMax = 0x7FFFFFFF
+ } OMX_COLOR_FORMATTYPE;
+ 
+diff --git a/omx/openmax/OMX_Index.h b/omx/openmax/OMX_Index.h
+index e9c79c9..5d20e29 100644
+--- a/omx/openmax/OMX_Index.h
++++ b/omx/openmax/OMX_Index.h
+@@ -296,7 +296,6 @@ typedef enum OMX_INDEXTYPE {
+     OMX_IndexImgAVCDataIsNALSizeDelimited, /**< Data arrives in logical units in frame boundary with NAL size delimited*/ 
+ #endif
+ 
+-#ifdef ANDROID
+     OMX_IndexImgEnableAndroidNativeBuffers,         /**< Corresponds to Stagefright's 'OMX.google.android.index.enableAndroidNativeBuffers' Index */
+     OMX_IndexImgUseAndroidNativeBuffers,            /**< Corresponds to Stagefright's 'OMX.google.android.index.useAndroidNativeBuffer' Index */
+ 	OMX_IndexImgUseAndroidNativeBuffers2,
+@@ -304,7 +303,16 @@ typedef enum OMX_INDEXTYPE {
+     OMX_IndexImgVideoDecoderOutputMetaData,             /**< Corresponds to Stagefright's 'OMX.google.android.index.storeMetaDataInBuffers' Index */
+     OMX_IndexImgConfigureHarwareFeatures,           /**< Configure the Hardware Specific Features */
+     OMX_IndexImgPrepareForAdaptivePlayback,         /**< Corresponds to Stagefright's 'OMX_IndexImgPrepareForAdaptivePlayback' index*/
+-#endif
++
++    OMX_IndexImgEnableWaylandIonBuffers,
++    OMX_IMG_IndexConfigStreamProgressive,
++
++    OMX_IndexConfigDecribeColorFormat,
++    OMX_IndexConfigImgGetStreamColorDescription,
++    OMX_IndexImgEnableNativeBuffers,
++    OMX_IndexImgEnableMetaData,
++    OMX_IndexConfigVdecImmediateMode,
++
+     OMX_IndexImgEnableMultiViewDecoding = 0x7FFFFFFD, /*< Corresponds to MVC Decoding */
+     OMX_IndexImgAspectRatio = 0x7FFFFFFE,    /*Used with OMX_IMG_ASPECTRATIOTYPE to get Aspect Ratio info. Make sure that this is 0x7F000001 in any GST-headers*/
+     OMX_IndexMax = 0x7FFFFFFF
+diff --git a/omx/openmax/OMX_RoleNames.h b/omx/openmax/OMX_RoleNames.h
+index 64f002c..1d9364d 100644
+--- a/omx/openmax/OMX_RoleNames.h
++++ b/omx/openmax/OMX_RoleNames.h
+@@ -103,6 +103,7 @@ extern "C" {
+ #define OMX_ROLE_VIDEO_DECODER_WMV   "video_decoder.wmv"
+ #define OMX_ROLE_VIDEO_DECODER_VC1   "video_decoder.vc1"
+ #define OMX_ROLE_VIDEO_DECODER_SORENSON   "video_decoder.sorenson"
++#define OMX_ROLE_VIDEO_DECODER_HEVC "video_decoder.hevc"
+ 
+ /* Video encoder class */
+ #define OMX_ROLE_VIDEO_ENCODER_H263  "video_encoder.h263"
+diff --git a/omx/openmax/OMX_Video.h b/omx/openmax/OMX_Video.h
+index a76f633..40c0412 100644
+--- a/omx/openmax/OMX_Video.h
++++ b/omx/openmax/OMX_Video.h
+@@ -58,6 +58,8 @@ typedef enum OMX_VIDEO_CODINGTYPE {
+ #else
+     OMX_VIDEO_CodingVP8,
+ #endif
++    OMX_VIDEO_CodingVP9,
++    OMX_VIDEO_CodingHEVC,
+     OMX_VIDEO_CodingVC1,
+     OMX_VIDEO_CodingSorensonSpark,
+     OMX_VIDEO_CodingKhronosExtensions = 0x6F000000, /**< Reserved region for introducing Khronos Standard Extensions */ 
+@@ -688,22 +690,22 @@ typedef struct OMX_VIDEO_INTRAPERIODTYPE {
+ } OMX_VIDEO_INTRAPERIODTYPE;
+ 
+ 
+-/* Following Interlace related structures are added by IMG as part of 
++/* Following Interlace related structures are added by IMG as part of
+    passing Interlace related information to IL Client on Sequence and
+-   frame basis. Only those structures/fields used by IMG are copied 
++   frame basis. Only those structures/fields used by IMG are copied
+    below from OpenMAX 1.2 header files.
+    Strictly for Reference Implementation */
+ /* Vendor Specific code - IMG begins */
+-/*! 
++/*!
+  *  OMX_IMG_ASPECTRATIOTYPE
+  *  Can be used with OMX_IndexImgAspectRatio
+  */
+ typedef struct _OMX_IMG_ASPECTRATIOTYPE {
+-	OMX_U32 nSize;              
+-	OMX_VERSIONTYPE nVersion; 
+-    OMX_U32 nPortIndex; 
+-    OMX_U32 nNumerator;					
+-    OMX_U32 nDenominator;				
++	OMX_U32 nSize;
++	OMX_VERSIONTYPE nVersion;
++    OMX_U32 nPortIndex;
++    OMX_U32 nNumerator;
++    OMX_U32 nDenominator;
+ } OMX_IMG_ASPECTRATIOTYPE;
+ 
+ /*!
+@@ -763,6 +765,217 @@ typedef struct EnableAndroidNativeBuffersParams {
+     OMX_BOOL enable;
+ }OMX_EXT_PARAM_ENABLENATIVEBUFFERTYPE;
+ 
++/**Structures import from 1.1.2 extensions**/
++/** Maximum number of VP8 temporal layers */
++#define OMX_VIDEO_ANDROID_MAXVP8TEMPORALLAYERS 3
++
++/** VP8 temporal layer patterns */
++typedef enum OMX_VIDEO_ANDROID_VPXTEMPORALLAYERPATTERNTYPE {
++    OMX_VIDEO_VPXTemporalLayerPatternNone = 0,
++    OMX_VIDEO_VPXTemporalLayerPatternWebRTC = 1,
++    OMX_VIDEO_VPXTemporalLayerPatternMax = 0x7FFFFFFF
++} OMX_VIDEO_ANDROID_VPXTEMPORALLAYERPATTERNTYPE;
++
++/**
++ * Android specific VP8 encoder params
++ *
++ * STRUCT MEMBERS:
++ *  nSize                      : Size of the structure in bytes
++ *  nVersion                   : OMX specification version information
++ *  nPortIndex                 : Port that this structure applies to
++ *  nKeyFrameInterval          : Key frame interval in frames
++ *  eTemporalPattern           : Type of temporal layer pattern
++ *  nTemporalLayerCount        : Number of temporal coding layers
++ *  nTemporalLayerBitrateRatio : Bitrate ratio allocation between temporal
++ *                               streams in percentage
++ *  nMinQuantizer              : Minimum (best quality) quantizer
++ *  nMaxQuantizer              : Maximum (worst quality) quantizer
++ */
++typedef struct OMX_VIDEO_PARAM_ANDROID_VP8ENCODERTYPE {
++    OMX_U32 nSize;
++    OMX_VERSIONTYPE nVersion;
++    OMX_U32 nPortIndex;
++    OMX_U32 nKeyFrameInterval;
++    OMX_VIDEO_ANDROID_VPXTEMPORALLAYERPATTERNTYPE eTemporalPattern;
++    OMX_U32 nTemporalLayerCount;
++    OMX_U32 nTemporalLayerBitrateRatio[OMX_VIDEO_ANDROID_MAXVP8TEMPORALLAYERS];
++    OMX_U32 nMinQuantizer;
++    OMX_U32 nMaxQuantizer;
++} OMX_VIDEO_PARAM_ANDROID_VP8ENCODERTYPE;
++
++/** HEVC Profile enum type */
++typedef enum OMX_VIDEO_HEVCPROFILETYPE {
++    OMX_VIDEO_HEVCProfileUnknown = 0x0,
++    OMX_VIDEO_HEVCProfileMain    = 0x1,
++    OMX_VIDEO_HEVCProfileMain10  = 0x2,
++    OMX_VIDEO_HEVCProfileMax     = 0x7FFFFFFF
++} OMX_VIDEO_HEVCPROFILETYPE;
++
++/** HEVC Level enum type */
++typedef enum OMX_VIDEO_HEVCLEVELTYPE {
++    OMX_VIDEO_HEVCLevelUnknown    = 0x0,
++    OMX_VIDEO_HEVCMainTierLevel1  = 0x1,
++    OMX_VIDEO_HEVCHighTierLevel1  = 0x2,
++    OMX_VIDEO_HEVCMainTierLevel2  = 0x4,
++    OMX_VIDEO_HEVCHighTierLevel2  = 0x8,
++    OMX_VIDEO_HEVCMainTierLevel21 = 0x10,
++    OMX_VIDEO_HEVCHighTierLevel21 = 0x20,
++    OMX_VIDEO_HEVCMainTierLevel3  = 0x40,
++    OMX_VIDEO_HEVCHighTierLevel3  = 0x80,
++    OMX_VIDEO_HEVCMainTierLevel31 = 0x100,
++    OMX_VIDEO_HEVCHighTierLevel31 = 0x200,
++    OMX_VIDEO_HEVCMainTierLevel4  = 0x400,
++    OMX_VIDEO_HEVCHighTierLevel4  = 0x800,
++    OMX_VIDEO_HEVCMainTierLevel41 = 0x1000,
++    OMX_VIDEO_HEVCHighTierLevel41 = 0x2000,
++    OMX_VIDEO_HEVCMainTierLevel5  = 0x4000,
++    OMX_VIDEO_HEVCHighTierLevel5  = 0x8000,
++    OMX_VIDEO_HEVCMainTierLevel51 = 0x10000,
++    OMX_VIDEO_HEVCHighTierLevel51 = 0x20000,
++    OMX_VIDEO_HEVCMainTierLevel52 = 0x40000,
++    OMX_VIDEO_HEVCHighTierLevel52 = 0x80000,
++    OMX_VIDEO_HEVCMainTierLevel6  = 0x100000,
++    OMX_VIDEO_HEVCHighTierLevel6  = 0x200000,
++    OMX_VIDEO_HEVCMainTierLevel61 = 0x400000,
++    OMX_VIDEO_HEVCHighTierLevel61 = 0x800000,
++    OMX_VIDEO_HEVCMainTierLevel62 = 0x1000000,
++    OMX_VIDEO_HEVCHighTierLevel62 = 0x2000000,
++    OMX_VIDEO_HEVCHighTiermax     = 0x7FFFFFFF
++} OMX_VIDEO_HEVCLEVELTYPE;
++
++/** Structure for controlling HEVC video encoding and decoding */
++typedef struct OMX_VIDEO_PARAM_HEVCTYPE {
++    OMX_U32 nSize;
++    OMX_VERSIONTYPE nVersion;
++    OMX_U32 nPortIndex;
++    OMX_VIDEO_HEVCPROFILETYPE eProfile;
++    OMX_VIDEO_HEVCLEVELTYPE eLevel;
++} OMX_VIDEO_PARAM_HEVCTYPE;
++
++/** Structure to define if dependent slice segments should be used */
++typedef struct OMX_VIDEO_SLICESEGMENTSTYPE {
++    OMX_U32 nSize;
++    OMX_VERSIONTYPE nVersion;
++    OMX_U32 nPortIndex;
++    OMX_BOOL bDepedentSegments;
++    OMX_BOOL bEnableLoopFilterAcrossSlices;
++} OMX_VIDEO_SLICESEGMENTSTYPE;
++
++/**  Structure to enable/ disable VDEC immediate mode decoding */
++typedef struct DisableVDECImmediateMode {
++    OMX_U32 nSize;
++    OMX_VERSIONTYPE nVersion;
++    OMX_U32 nPortIndex;
++    OMX_BOOL bDisableImmediateMode;
++}OMX_EXT_CONFIG_DIABLEIMMEDIATEMODETYPE;
++
++/** Structure to query the color information present in the stream */
++typedef struct OMX_VIDEO_CONFIG_STREAMCOLORDESCRIPTION {
++    OMX_U32 nSize;
++    OMX_VERSIONTYPE nVersion;
++    OMX_U32 nPortIndex;
++    OMX_BOOL bIsPresent;                      /*!< True if information present in headers */
++    OMX_U8 nColorPrimaries;                   /*!< Indicating ColorPrimaries, as present in the header */
++    OMX_U8 nTransferCharacteristics;          /*!< Indicating Trans Characteristics, as present in the header */
++    OMX_U8 nMatrixCoefficients;               /*!< Indicating Matrix Coefficients, as present in the header */
++}OMX_VIDEO_CONFIG_STREAMCOLORDESCRIPTION ;
++
++/** Structure describing a media image (frame). Refer to HardwareAPI.h in
++    Android source tree for details. */
++
++typedef   enum Type {
++    MEDIA_IMAGE_TYPE_UNKNOWN = 0,
++    MEDIA_IMAGE_TYPE_YUV,
++}Type;
++
++typedef    enum PlaneIndex {
++    Y = 0,
++    U,
++    V,
++    MAX_NUM_PLANES
++}PlaneIndex;
++
++typedef struct PlaneInfo {
++    OMX_U32 mOffset;             // offset of first pixel of the plane in bytes from buffer offset
++    OMX_U32 mColInc;             // column increment in bytes
++    OMX_U32 mRowInc;             // row increment in bytes
++    OMX_U32 mHorizSubsampling;   // subsampling compared to the largest plane
++    OMX_U32 mVertSubsampling;    // subsampling compared to the largest plane
++}PlaneInfo;
++
++typedef struct MediaImage {
++    Type mType;
++    OMX_U32 mNumPlanes;              // number of planes
++    OMX_U32 mWidth;                  // width of largest plane
++    OMX_U32 mHeight;                 // height of largest plane
++    OMX_U32 mBitDepth;               // useable bit depth
++
++    PlaneInfo mPlane[MAX_NUM_PLANES];
++}MediaImage;
++
++typedef struct DescribeColorFormatParams {
++    OMX_U32 nSize;
++    OMX_VERSIONTYPE nVersion;
++    OMX_COLOR_FORMATTYPE eColorFormat;
++    OMX_U32 nFrameWidth;
++    OMX_U32 nFrameHeight;
++    OMX_U32 nStride;
++    OMX_U32 nSliceHeight;
++    MediaImage sMediaImage;
++}OMX_EXT_PARAM_DESCRIBECOLORFORMAT;
++
++/** Structure to enable adaptive playback in Android  */
++typedef struct PrepareForAdaptivePlaybackParams{
++    OMX_U32 nSize;
++    OMX_VERSIONTYPE nVersion;
++    OMX_U32 nPortIndex;
++    OMX_BOOL bEnable;
++    OMX_U32 nMaxFrameWidth;
++    OMX_U32 nMaxFrameHeight;
++}OMX_EXT_PARAM_PREPAREFORADAPTIVEPLAYBACKTYPE;
++
++/** Structure to enable meta data buffers in Android  */
++typedef struct StoreMetaDataInBuffersParams{
++    OMX_U32 nSize;
++    OMX_VERSIONTYPE nVersion;
++    OMX_U32 nPortIndex;
++    OMX_BOOL bStoreMetaData;
++}OMX_EXT_PARAM_METADATAINBUFFERSTYPE;
++
++/** Structure to get the native buffer usage flags */
++typedef struct GetAndroidNativeBufferUsageParams {
++    OMX_U32 nSize;              // IN
++    OMX_VERSIONTYPE nVersion;   // IN
++    OMX_U32 nPortIndex;         // IN
++    OMX_U32 nUsage;             // OUT
++}OMX_EXT_PARAM_NATIVEBUFFERUSAGETYPE;
++
++/** VP6 Profile enum type */
++typedef enum OMX_VIDEO_VP6PROFILETYPE {
++    OMX_VIDEO_VP6ProfileSimple = 0x1,  /**< Simple Profile */
++    OMX_VIDEO_VP6ProfileAdvanced,      /**< Advanced Profile */
++    OMX_VIDEO_VP6ProfileUnknown = 0x6EFFFFFF,
++    OMX_VIDEO_VP6ProfileMax = 0x7FFFFFFF
++} OMX_VIDEO_VP6PROFILETYPE;
++
++/** AVS Profile enum type */
++typedef enum OMX_VIDEO_AVSPROFILETYPE {
++    OMX_VIDEO_AVSProfileJizhun = 0x1,  /**< Jizhun Profile */
++    OMX_VIDEO_AVSProfileUnknown = 0x6EFFFFFF,
++    OMX_VIDEO_AVSProfileMax = 0x7FFFFFFF
++} OMX_VIDEO_AVSPROFILETYPE;
++
++/** AVS Level enum type */
++typedef enum OMX_VIDEO_AVSLEVELTYPE {
++    OMX_VIDEO_AVSLevel20 = 0x1,   /**< 2.0 Level */
++    OMX_VIDEO_AVSLevel40,       /**< 4.0 Level */
++    OMX_VIDEO_AVSLevel42,       /**< 4.2 Level */
++    OMX_VIDEO_AVSLevel60,       /**< 6.0 Level */
++    OMX_VIDEO_AVSLevel62,       /**< 6.2 Level */
++    OMX_VIDEO_AVSLevelUnknown = 0x6EFFFFFF,
++    OMX_VIDEO_AVSLevelMax = 0x7FFFFFFF
++}OMX_VIDEO_AVSLEVELTYPE;
++
+ #ifdef __cplusplus
+ }
+ #endif /* __cplusplus */
+-- 
+1.9.1
+

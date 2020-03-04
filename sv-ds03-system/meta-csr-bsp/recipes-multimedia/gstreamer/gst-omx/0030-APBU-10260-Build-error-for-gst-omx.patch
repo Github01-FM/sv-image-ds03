@@ -1,0 +1,25 @@
+From c052c86dfa31ae79a2764af4b6994bd8fa8db06e Mon Sep 17 00:00:00 2001
+From: xf02 <xfei@codeaurora.org>
+Date: Thu, 9 Apr 2015 20:58:20 +0800
+Subject: [PATCH 30/67] APBU-10260: Build error for gst-omx
+
+Signed-off-by: xf02 <xfei@codeaurora.org>
+---
+ configure.ac | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/configure.ac b/configure.ac
+index be519c5..56874bf 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -58,6 +58,7 @@ dnl *** required versions of GStreamer stuff ***
+ GST_REQ=1.2.2
+ 
+ dnl *** autotools stuff ****
++LT_INIT
+ 
+ dnl allow for different autotools
+ AS_AUTOTOOLS_ALTERNATE
+-- 
+1.9.1
+

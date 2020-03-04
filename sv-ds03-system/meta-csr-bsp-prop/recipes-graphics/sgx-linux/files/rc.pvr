@@ -1,0 +1,96 @@
+#!/bin/sh
+#@Title         PowerVR SGX DDK for Embedded Linux 
+#@Copyright     Copyright (c) Imagination Technologies Ltd. All Rights Reserved
+#@License       Strictly Confidential.
+### BEGIN INIT INFO
+# Provides:          csr
+# Description:       PowerVR SGX DDK for Embedded Linux
+### END INIT INFO
+
+
+# Auto-generated for sirfsoc_linux from build: sgxddk_1.11@2580795
+#
+
+load_pvr()
+{
+		# Load the PVR Services module.
+	#
+	
+	if ! /sbin/modprobe -q pvrsrvkm; then
+		echo "Module pvrsrvkm retry to load."
+		if [ -z $depmod_has_been_run ]; then
+			if [ ! -e /lib/modules/`uname -r`/modules.dep ]; then
+				if [ -e /sbin/depmod ]; then
+					echo "Running /sbin/depmod"
+					/sbin/depmod
+					/bin/sync && depmod_has_been_run=1
+				fi
+			fi
+		fi
+		if ! /sbin/modprobe -q pvrsrvkm; then
+			insmod /lib/modules/`uname -r`/extra/pvrsrvkm.ko
+		fi
+	fi
+
+	# Delete the device for PVR services device and recreate with the
+	# correct major number.
+	#
+	pvr_maj=`grep "pvrsrvkm$" /proc/devices | cut -b1,2,3`
+	/bin/rm -f /dev/pvrsrvkm
+	/bin/mknod /dev/pvrsrvkm c $pvr_maj 0
+	/bin/chmod 666 /dev/pvrsrvkm
+
+	# Run the PVR initialisation server
+	if ! /usr/bin/pvrsrvctl --start --no-module; then return; fi
+
+	# Load remaining modules.
+	#
+			
+	if ! /sbin/modprobe -q dc_sirfsocfb_linux $PVR_DISPLAY_PARAMS; then
+		echo "Module dc_sirfsocfb_linux retry to load."
+		if [ -z $depmod_has_been_run ]; then
+			if [ ! -e /lib/modules/`uname -r`/modules.dep ]; then
+				if [ -e /sbin/depmod ]; then
+					echo "Running /sbin/depmod"
+					/sbin/depmod && depmod_has_been_run=1
+				fi
+			fi
+		fi
+		if ! /sbin/modprobe -q dc_sirfsocfb_linux $PVR_DISPLAY_PARAMS; then
+			echo "Continuing to load PowerVR services"
+			#dc_sirfsocfb_linux_failed=1
+			insmod /lib/modules/`uname -r`/extra/dc_sirfsocfb_linux.ko  $PVR_DISPLAY_PARAMS
+		fi
+	fi
+				
+	echo "Loaded PowerVR consumer services."
+	return 0;
+}
+
+unload_pvr()
+{
+	# Unload modules.  This won't pick up cases where a further module
+	# has been added which has a dependency on one of these modules.
+	#
+	if rmmod dc_sirfsocfb_linux; then :; else echo "Warning: Could not unload dc_sirfsocfb_linux"; fi
+
+	# Unload the PVR Services module.
+	#
+	if rmmod pvrsrvkm; then :; else return 1; fi
+	
+	
+	echo "Unloaded PowerVR consumer services."
+	return 0;
+}
+
+# Deal with the type of invocation we get.
+#
+case "$1" in
+"start")
+	load_pvr
+	;;
+*)
+	echo "$0: unknown argument $1." >&2;
+	;;
+esac
+

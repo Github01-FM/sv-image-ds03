@@ -1,0 +1,46 @@
+LOCAL_PATH := $(call my-dir)
+
+local_target_dir := $(TARGET_OUT)/bin
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := hibernation.sh
+LOCAL_MODULE_TAGS := eng
+LOCAL_MODULE_CLASS := ETC
+LOCAL_MODULE_PATH := $(local_target_dir)
+LOCAL_SRC_FILES := $(LOCAL_MODULE)
+include $(BUILD_PREBUILT)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := goodbye
+LOCAL_MODULE_TAGS := eng
+LOCAL_MODULE_PATH := $(local_target_dir)
+LOCAL_SHARED_LIBRARIES := libcutils
+LOCAL_SRC_FILES := goodbye.c
+include $(BUILD_EXECUTABLE)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := goodbye_800x600.bmp
+LOCAL_MODULE_TAGS := eng
+LOCAL_MODULE_CLASS := ETC
+LOCAL_MODULE_PATH := $(TARGET_OUT)/etc
+LOCAL_SRC_FILES := $(LOCAL_MODULE)
+include $(BUILD_PREBUILT)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := goodbye_800x480.bmp
+LOCAL_MODULE_TAGS := eng
+LOCAL_MODULE_CLASS := ETC
+LOCAL_MODULE_PATH := $(TARGET_OUT)/etc
+LOCAL_SRC_FILES := $(LOCAL_MODULE)
+include $(BUILD_PREBUILT)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := goodbye_1024x600.bmp
+LOCAL_MODULE_TAGS := eng
+LOCAL_MODULE_CLASS := ETC
+LOCAL_MODULE_PATH := $(TARGET_OUT)/etc
+LOCAL_SRC_FILES := $(LOCAL_MODULE)
+include $(BUILD_PREBUILT)
+
+include $(call all-makefiles-under,$(LOCAL_PATH))
+

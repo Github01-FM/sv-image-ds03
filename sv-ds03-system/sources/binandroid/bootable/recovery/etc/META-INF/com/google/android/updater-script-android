@@ -1,0 +1,79 @@
+ui_print("========================================");
+assert(getprop("ro.product.brand")=="CSR" && getprop("ro.product.name")=="sirfsocv7" && getprop("ro.product.device")=="sirfsocv7");
+
+show_progress(0.04,2);
+ui_print("[updater-script]mount root partition ...");
+ifelse(
+	is_location_valid("/dev/nandblk0p5")=="/dev/nandblk0p5",
+	assert(format_ext4("/dev/nandblk0p5", "root"), mount("ext4","EMMC","/dev/nandblk0p5","/root")),
+	assert(format_ext4("dev/mmcblk0p5", "root"), mount("ext4","EMMC","/dev/mmcblk0p5","/root")));
+ui_print("[updater-script]done\n");
+
+show_progress(0.5,30);
+ui_print("[updater-script]write package to root partition ...\n");
+assert(package_extract_dir("root","/root"));
+ui_print("[updater-script]done\n");
+
+show_progress(0.03,2);
+ui_print("[updater_script]write u-boot to boot partition ...\n");
+assert(package_extract_file("u-boot.bin","/tmp/u-boot.bin"));
+ifelse(
+	write_uboot("/tmp/u-boot.bin","/dev/nandblk0")!="/dev/nandblk0",
+	assert(write_uboot("/tmp/u-boot.bin","/dev/mmcblk0")));
+delete("/tmp/u-boot.bin");
+ui_print("[updater-script]done\n");
+
+show_progress(0.07,5);
+ui_print("[updater_script]write images to boot partition ...\n");
+ifelse(
+	is_location_valid("/dev/nandblk0p2")=="/dev/nandblk0p2",
+	assert(mount("ext4","EMMC","/dev/nandblk0p2","/boot")),
+	assert(mount("ext4","EMMC","/dev/mmcblk0p2","/boot")));
+
+ifelse(
+	is_location_valid("/boot/boot.cfg")=="/boot/boot.cfg",
+	run(
+		ifelse(
+			get_image_index("/boot/boot.cfg", "kernel_index")=="1",
+			run(
+				delete("/boot/uImage-v2");
+				package_extract_file("uImage","/boot/uImage-v2"),
+				delete("/boot/dtb-v2");
+				package_extract_file("dtb","/boot/dtb-v2"),
+				set_image_index("/boot/boot.cfg", "kernel_index", "2")),
+			run(
+				delete("/boot/uImage-v1");
+				package_extract_file("uImage","/boot/uImage-v1"),
+				delete("/boot/dtb-v1");
+				package_extract_file("dtb","/boot/dtb-v1"),
+				set_image_index("/boot/boot.cfg", "kernel_index", "1"))),
+		ifelse(
+			get_image_index("/boot/boot.cfg", "recovery_index")=="1",
+			run(
+				delete("/boot/recovery.img-v2");
+				package_extract_file("recovery.img","/boot/recovery.img-v2"),
+				delete("/boot/rcv_dtb-v2");
+				package_extract_file("dtb","/boot/rcv_dtb-v2"),
+				set_image_index("/boot/boot.cfg", "recovery_index", "2")),
+			run(
+				delete("/boot/recovery.img-v1");
+				package_extract_file("recovery.img","/boot/recovery.img-v1"),
+				delete("/boot/rcv_dtb-v1");
+				package_extract_file("dtb","/boot/rcv_dtb-v1"),
+				set_image_index("/boot/boot.cfg", "recovery_index", "1")))),
+	run(
+		package_extract_file("uImage","/boot/uImage-v1"),
+		package_extract_file("uImage","/boot/uImage-v2"),
+		package_extract_file("dtb","/boot/dtb-v1"),
+		package_extract_file("dtb","/boot/dtb-v2"),
+		package_extract_file("recovery.img","/boot/recovery.img-v1"),
+		package_extract_file("recovery.img","/boot/recovery.img-v2"),
+		package_extract_file("dtb","/boot/rcv_dtb-v1"),
+		package_extract_file("dtb","/boot/rcv_dtb-v2"),
+		run_program("/bin/busybox", "cp", "/sdcard/boot.cfg", "/boot/boot.cfg")));
+
+ui_print("[updater-script]done\n");
+
+set_perm_recursive(0, 0, 0755, 0755, "/root");
+show_progress(0.01, 5);
+ui_print("[updater-script]updater script finished!\n");

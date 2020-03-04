@@ -1,0 +1,46 @@
+diff --git a/src/gl-renderer.c b/src/gl-renderer.c
+index febc8b2..e89e4fd 100644
+--- a/src/gl-renderer.c
++++ b/src/gl-renderer.c
+@@ -1188,6 +1188,13 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer,
+ 		egl_format = EGL_TEXTURE_RGB;
+ 		gl_pixel_type = GL_UNSIGNED_SHORT_5_6_5;
+ 		break;
++	case WL_SHM_FORMAT_NV12_VXD:
++		gs->shader = &gr->texture_shader_egl_external;
++		pitch =  egl_stride;
++		gl_format = GL_RGB;
++		egl_format = EGL_TEXTURE_NV12_VXD;
++		gl_pixel_type = GL_UNSIGNED_BYTE;
++		break;
+ 	default:
+ 		weston_log("warning: unknown shm buffer format: %08x\n",
+ 			   wl_shm_buffer_get_format(shm_buffer));
+@@ -1204,7 +1211,7 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer,
+ 	    gs->buffer_type != BUFFER_TYPE_SHM) {
+ 		gs->pitch = pitch;
+ 		gs->height = buffer->height;
+-		gs->target = GL_TEXTURE_2D;
++		gs->target = (egl_format == EGL_TEXTURE_NV12_VXD)? GL_TEXTURE_EXTERNAL_OES:GL_TEXTURE_2D;
+ 		gs->gl_format = gl_format;
+ 		gs->gl_pixel_type = gl_pixel_type;
+ 		gs->needs_full_upload = 1;
+@@ -2046,6 +2053,7 @@ gl_renderer_create(struct weston_compositor *ec, EGLNativeDisplayType display,
+ 		goto err_egl;
+ 
+ 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_RGB565);
++	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_NV12_VXD);
+ 
+ 	wl_signal_init(&gr->destroy_signal);
+ 
+diff --git a/src/weston-egl-ext.h b/src/weston-egl-ext.h
+index 8ddf97f..5ec97ad 100644
+--- a/src/weston-egl-ext.h
++++ b/src/weston-egl-ext.h
+@@ -76,5 +76,5 @@ typedef EGLBoolean (EGLAPIENTRYP PFNEGLQUERYWAYLANDBUFFERWL) (EGLDisplay dpy, st
+ #define GL_UNPACK_SKIP_PIXELS_EXT                               0x0CF4
+ #endif
+ 
+-
++#define EGL_TEXTURE_NV12_VXD		0x3060
+ #endif

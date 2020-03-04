@@ -1,0 +1,12 @@
+diff --git a/protocol/wayland.xml b/protocol/wayland.xml
+index 22eb6e7..d06f03d 100644
+--- a/protocol/wayland.xml
++++ b/protocol/wayland.xml
+@@ -286,6 +286,7 @@
+       </description>
+       <entry name="argb8888" value="0" summary="32-bit ARGB format"/>
+       <entry name="xrgb8888" value="1" summary="32-bit RGB format"/>
++      <entry name="nv12_vxd" value="2" summary="csr nv12 vxd format"/>
+       <!-- The drm format codes match the #defines in drm_fourcc.h.
+            The formats actually supported by the compositor will be
+            reported by the format event. -->

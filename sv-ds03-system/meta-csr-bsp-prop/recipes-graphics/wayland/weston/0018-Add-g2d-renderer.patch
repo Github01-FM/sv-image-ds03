@@ -1,0 +1,1304 @@
+diff --git a/Makefile.am b/Makefile.am
+index 404009c..62bedee 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -198,6 +198,22 @@ westoninclude_HEADERS =				\
+ 	shared/zalloc.h				\
+ 	shared/platform.h
+ 
++module_LTLIBRARIES += g2d-renderer.la
++g2d_renderer_la_LDFLAGS = -module -avoid-version
++g2d_renderer_la_LIBADD = $(COMPOSITOR_LIBS)	\
++	-lpvr2d
++g2d_renderer_la_CFLAGS =				\
++	$(COMPOSITOR_CFLAGS)			\
++	-idirafter $(KERNEL_SOURCE)/drivers/staging/android	\
++	-idirafter $(KERNEL_SOURCE)/include	\
++	$(AM_CFLAGS)
++g2d_renderer_la_SOURCES =			\
++	src/g2d-renderer.h			\
++	src/g2d-renderer.c			\
++	src/vertex-clipping.c			\
++	src/vertex-clipping.h			\
++	shared/helpers.h
++
+ if ENABLE_EGL
+ module_LTLIBRARIES += gl-renderer.la
+ gl_renderer_la_LDFLAGS = -module -avoid-version
+@@ -350,6 +366,7 @@ fbdev_backend_la_CFLAGS =			\
+ 	$(EGL_CFLAGS)				\
+ 	$(FBDEV_COMPOSITOR_CFLAGS)		\
+ 	$(PIXMAN_CFLAGS)			\
++	-idirafter $(KERNEL_SOURCE)/include	\
+ 	$(AM_CFLAGS)
+ fbdev_backend_la_SOURCES =			\
+ 	src/compositor-fbdev.c			\
+diff --git a/src/compositor-fbdev.c b/src/compositor-fbdev.c
+index 9828869..cdfbca5 100644
+--- a/src/compositor-fbdev.c
++++ b/src/compositor-fbdev.c
+@@ -46,6 +46,7 @@
+ #include "compositor.h"
+ #include "launcher-util.h"
+ #include "pixman-renderer.h"
++#include "g2d-renderer.h"
+ #include "libinput-seat.h"
+ #include "gl-renderer.h"
+ #include "presentation_timing-server-protocol.h"
+@@ -58,13 +59,12 @@
+ #define FBDEV_OUTPUT_EXTERNAL 	1
+ #define FBDEV_NUM_OUTPUT 	2
+ 
+-#define SGX_DC_IDX	1
+ 
+ #include <sys/socket.h>
+ #include <sys/un.h>
+ #include <linux/types.h>
+ #include <linux/netlink.h>
+-#include "vdsscomp.h"
++#include <video/vdsscomp.h>
+ #include "pvr2d.h"
+ #endif
+ 
+@@ -76,6 +76,7 @@ struct fbdev_backend {
+ 	struct udev *udev;
+ 	struct udev_input input;
+ 	int use_pixman;
++	int use_g2d;
+ 	struct wl_listener session_listener;
+ #ifdef USE_HW_VSYNC
+ 	int32_t uevent_fd;/*for hw vsync uevent*/
+@@ -96,6 +97,7 @@ struct fbdev_screeninfo {
+ 	unsigned int height_mm; /* visible screen height in mm */
+ 	unsigned int bits_per_pixel;
+ 
++	unsigned int phys_addr;
+ 	size_t buffer_length; /* length of frame buffer memory in bytes */
+ 	size_t line_length; /* length of a line in bytes */
+ 	char id[16]; /* screen identifier */
+@@ -146,10 +148,12 @@ struct fbdev_parameters {
+ 	int tty;
+ 	char *device;
+ 	int use_gl;
++	int use_g2d;
+ };
+ 
+ 
+ struct gl_renderer_interface *gl_renderer;
++struct g2d_renderer_interface *g2d_renderer;
+ 
+ static const char default_seat[] = "seat0";
+ 
+@@ -828,21 +832,6 @@ fbdev_output_repaint(struct weston_output *base, pixman_region32_t *damage)
+ 	struct fbdev_backend *fbb = output->backend;
+ 	struct weston_compositor *ec = fbb->compositor;
+ 
+-#ifdef SUPPORT_VDSSCOMP
+-	ec->renderer->repaint_output(base, damage);
+-	/* Update the damage region. */
+-	pixman_region32_subtract(&ec->primary_plane.damage,
+-	                        &ec->primary_plane.damage, damage);
+-
+-	fbdev_output_process_overlay(output, damage);
+-#ifdef USE_HW_VSYNC
+-	wl_event_source_fd_update(output->finish_frame_timer,
+-				WL_EVENT_READABLE | WL_EVENT_ONESHOT);
+-#else
+-	wl_event_source_timer_update(output->finish_frame_timer,
+-				1000000 / output->mode.refresh);
+-#endif
+-#else /*SUPPORT_VDSSCOMP*/
+ 	if (fbb->use_pixman) {
+ 		fbdev_output_repaint_pixman(base,damage);
+ 	} else {
+@@ -857,8 +846,10 @@ fbdev_output_repaint(struct weston_output *base, pixman_region32_t *damage)
+ 		wl_event_source_timer_update(output->finish_frame_timer,
+ 				1000000 / output->mode.refresh);
+ #endif
++#ifdef SUPPORT_VDSSCOMP
++		fbdev_output_process_overlay(output, damage);
++#endif
+ 	}
+-#endif /*SUPPORT_VDSSCOMP*/
+ 
+ 	return 0;
+ }
+@@ -1018,6 +1009,7 @@ fbdev_query_screen_info(struct fbdev_output *output, int fd,
+ 	info->height_mm = varinfo.height;
+ 	info->bits_per_pixel = varinfo.bits_per_pixel;
+ 
++	info->phys_addr = fixinfo.smem_start;
+ 	info->buffer_length = fixinfo.smem_len;
+ 	info->line_length = fixinfo.line_length;
+ 	strncpy(info->id, fixinfo.id, sizeof(info->id));
+@@ -1259,6 +1251,12 @@ fbdev_output_create(struct fbdev_backend *backend,
+ 	if (backend->use_pixman) {
+ 		if (pixman_renderer_output_create(&output->base) < 0)
+ 			goto out_shadow_surface;
++	} else if (backend->use_g2d) {
++		if (g2d_renderer->output_create(&output->base,
++										output->fb_info.phys_addr,
++										width,
++										height) < 0)
++			goto out_free;
+ 	} else {
+ 		setenv("HYBRIS_EGLPLATFORM", "wayland", 1);
+ 		if (gl_renderer->output_create(&output->base,
+@@ -1338,6 +1336,8 @@ fbdev_output_destroy(struct weston_output *base)
+ 			free(output->shadow_buf);
+ 			output->shadow_buf = NULL;
+ 		}
++	} else if (backend->use_g2d) {
++		g2d_renderer->output_destroy(base);
+ 	} else {
+ 		gl_renderer->output_destroy(base);
+ 	}
+@@ -1539,8 +1539,6 @@ switch_vt_binding(struct weston_keyboard *keyboard, uint32_t time,
+ static int
+ context_init(struct fbdev_backend *comp)
+ {
+-	/* get the 2d context by the display class device index, generally there is
+-	 * only one display class,so the index of it should be 1 */
+ 	if (PVR2DGetDeviceContext(SGX_DC_IDX, &comp->pvr2d_context)) {
+ 		weston_log("get pvr2d context fail\n");
+ 		return -1;
+@@ -1637,7 +1635,8 @@ fbdev_backend_create(struct weston_compositor *compositor, int *argc, char *argv
+ 	backend->base.restore = fbdev_restore;
+ 
+ 	backend->prev_state = WESTON_COMPOSITOR_ACTIVE;
+-	backend->use_pixman = !param->use_gl;
++	backend->use_g2d = param->use_g2d;
++	backend->use_pixman = !param->use_gl && !param->use_g2d;
+ 
+ 	for (key = KEY_F1; key < KEY_F9; key++)
+ 		weston_compositor_add_key_binding(compositor, key,
+@@ -1647,6 +1646,18 @@ fbdev_backend_create(struct weston_compositor *compositor, int *argc, char *argv
+ 	if (backend->use_pixman) {
+ 		if (pixman_renderer_init(compositor) < 0)
+ 			goto out_launcher;
++	} else if(backend->use_g2d) {
++		g2d_renderer = weston_load_module("g2d-renderer.so",
++						 "g2d_renderer_interface");
++		if (!g2d_renderer) {
++			weston_log("could not load g2d renderer\n");
++			goto out_launcher;
++		}
++
++		if (g2d_renderer->create(compositor) < 0) {
++			weston_log("g2d_renderer_create failed.\n");
++			goto out_launcher;
++		}
+ 	} else {
+ 		gl_renderer = weston_load_module("gl-renderer.so",
+ 						 "gl_renderer_interface");
+@@ -1667,14 +1678,6 @@ fbdev_backend_create(struct weston_compositor *compositor, int *argc, char *argv
+ 			goto out_launcher;
+ 		}
+ 	}
+-#ifdef SUPPORT_VDSSCOMP
+-       if (context_init(backend) < 0)
+-               goto out_launcher;
+-
+-       memset(&backend->setup_data, 0, sizeof(backend->setup_data));
+-       backend->hw_overlay_enable = is_support_overlay();
+-#endif
+-
+ #ifdef USE_HW_VSYNC
+        backend->uevent_fd = open_uevent_socket();
+        if (backend->uevent_fd < 0)
+@@ -1690,6 +1693,14 @@ fbdev_backend_create(struct weston_compositor *compositor, int *argc, char *argv
+ #endif
+ 	udev_input_init(&backend->input, compositor, backend->udev, seat_id);
+ 
++#ifdef SUPPORT_VDSSCOMP
++    if (context_init(backend) < 0)
++		goto out_launcher;
++
++    memset(&backend->setup_data, 0, sizeof(backend->setup_data));
++    backend->hw_overlay_enable = is_support_overlay();
++#endif
++
+ 	compositor->backend = &backend->base;
+ 	return backend;
+ #ifdef USE_HW_VSYNC
+@@ -1720,12 +1731,14 @@ backend_init(struct weston_compositor *compositor, int *argc, char *argv[],
+ 		.tty = 0, /* default to current tty */
+ 		.device = "/dev/fb0", /* default frame buffer */
+ 		.use_gl = 0,
++		.use_g2d = 0,
+ 	};
+ 
+ 	const struct weston_option fbdev_options[] = {
+ 		{ WESTON_OPTION_INTEGER, "tty", 0, &param.tty },
+ 		{ WESTON_OPTION_STRING, "device", 0, &param.device },
+ 		{ WESTON_OPTION_BOOLEAN, "use-gl", 0, &param.use_gl },
++		{ WESTON_OPTION_BOOLEAN, "use-g2d", 0, &param.use_g2d },
+ 	};
+ 
+ 	parse_options(fbdev_options, ARRAY_LENGTH(fbdev_options), argc, argv);
+diff --git a/src/compositor.h b/src/compositor.h
+index c2e7c44..3c8fbd8 100644
+--- a/src/compositor.h
++++ b/src/compositor.h
+@@ -38,6 +38,8 @@ extern "C" {
+ 
+ //#define SUPPORT_VDSSCOMP
+ //#define USE_HW_VSYNC
++/* generally there is only one display class, so the index of it should be 1 */
++#define SGX_DC_IDX	1
+ 
+ #define WL_HIDE_DEPRECATED
+ #include <wayland-server.h>
+diff --git a/src/g2d-renderer.c b/src/g2d-renderer.c
+new file mode 100644
+index 0000000..553340b
+--- /dev/null
++++ b/src/g2d-renderer.c
+@@ -0,0 +1,843 @@
++/*
++ * Copyright (c) [2016] Qualcomm Technologies International, Ltd.
++ * All Rights Reserved.
++ * Qualcomm Technologies International, Ltd. Confidential and Proprietary.
++ */
++#include "config.h"
++
++#include <errno.h>
++#include <stdlib.h>
++#include <assert.h>
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <sys/ioctl.h>
++#include <fcntl.h>
++#include <memory.h>
++#include <uapi/ion.h>
++#include <video/sirfsoc_g2d.h>
++
++#include "compositor.h"
++#include "pvr2d.h"
++#include "g2d-renderer.h"
++#include "vertex-clipping.h"
++#include "shared/helpers.h"
++#define max(a, b) (((a) > (b)) ? (a) : (b))
++#define min(a, b) (((a) > (b)) ? (b) : (a))
++#define pagesize 4096
++PVR2D_IMPORT
++PVR2DERROR PVR2DMapIonMem (PVR2DCONTEXTHANDLE	hContext,
++		PVR2D_INT			uiNum,
++		PVR2D_INT			*puiIonFd,
++		PVR2D_UINT			*puiBytes,
++		PVR2D_UINT			*puiOffset,
++		PVR2D_UINT 			ui32Flags,
++		PVR2DMEMINFO 		**ppsMemInfoOut);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DUnMapIonMem (PVR2DCONTEXTHANDLE	hContext,
++		PVR2DMEMINFO		*psMemInfo);
++
++#ifdef SUPPORT_VDSSCOMP
++PVR2DERROR PVR2DSwapBuffer(PVR2DCONTEXTHANDLE hContext,
++		PVR2DFLIPCHAINHANDLE	hFlipChain,
++		PVR2DMEMINFO			*ps2DMemInfo);
++
++typedef PVR2DERROR (*IMG_defer_flush_op_pfn) (
++		PVR2DCONTEXTHANDLE		h2DContext,
++		PVR2DMEMINFO			*psMemInfo);
++
++PVR2D_IMPORT
++PVR2DERROR CheckDeferFlushOp(PVR2DCONTEXTHANDLE  h2DContext,
++		IMG_defer_flush_op_pfn 	pfnFlushOp,
++		PVR2DMEMINFO			*psMemInfo,
++		PVR2D_BOOL				bCompositor);
++#endif
++
++struct g2d_renderer {
++	struct weston_renderer base;
++	int ion_fd;
++	int g2d_fd;
++	struct sirf_g2d_bltparams blt_param;
++	struct wl_array vertices;
++	struct wl_signal destroy_signal;
++	PVR2DCONTEXTHANDLE h2DContext;
++};
++
++struct g2d_output {
++	struct sirf_g2d_surface base;
++	uint32_t paddr_start;
++	uint32_t numFlipBuf;
++	uint8_t curFlipBuf;
++	PVR2DFLIPCHAINHANDLE hFlipChain;
++	PPVR2DMEMINFO *psMemInfo;
++};
++
++struct g2d_buffer {
++	PPVR2DMEMINFO psMemInfo;
++	uint32_t paddr;
++	struct wl_list link;
++	struct egl_image *image;
++};
++
++struct g2d_surface {
++	struct sirf_g2d_surface base;
++	struct sirf_g2d_rect_wh rect;/* rect of surface to be selected. */
++	struct weston_surface *surface;
++	struct weston_buffer_reference buffer_ref;
++	struct wl_listener buffer_destroy_listener;
++	struct wl_listener surface_destroy_listener;
++	struct wl_listener renderer_destroy_listener;
++	struct wl_list g2d_bufs;
++	int is_yuv_format;
++	int debug_invalid_buffer_logged;
++};
++
++static inline struct g2d_buffer *
++get_buffer(struct g2d_surface *surface)
++{
++	return (struct g2d_buffer *)(surface->buffer_ref.buffer->image.image);
++}
++
++static inline struct g2d_output *
++get_output(struct weston_output *output)
++{
++	return (struct g2d_output *)output->renderer_state;
++}
++
++static inline struct g2d_renderer *
++get_renderer(struct weston_compositor *ec)
++{
++	return (struct g2d_renderer *)ec->renderer;
++}
++
++static inline void free_g2d_buffer(struct g2d_renderer *gr, struct g2d_buffer *buf)
++{
++#ifdef SUPPORT_VDSSCOMP
++		CheckDeferFlushOp(gr->h2DContext, PVR2DUnMapIonMem, buf->psMemInfo,PVR2D_TRUE);
++#else
++		PVR2DUnMapIonMem(gr->h2DContext, buf->psMemInfo);
++#endif
++		wl_list_remove(&buf->link);
++		buf->image->image = NULL;
++		free(buf);
++}
++
++static void free_image(struct egl_image *image)
++{
++	if (!image)
++		return;
++	struct g2d_buffer *buf = image->image;
++	struct g2d_renderer *gr= image->display;
++	if (gr && buf) {
++		free_g2d_buffer(gr,buf);
++	}
++}
++
++static void
++g2d_renderer_surface_reset(struct g2d_surface *gs)
++{
++	if(gs == NULL)
++		return;
++
++	memset(&gs->base, 0, sizeof gs->base);
++	weston_buffer_reference(&gs->buffer_ref, NULL);
++	if (!wl_list_empty(&gs->buffer_destroy_listener.link)) {
++		wl_list_remove(&gs->buffer_destroy_listener.link);
++		wl_list_init(&gs->buffer_destroy_listener.link);
++	}
++}
++
++static void
++surface_handle_buffer_destroy(struct wl_listener *listener, void *data)
++{
++	struct g2d_surface *gs = container_of(listener, struct g2d_surface,
++			  buffer_destroy_listener);
++	if(gs==NULL || (gs->buffer_ref.buffer && (struct weston_buffer *)data != gs->buffer_ref.buffer)) {
++		weston_log("%s warning data mismatch\n",__func__);
++		return;
++	}
++	g2d_renderer_surface_reset(gs);
++}
++
++static void
++g2d_renderer_surface_destroy(struct g2d_surface *gs)
++{
++	struct g2d_buffer *buf, *next;
++	struct g2d_renderer *gr;
++	if(gs == NULL)
++		return;
++
++	gr = get_renderer(gs->surface->compositor);
++	g2d_renderer_surface_reset(gs);
++	wl_list_remove(&gs->surface_destroy_listener.link);
++	wl_list_remove(&gs->renderer_destroy_listener.link);
++	wl_list_for_each_safe(buf, next, &gs->g2d_bufs, link) {
++		free_g2d_buffer(gr,buf);
++	}
++	gs->surface->renderer_state = NULL;
++	free(gs);
++}
++
++static void
++surface_handle_surface_destroy(struct wl_listener *listener, void *data)
++{
++	struct g2d_surface *gs;
++
++	gs = container_of(listener, struct g2d_surface,
++			  surface_destroy_listener);
++
++	g2d_renderer_surface_destroy(gs);
++}
++
++static void
++surface_handle_renderer_destroy(struct wl_listener *listener, void *data)
++{
++	struct g2d_surface *gs;
++
++	gs = container_of(listener, struct g2d_surface,
++			  renderer_destroy_listener);
++
++	g2d_renderer_surface_destroy(gs);
++}
++
++static int
++g2d_renderer_surface_create(struct weston_surface *surface)
++{
++	struct g2d_surface *gs;
++	struct g2d_renderer *gr = get_renderer(surface->compositor);
++
++	gs = zalloc(sizeof *gs);
++	if (gs == NULL)
++		return -1;
++
++	surface->renderer_state = gs;
++
++	gs->surface = surface;
++
++	gs->surface_destroy_listener.notify =
++		surface_handle_surface_destroy;
++	wl_signal_add(&surface->destroy_signal,
++		      &gs->surface_destroy_listener);
++
++	gs->renderer_destroy_listener.notify =
++		surface_handle_renderer_destroy;
++	wl_signal_add(&gr->destroy_signal,
++		      &gs->renderer_destroy_listener);
++
++	gs->buffer_destroy_listener.notify =
++		surface_handle_buffer_destroy;
++	wl_list_init(&gs->buffer_destroy_listener.link);
++	wl_list_init(&gs->g2d_bufs);
++	return 0;
++}
++
++static inline struct g2d_surface *
++get_surface(struct weston_surface *surface)
++{
++	if (!surface->renderer_state)
++		g2d_renderer_surface_create(surface);
++
++	return (struct g2d_surface *)surface->renderer_state;
++}
++
++static void
++g2d_renderer_surface_set_color(struct weston_surface *surface,
++		 float red, float green, float blue, float alpha)
++{
++	weston_log("warning: G2d renderer doesn't support surface_set_color\n");
++}
++
++static void
++g2d_renderer_attach(struct weston_surface *es, struct weston_buffer *buffer)
++{
++	struct g2d_surface *gs = get_surface(es);
++	struct g2d_renderer *gr = get_renderer(es->compositor);
++	struct wl_shm_buffer *shm_buffer;
++	uint32_t stride_in_bytes;
++	uint32_t shm_format;
++	int fd;
++	if (!buffer) {
++		goto errout;
++	}
++	gs->is_yuv_format = 0;
++	weston_buffer_reference(&gs->buffer_ref, buffer);
++
++	shm_buffer = wl_shm_buffer_get(buffer->resource);
++	shm_format = wl_shm_buffer_get_format(shm_buffer);
++	fd = wl_shm_buffer_get_fd(shm_buffer);
++	stride_in_bytes = wl_shm_buffer_get_stride(shm_buffer);
++
++	if (! shm_buffer) {
++		weston_log("G2d renderer supports only DMA buffers\n");/* dma buf wrapped in shm buf for a7*/
++		goto errout;
++	}
++
++	switch (shm_format) {
++	case WL_SHM_FORMAT_XRGB8888:
++		gs->base.format = G2D_ARGB8888;
++		gs->base.bpp = 4;
++		break;
++	case WL_SHM_FORMAT_ARGB8888:
++		gs->base.format = G2D_ARGB8888;
++		gs->base.bpp = 4;
++		break;
++	case WL_SHM_FORMAT_RGB565:
++		gs->base.format = G2D_RGB565;
++		gs->base.bpp = 2;
++		break;
++	case WL_SHM_FORMAT_NV12_VXD:
++	case WL_SHM_FORMAT_NV12_VXD_INTERLACED:
++		gs->base.bpp = 1;
++		gs->is_yuv_format = 1;
++		break;
++	case WL_SHM_FORMAT_YUYV:
++	case WL_SHM_FORMAT_YUYV_TWO_FIELDS:
++		gs->base.bpp = 2;
++		gs->is_yuv_format = 1;
++		break;
++	default:
++		weston_log("Unsupported SHM buffer format\n");
++		goto errout;
++	}
++
++	buffer->shm_buffer = shm_buffer;
++	buffer->width = wl_shm_buffer_get_width(shm_buffer);
++	buffer->height = wl_shm_buffer_get_height(shm_buffer);
++
++	if (buffer->image.image == NULL) {
++		PVR2D_UINT pvr2d_bytes, pvr2d_offset, pvr2d_flags;
++		struct g2d_buffer * g2d_buf;
++		struct ion_custom_data_phys sphys;
++		struct ion_custom_data scustomdata;
++		sphys.fd = fd;
++		scustomdata.cmd = ION_CUSTOM_CMD_PHYS;
++		scustomdata.arg = (unsigned long)&sphys;
++		if(ioctl(gr->ion_fd, ION_IOC_CUSTOM, &scustomdata)) {
++			goto errout;
++		}
++		g2d_buf = zalloc(sizeof *g2d_buf);
++		g2d_buf->paddr = sphys.addr;
++
++		pvr2d_offset = wl_shm_buffer_get_offset(shm_buffer);
++		/* PVRSRV_MEM_XPROC | PVRSRV_MEM_READ | PVRSRV_MEM_WRITE */
++		pvr2d_flags = (1U<<28)|(1U<<0)|(1U<<1);
++		if(shm_format == WL_SHM_FORMAT_NV12_VXD || shm_format == WL_SHM_FORMAT_NV12_VXD_INTERLACED)
++			pvr2d_bytes = (stride_in_bytes * ((buffer->height + (16 - 1)) & ~(16 - 1)) * 3) >> 1;
++		else
++			pvr2d_bytes = stride_in_bytes * buffer->height;
++		if (pvr2d_bytes & (pagesize - 1))
++			pvr2d_bytes = (pvr2d_bytes & ~(pagesize - 1)) + pagesize;
++
++		if (PVR2DMapIonMem(gr->h2DContext, 1, &fd, &pvr2d_bytes, &pvr2d_offset, pvr2d_flags,
++			&g2d_buf->psMemInfo) != PVR2D_OK) {
++			free_image(&buffer->image);
++			goto errout;
++		}
++
++		g2d_buf->image = &buffer->image;
++		wl_list_insert(&gs->g2d_bufs, &g2d_buf->link);
++		buffer->image.image = (void*) g2d_buf;
++		buffer->image.display = (void*) gr;
++		buffer->image.pfn = free_image;
++	}
++
++	gs->base.paddr = get_buffer(gs)->paddr;
++	gs->base.width = stride_in_bytes / gs->base.bpp;
++	gs->base.height = buffer->height;
++	gs->rect.w = buffer->width;
++	gs->rect.h = buffer->height;
++	gs->debug_invalid_buffer_logged = 0;
++	if (!wl_list_empty(&gs->buffer_destroy_listener.link)) {
++		wl_list_remove(&gs->buffer_destroy_listener.link);
++		wl_list_init(&gs->buffer_destroy_listener.link);
++	}
++	wl_signal_add(&buffer->destroy_signal, &gs->buffer_destroy_listener);
++	return;
++errout:
++	g2d_renderer_surface_reset(gs);
++}
++
++/*
++ * Compute the boundary vertices of the intersection of the global coordinate
++ * aligned rectangle 'rect', and an arbitrary quadrilateral produced from
++ * 'surf_rect' when transformed from surface coordinates into global coordinates.
++ * The vertices are written to 'ex' and 'ey', and the return value is the
++ * number of vertices. Vertices are produced in clockwise winding order.
++ * Guarantees to produce either zero vertices, or 3-8 vertices with non-zero
++ * polygon area.
++ */
++static int
++calculate_edges(struct weston_view *ev, pixman_box32_t *rect,
++		pixman_box32_t *surf_rect, float *ex, float *ey)
++{
++
++	struct clip_context ctx;
++	int i, n;
++	float min_x, max_x, min_y, max_y;
++	struct polygon8 surf = {
++		{ surf_rect->x1, surf_rect->x2, surf_rect->x2, surf_rect->x1 },
++		{ surf_rect->y1, surf_rect->y1, surf_rect->y2, surf_rect->y2 },
++		4
++	};
++
++	ctx.clip.x1 = rect->x1;
++	ctx.clip.y1 = rect->y1;
++	ctx.clip.x2 = rect->x2;
++	ctx.clip.y2 = rect->y2;
++
++	/* transform surface to screen space: */
++	for (i = 0; i < surf.n; i++)
++		weston_view_to_global_float(ev, surf.x[i], surf.y[i],
++					    &surf.x[i], &surf.y[i]);
++
++	/* find bounding box: */
++	min_x = max_x = surf.x[0];
++	min_y = max_y = surf.y[0];
++
++	for (i = 1; i < surf.n; i++) {
++		min_x = min(min_x, surf.x[i]);
++		max_x = max(max_x, surf.x[i]);
++		min_y = min(min_y, surf.y[i]);
++		max_y = max(max_y, surf.y[i]);
++	}
++
++	/* First, simple bounding box check to discard early transformed
++	 * surface rects that do not intersect with the clip region:
++	 */
++	if ((min_x >= ctx.clip.x2) || (max_x <= ctx.clip.x1) ||
++	    (min_y >= ctx.clip.y2) || (max_y <= ctx.clip.y1))
++		return 0;
++
++	/* Simple case, bounding box edges are parallel to surface edges,
++	 * there will be only four edges.  We just need to clip the surface
++	 * vertices to the clip rect bounds:
++	 */
++	if (!ev->transform.enabled)
++		return clip_simple(&ctx, &surf, ex, ey);
++
++	/* Transformed case: use a general polygon clipping algorithm to
++	 * clip the surface rectangle with each side of 'rect'.
++	 * The algorithm is Sutherland-Hodgman, as explained in
++	 * http://www.codeguru.com/cpp/misc/misc/graphics/article.php/c8965/Polygon-Clipping.htm
++	 * but without looking at any of that code.
++	 */
++	n = clip_transformed(&ctx, &surf, ex, ey);
++
++	if (n < 3)
++		return 0;
++
++	return n;
++}
++
++static int
++texture_region(struct weston_view *ev, pixman_region32_t *region,
++		pixman_region32_t *surf_region)
++{
++	struct weston_compositor *ec = ev->surface->compositor;
++	struct g2d_renderer *gr = get_renderer(ec);
++	pixman_box32_t *rects, *surf_rects;
++	pixman_box32_t *raw_rects;
++	float *v;
++	unsigned int nvtx = 0;
++	int i, j, k, nrects, nsurf, raw_nrects;
++	raw_rects = pixman_region32_rectangles(region, &raw_nrects);
++	surf_rects = pixman_region32_rectangles(surf_region, &nsurf);
++
++	nrects = raw_nrects;
++	rects = raw_rects;
++	/* worst case we can have 8 vertices per rect (ie. clipped into
++	 * an octagon):
++	 */
++	v = wl_array_add(&gr->vertices, nrects * nsurf * 8 * 2/*x,y*/ * sizeof *v);
++
++	for (i = 0; i < nrects; i++) {
++		pixman_box32_t *rect = &rects[i];
++		for (j = 0; j < nsurf; j++) {
++			pixman_box32_t *surf_rect = &surf_rects[j];
++			float ex[8], ey[8];          /* edge points in screen space */
++			int n;
++
++			/* The transformed surface, after clipping to the clip region,
++			 * can have as many as eight sides, emitted as a triangle-fan.
++			 * The first vertex in the triangle fan can be chosen arbitrarily,
++			 * since the area is guaranteed to be convex.
++			 *
++			 * If a corner of the transformed surface falls outside of the
++			 * clip region, instead of emitting one vertex for the corner
++			 * of the surface, up to two are emitted for two corresponding
++			 * intersection point(s) between the surface and the clip region.
++			 *
++			 * To do this, we first calculate the (up to eight) points that
++			 * form the intersection of the clip rect and the transformed
++			 * surface.
++			 */
++			n = calculate_edges(ev, rect, surf_rect, ex, ey);
++			/* G2d only support rectangle and k*90 transform bliting.
++			 * so we simply assume the 4 vertices fan as a rectangle.
++			 */
++			if (n != 4)
++				continue;
++
++			/* emit edge points: */
++			for (k = 0; k < n; k++) {
++				/* position: */
++				*(v++) = ex[k];
++				*(v++) = ey[k];
++			}
++			nvtx++;
++		}
++	}
++
++	return nvtx;
++}
++
++static void
++repaint_region(struct weston_view *ev, pixman_region32_t *region,
++		pixman_region32_t *surf_region)
++{
++	struct weston_compositor *ec = ev->surface->compositor;
++	struct g2d_renderer *gr = get_renderer(ec);
++	struct g2d_surface *gs = get_surface(ev->surface);
++	int i, j, nrects, nclips;
++	float *v;
++
++	/* The final region to be painted is the intersection of
++	 * 'region' and 'surf_region'. However, 'region' is in the global
++	 * coordinates, and 'surf_region' is in the surface-local
++	 * coordinates. texture_region() will iterate over all pairs of
++	 * rectangles from both regions, compute the intersection
++	 * polygon for each pair, and store it as rectangles.
++	 */
++	nrects = texture_region(ev, region, surf_region);
++
++	v = gr->vertices.data;
++
++	for (i = 0, nclips = 0; i < nrects; i++) {
++		float *vertices = v + i*8;
++		float left = vertices[0], top = vertices[1], right = vertices[0], bottom = vertices[1];
++		for(j = 1; j < 4; j++) {
++			left = min(left, vertices[2*j]);
++			right = max(right, vertices[2*j]);
++			top = min(top, vertices[2*j+1]);
++			bottom = max(bottom, vertices[2*j+1]);
++		}
++		gr->blt_param.rects[nclips].left = left;
++		gr->blt_param.rects[nclips].top = top;
++		gr->blt_param.rects[nclips].right = right;
++		gr->blt_param.rects[nclips].bottom = bottom;
++		nclips++;
++
++		if(nclips == G2D_RECTS_MAX || i == nrects -1) {
++			gr->blt_param.num_rects = nclips;
++			PVR2DQueryBlitsComplete(gr->h2DContext,get_buffer(gs)->psMemInfo,1);
++			ioctl(gr->g2d_fd, SIRFSOC_G2D_SUBMIT_BITBLD, &gr->blt_param);
++			nclips = 0;
++		}
++	}
++
++	gr->vertices.size = 0;
++}
++
++static void
++draw_view(struct weston_view *ev, struct weston_output *output,
++	  pixman_region32_t *damage) /* in global coordinates */
++{
++	static int zoom_logged = 0;
++	struct g2d_renderer *gr = get_renderer(output->compositor);
++	struct g2d_surface *gs = get_surface(ev->surface);
++	struct g2d_output *go = get_output(output);
++	struct weston_compositor *ec = ev->surface->compositor;
++
++	/* repaint bounding region in global coordinates: */
++	pixman_region32_t repaint;
++	/* view boundingbox in global coordinates: */
++	pixman_box32_t* boundingbox;
++	/* opaque region in surface coordinates: */
++	pixman_region32_t surface_opaque;
++	/* non-opaque region in surface coordinates: */
++	pixman_region32_t surface_blend;
++
++	pixman_region32_init(&repaint);
++	pixman_region32_intersect(&repaint,
++				  &ev->transform.boundingbox, damage);
++	pixman_region32_subtract(&repaint, &repaint, &ev->clip);
++
++	if (!pixman_region32_not_empty(&repaint))
++		goto out;
++
++	if (output->zoom.active && !zoom_logged) {
++		weston_log("g2d renderer does not support zoom\n");
++		zoom_logged = 1;
++	}
++
++	/* blended region is whole surface minus opaque region: */
++	pixman_region32_init_rect(&surface_blend, 0, 0,
++				  ev->surface->width, ev->surface->height);
++	if (ev->geometry.scissor_enabled)
++		pixman_region32_intersect(&surface_blend, &surface_blend,
++					  &ev->geometry.scissor);
++	pixman_region32_subtract(&surface_blend, &surface_blend,
++				 &ev->surface->opaque);
++
++	/* XXX: Should we be using ev->transform.opaque here? */
++	pixman_region32_init(&surface_opaque);
++	if (ev->geometry.scissor_enabled)
++		pixman_region32_intersect(&surface_opaque,
++					  &ev->surface->opaque,
++					  &ev->geometry.scissor);
++	else
++		pixman_region32_copy(&surface_opaque, &ev->surface->opaque);
++
++	if(gs->buffer_ref.buffer == NULL) {
++		if(!gs->debug_invalid_buffer_logged) {
++			weston_log("%s(L%d) view %p has no valid buffer\n",__func__,__LINE__,ev);
++			gs->debug_invalid_buffer_logged = 1;
++		}
++		goto out_surface;
++	}
++
++	boundingbox = pixman_region32_extents(&ev->transform.boundingbox);
++	memset(&gr->blt_param, 0, sizeof(struct sirf_g2d_bltparams));
++	gr->blt_param.dst = go->base;
++	gr->blt_param.dst_rc.x = boundingbox->x1;
++	gr->blt_param.dst_rc.y = boundingbox->y1;
++	gr->blt_param.dst_rc.w = boundingbox->x2 - boundingbox->x1;
++	gr->blt_param.dst_rc.h = boundingbox->y2 - boundingbox->y1;
++
++	gr->blt_param.src = gs->base;
++	gr->blt_param.src_rc = gs->rect;
++	gr->blt_param.global_alpha = ev->alpha * 255;
++	gr->blt_param.rop3 = 0xcc;/* blt operation */
++
++	if (ev->plane != &ec->primary_plane) {
++		/* To handle the case overlay layer clamped by normal layer, clear the overlay region on fb
++		 * and set fb layer on top of overlay.
++		 */
++		gr->blt_param.rop3 = 0xf0;/* fill color operation */
++		gr->blt_param.fill_color = 0x00000000;
++		gr->blt_param.flags |= G2D_BLT_COLOR_FILL;
++	} else if (gs->is_yuv_format) {
++		/* G2d can not handle YUV foramt, just fall back to fill color for debug. */
++		gr->blt_param.rop3 = 0xf0;/* fill color operation */
++		gr->blt_param.fill_color = 0x00ff0000;
++		gr->blt_param.flags |= G2D_BLT_COLOR_FILL;
++	} else {
++		gr->blt_param.rop3 = 0xcc;/* blt operation */
++	}
++
++	if (pixman_region32_not_empty(&surface_opaque)) {
++		if (ev->alpha < 1.0) {
++			gr->blt_param.flags |= G2D_BLT_GLOBAL_ALPHA | G2D_BLT_PERPIXEL_ALPHA;
++		} else {
++			gr->blt_param.flags &= ~(G2D_BLT_GLOBAL_ALPHA | G2D_BLT_PERPIXEL_ALPHA);
++		}
++		repaint_region(ev, &repaint, &surface_opaque);
++	}
++
++	if (pixman_region32_not_empty(&surface_blend)) {
++		gr->blt_param.flags |= G2D_BLT_GLOBAL_ALPHA | G2D_BLT_PERPIXEL_ALPHA;
++		repaint_region(ev, &repaint, &surface_blend);
++	}
++
++out_surface:
++	pixman_region32_fini(&surface_blend);
++	pixman_region32_fini(&surface_opaque);
++out:
++	pixman_region32_fini(&repaint);
++}
++
++static void
++repaint_views(struct weston_output *output, pixman_region32_t *damage)
++{
++	struct weston_compositor *compositor = output->compositor;
++	struct weston_view *view;
++	wl_list_for_each_reverse(view, &compositor->view_list, link)
++		draw_view(view, output, damage);
++}
++
++static void
++g2d_renderer_repaint_output(struct weston_output *output,
++			     pixman_region32_t *output_damage)
++{
++	struct g2d_output *go = get_output(output);
++	struct weston_compositor *compositor = output->compositor;
++	struct g2d_renderer *gr = get_renderer(compositor);
++	pixman_region32_t buffer_damage, total_damage;
++	pixman_region32_init(&total_damage);
++	pixman_region32_init(&buffer_damage);
++	pixman_region32_copy(&buffer_damage, &output->region);
++	pixman_region32_union(&total_damage, &buffer_damage, output_damage);
++
++	PVR2DQueryBlitsComplete(gr->h2DContext,go->psMemInfo[go->curFlipBuf],1);
++	go->base.paddr = go->paddr_start + go->curFlipBuf * (go->base.width * go->base.height * go->base.bpp);
++
++	repaint_views(output, &total_damage);
++	pixman_region32_fini(&total_damage);
++	pixman_region32_fini(&buffer_damage);
++
++	pixman_region32_copy(&output->previous_damage, output_damage);
++	wl_signal_emit(&output->frame_signal, output);
++
++	ioctl(gr->g2d_fd, SIRFSOC_G2D_WAIT, NULL);
++#ifdef SUPPORT_VDSSCOMP
++	PVR2DSwapBuffer(gr->h2DContext, go->hFlipChain, go->psMemInfo[go->curFlipBuf]);
++#else
++	PVR2DPresentFlip(gr->h2DContext, go->hFlipChain, go->psMemInfo[go->curFlipBuf], 0);
++#endif
++	go->curFlipBuf = (go->curFlipBuf + 1) % go->numFlipBuf;
++}
++
++static void
++g2d_renderer_destroy(struct weston_compositor *ec)
++{
++	struct g2d_renderer *gr = get_renderer(ec);
++
++	wl_signal_emit(&gr->destroy_signal, gr);
++	wl_array_release(&gr->vertices);
++	PVR2DDestroyDeviceContext(gr->h2DContext);
++	free(gr);
++	ec->renderer = NULL;
++}
++
++static void
++g2d_renderer_flush_damage(struct weston_surface *surface)
++{
++	/* No-op for g2d renderer */
++}
++
++static void
++g2d_renderer_surface_get_content_size(struct weston_surface *surface,
++				     int *width, int *height)
++{
++}
++
++static int
++g2d_renderer_surface_copy_content(struct weston_surface *surface,
++				 void *target, size_t size,
++				 int src_x, int src_y,
++				 int width, int height)
++{
++	return 0;
++}
++
++static int
++g2d_renderer_read_pixels(struct weston_output *output,
++			       pixman_format_code_t format, void *pixels,
++			       uint32_t x, uint32_t y,
++			       uint32_t width, uint32_t height)
++{
++	return 0;
++}
++
++static int
++g2d_renderer_create(struct weston_compositor *ec)
++{
++	struct g2d_renderer *gr = zalloc(sizeof(struct g2d_renderer));
++
++	if (gr == NULL)
++		return -1;
++
++	gr->ion_fd = open("/dev/ion", O_RDWR);
++	if (gr->ion_fd < 0) {
++		weston_log("failed to open ion driver\n");
++		return -1;
++	}
++
++	gr->g2d_fd = open("/dev/g2d", O_RDWR);
++	if (gr->g2d_fd < 0) {
++		weston_log("failed to open g2d driver\n");
++		return -1;
++	}
++
++	if (PVR2DCreateDeviceContext(SGX_DC_IDX, &(gr->h2DContext), 0) != PVR2D_OK)
++		return -1;
++
++	gr->base.read_pixels = g2d_renderer_read_pixels;
++	gr->base.repaint_output = g2d_renderer_repaint_output;
++	gr->base.flush_damage = g2d_renderer_flush_damage;
++	gr->base.attach = g2d_renderer_attach;
++	gr->base.surface_set_color = g2d_renderer_surface_set_color;
++	gr->base.destroy = g2d_renderer_destroy;
++	gr->base.surface_get_content_size =
++		g2d_renderer_surface_get_content_size;
++	gr->base.surface_copy_content = g2d_renderer_surface_copy_content;
++
++	ec->renderer = &gr->base;
++	ec->capabilities |= WESTON_CAP_ROTATION_ANY;
++	ec->capabilities |= WESTON_CAP_VIEW_CLIP_MASK;
++
++	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_RGB565);
++	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_NV12_VXD);
++	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_NV12_VXD_INTERLACED);
++	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_YUYV);
++	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_YUYV_TWO_FIELDS);
++
++	wl_signal_init(&gr->destroy_signal);
++
++	return 0;
++}
++
++static int
++g2d_renderer_output_create(struct weston_output *output, uint32_t paddr, uint32_t width, uint32_t height)
++{
++	struct weston_compositor *compositor = output->compositor;
++	struct g2d_renderer *gr = get_renderer(compositor);
++	struct g2d_output *go;
++	PVR2DDISPLAYINFO sDisplayInfo;
++	PVR2D_LONG lStride;
++	PVR2D_ULONG bufCnt;
++
++	go = zalloc(sizeof *go);
++	if (go == NULL)
++		return -1;
++
++	#if 1
++	if (PVR2DGetDeviceInfo(gr->h2DContext, &sDisplayInfo))
++		return -1;
++
++	go->numFlipBuf = sDisplayInfo.ulMaxBuffersInChain;
++	if (PVR2DCreateFlipChain(gr->h2DContext, 0,  /*  No sharing, no query */
++				go->numFlipBuf, width, height,
++				PVR2D_ARGB8888, &lStride,	NULL, /*  No ID necessary if not sharing or querying */
++				&go->hFlipChain))
++		return -1;
++
++	go->psMemInfo = malloc(sizeof(*(go->psMemInfo))*go->numFlipBuf);
++	if (PVR2DGetFlipChainBuffers(gr->h2DContext, go->hFlipChain, &bufCnt, go->psMemInfo))
++		goto errout;
++	#endif
++	go->paddr_start = paddr;
++	go->base.format = G2D_ARGB8888;
++	go->base.bpp = 4;
++	go->base.width = width;
++	go->base.height = height;
++
++	output->renderer_state = go;
++	return 0;
++
++errout:
++	PVR2DDestroyFlipChain(gr->h2DContext, go->hFlipChain);
++	go->hFlipChain = NULL;
++	free(go->psMemInfo);
++	go->psMemInfo = NULL;
++	return -1;
++}
++
++static void
++g2d_renderer_output_destroy(struct weston_output *output)
++{
++	struct g2d_output *go = get_output(output);
++	struct weston_compositor *compositor = output->compositor;
++	struct g2d_renderer *gr = get_renderer(compositor);
++	PVR2DDestroyFlipChain(gr->h2DContext, go->hFlipChain);
++	free(go->psMemInfo);
++	go->psMemInfo = NULL;
++	free(go);
++	output->renderer_state = NULL;
++}
++
++WL_EXPORT struct g2d_renderer_interface g2d_renderer_interface = {
++	.create = g2d_renderer_create,
++	.output_create = g2d_renderer_output_create,
++	.output_destroy = g2d_renderer_output_destroy,
++};
+diff --git a/src/g2d-renderer.h b/src/g2d-renderer.h
+new file mode 100644
+index 0000000..f6550f3
+--- /dev/null
++++ b/src/g2d-renderer.h
+@@ -0,0 +1,10 @@
++/*
++ * Copyright (c) [2016] Qualcomm Technologies International, Ltd.
++ * All Rights Reserved.
++ * Qualcomm Technologies International, Ltd. Confidential and Proprietary.
++ */
++struct g2d_renderer_interface {
++	int (*create)(struct weston_compositor *ec);
++	int (*output_create)(struct weston_output *output, uint32_t paddr, uint32_t width, uint32_t height);
++	void (*output_destroy)(struct weston_output *output);
++};
+diff --git a/src/main.c b/src/main.c
+index a98570e..ea18db9 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -274,7 +274,8 @@ usage(int error_code)
+ 		"Options for fbdev-backend.so:\n\n"
+ 		"  --tty=TTY\t\tThe tty to use\n"
+ 		"  --device=DEVICE\tThe framebuffer device to use\n"
+-		"  --use-gl\t\tUse the GL renderer\n\n");
++		"  --use-gl\t\tUse the GL renderer\n"
++		"  --use-g2d\t\tUse the G2D renderer\n\n");
+ #endif
+ 
+ #if defined(BUILD_HEADLESS_COMPOSITOR)
+diff --git a/src/vdsscomp.h b/src/vdsscomp.h
+deleted file mode 100644
+index 2ccdb6d..0000000
+--- a/src/vdsscomp.h
++++ /dev/null
+@@ -1,168 +0,0 @@
+-/*
+- * linux/include/video/vdsscomp.h
+- *
+- * Copyright (c) 2011 - 2014 Cambridge Silicon Radio Limited, a CSR plc
+- * group company.
+- *
+- * Licensed under GPLv2 or later.
+- */
+-
+-#ifndef __LINUX_VDSSCOMP_H
+-#define __LINUX_VDSSCOMP_H
+-
+-#define MAX_LAYERS	4
+-
+-enum vdsscomp_display_type {
+-	VDSSCOMP_DISPLAY_NONE = 0x0,
+-	VDSSCOMP_DISPLAY_RGB = 0x1,
+-	VDSSCOMP_DISPLAY_HDMI = 0x2,
+-	VDSSCOMP_DISPLAY_LVDS = 0x4,
+-};
+-
+-enum vdsscomp_layer {
+-	VDSSCOMP_LAYER0 = 0,
+-	VDSSCOMP_LAYER1,
+-	VDSSCOMP_LAYER2,
+-	VDSSCOMP_LAYER3,
+-	VDSSCOMP_CURSOR = 6,
+-};
+-
+-/* stay the same with vdss_pixelformat */
+-enum vdsscomp_pixelformat {
+-	VDSSCOMP_PIXELFORMAT_UNKNOWN = 0,
+-
+-	VDSSCOMP_PIXELFORMAT_1BPP = 1,
+-	VDSSCOMP_PIXELFORMAT_2BPP = 2,
+-	VDSSCOMP_PIXELFORMAT_4BPP = 3,
+-	VDSSCOMP_PIXELFORMAT_8BPP = 4,
+-
+-	VDSSCOMP_PIXELFORMAT_565 = 5,
+-	VDSSCOMP_PIXELFORMAT_5551 = 6,
+-	VDSSCOMP_PIXELFORMAT_4444 = 7,
+-	VDSSCOMP_PIXELFORMAT_5550 = 8,
+-	VDSSCOMP_PIXELFORMAT_BGRX_8880 = 9,
+-	VDSSCOMP_PIXELFORMAT_8888 = 10,
+-
+-	VDSSCOMP_PIXELFORMAT_556 = 11,
+-	VDSSCOMP_PIXELFORMAT_655 = 12,
+-	VDSSCOMP_PIXELFORMAT_RGBX_8880 = 13,
+-	VDSSCOMP_PIXELFORMAT_666 = 14,
+-
+-	VDSSCOMP_PIXELFORMAT_15BPPGENERIC = 15,
+-	VDSSCOMP_PIXELFORMAT_16BPPGENERIC = 16,
+-	VDSSCOMP_PIXELFORMAT_24BPPGENERIC = 17,
+-	VDSSCOMP_PIXELFORMAT_32BPPGENERIC = 18,
+-
+-	VDSSCOMP_PIXELFORMAT_UYVY = 19,
+-	VDSSCOMP_PIXELFORMAT_UYNV = 20,
+-	VDSSCOMP_PIXELFORMAT_YUY2 = 21,
+-	VDSSCOMP_PIXELFORMAT_YUYV = 22,
+-	VDSSCOMP_PIXELFORMAT_YUNV = 23,
+-	VDSSCOMP_PIXELFORMAT_YVYU = 24,
+-	VDSSCOMP_PIXELFORMAT_VYUY = 25,
+-
+-	VDSSCOMP_PIXELFORMAT_IMC2 = 26,
+-	VDSSCOMP_PIXELFORMAT_YV12 = 27,
+-	VDSSCOMP_PIXELFORMAT_I420 = 28,
+-
+-	VDSSCOMP_PIXELFORMAT_IMC1 = 29,
+-	VDSSCOMP_PIXELFORMAT_IMC3 = 30,
+-	VDSSCOMP_PIXELFORMAT_IMC4 = 31,
+-	VDSSCOMP_PIXELFORMAT_NV12 = 32,
+-	VDSSCOMP_PIXELFORMAT_NV21 = 33,
+-	VDSSCOMP_PIXELFORMAT_UYVI = 34,
+-	VDSSCOMP_PIXELFORMAT_VLVQ = 35,
+-
+-	VDSSCOMP_PIXELFORMAT_CUSTOM = 0X1000
+-};
+-
+-struct vdsscomp_video_timings {
+-	/* Unit: pixels */
+-	__u16 xres;
+-	/* Unit: pixels */
+-	__u16 yres;
+-	/* Unit: KHz */
+-	__u32 pixel_clock;
+-	/* Unit: pixel clocks */
+-	__u16 hsw;	/* Horizontal synchronization pulse width */
+-	/* Unit: pixel clocks */
+-	__u16 hfp;	/* Horizontal front porch */
+-	/* Unit: pixel clocks */
+-	__u16 hbp;	/* Horizontal back porch */
+-	/* Unit: line clocks */
+-	__u16 vsw;	/* Vertical synchronization pulse width */
+-	/* Unit: line clocks */
+-	__u16 vfp;	/* Vertical front porch */
+-	/* Unit: line clocks */
+-	__u16 vbp;	/* Vertical back porch */
+-};
+-
+-struct vdsscomp_rect {
+-	__s32 left;
+-	__s32 top;
+-	__u32 right;
+-	__u32 bottom;
+-};
+-
+-enum vdsscomp_deinterlace_mode {
+-	VDSSCOMP_DI_RESERVED = 0,
+-	VDSSCOMP_DI_WEAVE,
+-	VDSSCOMP_3MEDIAN,
+-	VDSSCOMP_DI_VMRI,
+-};
+-
+-struct vdsscomp_interlace {
+-	__u32 field_offset;
+-	__u32 interlaced;
+-	enum vdsscomp_deinterlace_mode mode;
+-};
+-
+-struct vdsscomp_layer_info {
+-	__u32 enabled;
+-	enum vdsscomp_pixelformat fmt;
+-	struct vdsscomp_interlace interlace;
+-	struct vdsscomp_rect src_rect;
+-	struct vdsscomp_rect dst_rect;
+-
+-	__u32 width;		/* surface width/stride */
+-	__u32 height;		/* surface height */
+-	__u8 pre_mult_alpha;
+-	__u8 pack[3];
+-};
+-
+-struct vdsscomp_screen_info {
+-	__u32 back_color;
+-	__u32 top_layer;
+-};
+-
+-struct vdsscomp_setup_disp_data {
+-	__u16 num_layers;
+-	__u32 dirty_mask;
+-	__u32 phys_addr[MAX_LAYERS];
+-	struct vdsscomp_screen_info scn;
+-	struct vdsscomp_layer_info layers[MAX_LAYERS];
+-};
+-
+-struct vdsscomp_setup_data {
+-	__u32 sync_id; /* for debugging */
+-	__u16 num_disps;
+-	struct vdsscomp_setup_disp_data disps[2];
+-};
+-struct vdsscomp_display_info {
+-	__u32 ix;
+-	__u32 layers_avail;	/* bitmask of available overlays */
+-	__u32 layers_owned;		/* bitmask of owned overlays */
+-	enum vdsscomp_display_type type;
+-	__u8 enabled;
+-	struct vdsscomp_video_timings timings;
+-	__u16 width_in_mm;		/* screen dimensions */
+-	__u16 height_in_mm;
+-};
+-
+-int vdsscomp_gralloc_queue(struct vdsscomp_setup_data *d,
+-	void (*cb_fn)(void *, int), void *cb_arg);
+-
+- /* Gets information about the display. */
+-#define VDSSCIOC_QUERY_DISPLAY	_IOWR('O', 131, struct vdsscomp_display_info)
+-
+-#endif

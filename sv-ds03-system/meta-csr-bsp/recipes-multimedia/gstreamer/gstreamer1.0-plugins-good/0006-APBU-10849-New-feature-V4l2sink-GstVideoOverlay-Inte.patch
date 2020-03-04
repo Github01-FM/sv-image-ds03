@@ -1,0 +1,161 @@
+From 773d871209f102a70285a9a72fb58844fbf9aec1 Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Tue, 25 Aug 2015 11:18:42 +0800
+Subject: [PATCH 6/8] APBU-10849 [New feature]V4l2sink GstVideoOverlay
+ Interfaces
+
+Change-Id: Ie74716181140ddaaa1d5a37b9f68e4b1e0de0459
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ sys/v4l2/gstv4l2sink.c | 95 +++++++++++++++++++++++++++++++++++++++++++++++++-
+ sys/v4l2/gstv4l2sink.h |  3 ++
+ 2 files changed, 97 insertions(+), 1 deletion(-)
+
+diff --git a/sys/v4l2/gstv4l2sink.c b/sys/v4l2/gstv4l2sink.c
+index bf868d9..d750546 100644
+--- a/sys/v4l2/gstv4l2sink.c
++++ b/sys/v4l2/gstv4l2sink.c
+@@ -87,6 +87,9 @@ enum
+ GST_IMPLEMENT_V4L2_COLOR_BALANCE_METHODS (GstV4l2Sink, gst_v4l2sink);
+ GST_IMPLEMENT_V4L2_TUNER_METHODS (GstV4l2Sink, gst_v4l2sink);
+ GST_IMPLEMENT_V4L2_VIDORIENT_METHODS (GstV4l2Sink, gst_v4l2sink);
++static void gst_v4l2sink_video_overlay_init (GstVideoOverlayInterface * iface);
++static void gst_v4l2sink_set_event_handling (GstVideoOverlay * overlay, gboolean handle_events);
++static void gst_v4l2sink_set_render_rectangle (GstVideoOverlay * overlay, gint x, gint y, gint width, gint height);
+ 
+ #define gst_v4l2sink_parent_class parent_class
+ G_DEFINE_TYPE_WITH_CODE (GstV4l2Sink, gst_v4l2sink, GST_TYPE_VIDEO_SINK,
+@@ -94,7 +97,9 @@ G_DEFINE_TYPE_WITH_CODE (GstV4l2Sink, gst_v4l2sink, GST_TYPE_VIDEO_SINK,
+     G_IMPLEMENT_INTERFACE (GST_TYPE_COLOR_BALANCE,
+         gst_v4l2sink_color_balance_interface_init);
+     G_IMPLEMENT_INTERFACE (GST_TYPE_VIDEO_ORIENTATION,
+-        gst_v4l2sink_video_orientation_interface_init));
++        gst_v4l2sink_video_orientation_interface_init);
++    G_IMPLEMENT_INTERFACE (GST_TYPE_VIDEO_OVERLAY,
++        gst_v4l2sink_video_overlay_init));
+ 
+ 
+ static void gst_v4l2sink_finalize (GstV4l2Sink * v4l2sink);
+@@ -119,6 +124,8 @@ static GstFlowReturn gst_v4l2sink_show_frame (GstVideoSink * bsink,
+ static gboolean gst_v4l2sink_unlock (GstBaseSink * sink);
+ static gboolean gst_v4l2sink_unlock_stop (GstBaseSink * sink);
+ 
++static void gst_v4l2sink_expose (GstVideoOverlay * overlay);
++
+ static void
+ gst_v4l2sink_class_init (GstV4l2SinkClass * klass)
+ {
+@@ -214,6 +221,7 @@ gst_v4l2sink_init (GstV4l2Sink * v4l2sink)
+ 
+   v4l2sink->overlay_fields_set = 0;
+   v4l2sink->crop_fields_set = 0;
++  v4l2sink->have_render_rect = FALSE;
+ }
+ 
+ 
+@@ -631,3 +639,88 @@ gst_v4l2sink_unlock_stop (GstBaseSink * sink)
+   GstV4l2Sink *v4l2sink = GST_V4L2SINK (sink);
+   return gst_v4l2_object_unlock_stop (v4l2sink->v4l2object);
+ }
++
++static void
++gst_v4l2sink_expose (GstVideoOverlay * overlay)
++{
++  GstV4l2Sink *v4l2sink = GST_V4L2SINK (overlay);
++
++  GST_DEBUG_OBJECT (v4l2sink, "doing expose");
++  if (v4l2sink->have_render_rect)
++  {
++	  if (GST_V4L2_IS_OPEN (v4l2sink->v4l2object))
++	  {
++		  gint fd = v4l2sink->v4l2object->video_fd;
++		  struct v4l2_format format;
++
++		  memset (&format, 0x00, sizeof (struct v4l2_format));
++
++		  format.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_OVERLAY;
++
++		  if (v4l2_ioctl (fd, VIDIOC_G_FMT, &format) < 0)
++		  {
++			  GST_WARNING_OBJECT (v4l2sink, "VIDIOC_G_FMT failed");
++			  return;
++		  }
++
++		  GST_DEBUG_OBJECT (v4l2sink, "doing expose: top=%d, left=%d, width=%d, height=%d", v4l2sink->render_rect.x, v4l2sink->render_rect.y, v4l2sink->render_rect.w, v4l2sink->render_rect.h);
++
++		  format.fmt.win.w.top = v4l2sink->render_rect.x;
++		  format.fmt.win.w.left = v4l2sink->render_rect.y;
++		  format.fmt.win.w.width = v4l2sink->render_rect.w;
++		  format.fmt.win.w.height = v4l2sink->render_rect.h;
++
++		  if (v4l2_ioctl (fd, VIDIOC_S_FMT, &format) < 0)
++		  {
++			  GST_WARNING_OBJECT (v4l2sink, "VIDIOC_S_FMT failed");
++			  return;
++		  }
++
++		  v4l2sink->overlay_fields_set = 0;
++		  v4l2sink->overlay = format.fmt.win.w;
++		  v4l2sink->have_render_rect = FALSE;
++	  }
++	  else
++	  {
++		  GST_DEBUG_OBJECT (v4l2sink, "Device is not open!");
++	  }
++  }
++  else
++  {
++	  GST_DEBUG_OBJECT (v4l2sink, "No rect set, skip.");
++  }
++}
++
++static void
++gst_v4l2sink_set_event_handling (GstVideoOverlay * overlay, gboolean handle_events)
++{
++  GstV4l2Sink *v4l2sink = GST_V4L2SINK (overlay);
++}
++
++static void
++gst_v4l2sink_set_render_rectangle (GstVideoOverlay * overlay, gint x, gint y, gint width, gint height)
++{
++  GstV4l2Sink *v4l2sink = GST_V4L2SINK (overlay);
++
++  v4l2sink->render_rect.x = x;
++  v4l2sink->render_rect.y = y;
++  v4l2sink->render_rect.w = width;
++  v4l2sink->render_rect.h = height;
++  v4l2sink->have_render_rect = TRUE;
++
++  GST_DEBUG_OBJECT (v4l2sink, "set render rectangle: top=%d, left=%d, width=%d, height=%d", v4l2sink->render_rect.x, v4l2sink->render_rect.y, v4l2sink->render_rect.w, v4l2sink->render_rect.h);
++}
++
++static void
++gst_v4l2sink_set_window_handle (GstVideoOverlay * overlay, guintptr id)
++{
++}
++
++static void
++gst_v4l2sink_video_overlay_init (GstVideoOverlayInterface * iface)
++{
++  iface->set_window_handle = gst_v4l2sink_set_window_handle;
++  iface->expose = gst_v4l2sink_expose;
++  iface->handle_events = gst_v4l2sink_set_event_handling;
++  iface->set_render_rectangle = gst_v4l2sink_set_render_rectangle;
++}
+diff --git a/sys/v4l2/gstv4l2sink.h b/sys/v4l2/gstv4l2sink.h
+index 3e5129f..4da9f54 100644
+--- a/sys/v4l2/gstv4l2sink.h
++++ b/sys/v4l2/gstv4l2sink.h
+@@ -68,6 +68,9 @@ struct _GstV4l2Sink {
+    * setting properties:
+    */
+   guint8 overlay_fields_set, crop_fields_set;
++
++  gboolean have_render_rect;
++  GstVideoRectangle render_rect;
+ };
+ 
+ struct _GstV4l2SinkClass {
+-- 
+1.9.1
+

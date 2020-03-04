@@ -1,0 +1,90 @@
+From b88b3a4fb252c3e1df0880b1b21c75eeb756572e Mon Sep 17 00:00:00 2001
+From: Laisheng Hu <laisheng@codeaurora.org>
+Date: Tue, 7 Apr 2015 13:44:38 +0800
+Subject: [PATCH 26/67] set default fps for invalid fps
+
+Change-Id: Iddecdff8a47e1cef47a44297c1c184c3ed709724
+Signed-off-by: Laisheng Hu <laisheng@codeaurora.org>
+---
+ omx/gstomxvideodec.c | 27 +++++++++++++++++++--------
+ 1 file changed, 19 insertions(+), 8 deletions(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 507f49e..57800a9 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -1287,7 +1287,7 @@ gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self,OMX_CONFIG_RECT
+   GstVideoCodecState *state;
+   OMX_PARAM_PORTDEFINITIONTYPE port_def;
+   GstVideoFormat format;
+-
++  GstVideoFlags flags;
+   /* At this point the decoder output port is disabled */
+ 
+ #if defined (USE_OMX_TARGET_RPI) && defined (HAVE_GST_GL)
+@@ -1507,17 +1507,19 @@ gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self,OMX_CONFIG_RECT
+         }
+     }
+     //End of IMG specific code
+-	self->input_state->info.par_n = 1; 
+-	self->input_state->info.par_d = 1;
+-
+-
++  self->input_state->info.par_n = 1; 
++  self->input_state->info.par_d = 1;
++  
++  flags = self->input_state->info.flags;
++  if(self->input_state->info.flags != GST_VIDEO_FLAG_NONE)
++        self->input_state->info.flags= GST_VIDEO_FLAG_NONE;
+ 
+   state = gst_video_decoder_set_output_state (GST_VIDEO_DECODER (self),
+       format, crop_rect->nWidth,
+         crop_rect->nHeight, self->input_state);
+ 
+ 
+-
++  self->input_state->info.flags= flags;
+   if (!gst_video_decoder_negotiate (GST_VIDEO_DECODER (self))) {
+     gst_video_codec_state_unref (state);
+     GST_ERROR_OBJECT (self, "Failed to negotiate");
+@@ -1631,7 +1633,7 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+ //  GstClockTimeDiff deadline;
+   OMX_ERRORTYPE err;
+   OMX_CONFIG_RECTTYPE *crop_rect = &self->dec_out_port->crop_rect;
+-
++  GstVideoFlags  flags;
+ #if defined (USE_OMX_TARGET_RPI) && defined (HAVE_GST_GL)
+   port = self->eglimage ? self->egl_out_port : self->dec_out_port;
+ #else
+@@ -1732,10 +1734,15 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+       self->input_state->info.par_n = 1; 
+       self->input_state->info.par_d = 1;
+ 
++      flags = self->input_state->info.flags;
++      if(self->input_state->info.flags != GST_VIDEO_FLAG_NONE)
++	self->input_state->info.flags= GST_VIDEO_FLAG_NONE;
++
+       GST_DEBUG_OBJECT (self, "Setting output state: format %s, width %d, height %d", gst_video_format_to_string (format), crop_rect->nWidth, crop_rect->nHeight);
+       state = gst_video_decoder_set_output_state (GST_VIDEO_DECODER (self),
+           format, crop_rect->nWidth,
+           crop_rect->nHeight, self->input_state);
++      self->input_state->info.flags= flags;
+ 
+       /* Take framerate and pixel-aspect-ratio from sinkpad caps */
+ 
+@@ -2373,7 +2380,11 @@ gst_omx_video_dec_set_format (GstVideoDecoder * decoder,
+   GST_DEBUG_OBJECT (self, "Setting new caps %" GST_PTR_FORMAT, state->caps);
+ 
+   gst_omx_port_get_port_definition (self->dec_in_port, &port_def);
+-
++  if(!info->fps_n)
++  {
++     info->fps_d = 800000;
++     info->fps_n = 20000000;
++  }
+   /* Check if the caps change is a real format change or if only irrelevant
+    * parts of the caps have changed or nothing at all.
+    */
+-- 
+1.9.1
+

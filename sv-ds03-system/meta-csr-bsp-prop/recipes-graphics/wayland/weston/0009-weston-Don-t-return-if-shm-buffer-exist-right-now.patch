@@ -1,0 +1,30 @@
+From 0e0fa604970e548a34779ae3dea6688c819c379d Mon Sep 17 00:00:00 2001
+From: "Nancy.Zou" <Nancy.Zou@csr.com>
+Date: Wed, 9 Sep 2015 18:39:03 +0800
+Subject: [PATCH] weston: Don't return if shm buffer exist right now.
+
+Because there is other state need to check too.
+
+Signed-off-by: Nancy.Zou <Nancy.Zou@csr.com>
+---
+ src/gl-renderer.c | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/src/gl-renderer.c b/src/gl-renderer.c
+index ec17ff9..d502629 100644
+--- a/src/gl-renderer.c
++++ b/src/gl-renderer.c
+@@ -1265,10 +1265,6 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer,
+ 	EGLint attribs[13], dmabuf;
+ 	EGLint egl_format, egl_stride, egl_offset;
+ 
+-	if (buffer->shm_buffer) {
+-               return;
+-	}
+-
+ 	buffer->shm_buffer = shm_buffer;
+ 	buffer->width = wl_shm_buffer_get_width(shm_buffer);
+ 	buffer->height = wl_shm_buffer_get_height(shm_buffer);
+-- 
+1.9.1
+

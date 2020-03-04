@@ -1,0 +1,162 @@
+From a56d78b1df64c640e7c9cd5b302e486374eaba26 Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Mon, 30 Nov 2015 12:53:17 +0800
+Subject: [PATCH 2/8] gst-play: support disp rect settings when v4l2sink
+
+Change-Id: Ic183311a0119fd4214b45fe360c13ddbff26b0e7
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ tools/gst-play.c | 67 ++++++++++++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 65 insertions(+), 2 deletions(-)
+
+diff --git a/tools/gst-play.c b/tools/gst-play.c
+index 15c9aa2..974001e 100644
+--- a/tools/gst-play.c
++++ b/tools/gst-play.c
+@@ -66,6 +66,14 @@ typedef enum
+ 
+ typedef struct
+ {
++	gint left;
++	gint top;
++	gint width;
++	gint height;
++}DispRect;
++
++typedef struct
++{
+   gchar **uris;
+   guint num_uris;
+   gint cur_idx;
+@@ -89,6 +97,11 @@ typedef struct
+ 
+   GstPlayTrickMode trick_mode;
+   gdouble rate;
++
++  /* for v4l2sink only */
++  DispRect rect;
++  gboolean v4l2sink;
++
+ } GstPlay;
+ 
+ static gboolean quiet = FALSE;
+@@ -136,7 +149,7 @@ gst_play_printf (const gchar * format, ...)
+ 
+ static GstPlay *
+ play_new (gchar ** uris, const gchar * audio_sink, const gchar * video_sink,
+-    gboolean gapless, gdouble initial_volume)
++    gboolean gapless, gdouble initial_volume, DispRect rect)
+ {
+   GstElement *sink, *playbin;
+   GstPlay *play;
+@@ -150,6 +163,7 @@ play_new (gchar ** uris, const gchar * audio_sink, const gchar * video_sink,
+   play->uris = uris;
+   play->num_uris = g_strv_length (uris);
+   play->cur_idx = -1;
++  play->v4l2sink = FALSE;
+ 
+   play->playbin = playbin;
+ 
+@@ -174,6 +188,21 @@ play_new (gchar ** uris, const gchar * audio_sink, const gchar * video_sink,
+       g_object_set (play->playbin, "video-sink", sink, NULL);
+     else
+       g_warning ("Couldn't create specified video sink '%s'", video_sink);
++
++    if (!strcmp (video_sink, "v4l2sink"))
++	{
++		g_print ("video sink %s\n", video_sink);
++		g_print ("(x, y, w, h) is (%d, %d, %d, %d)\n", rect.left, rect.top, rect.width, rect.height);
++		g_object_set (G_OBJECT (sink), "overlay-top", rect.top, NULL);
++		g_object_set (G_OBJECT (sink), "overlay-left", rect.left, NULL);
++		g_object_set (G_OBJECT (sink), "overlay-width", rect.width, NULL);
++		g_object_set (G_OBJECT (sink), "overlay-height", rect.height, NULL);
++
++		g_object_set (play->playbin, "flags", 66, NULL);
++
++		play->rect = rect;
++		play->v4l2sink = TRUE;
++	}
+   }
+ 
+   play->loop = g_main_loop_new (NULL, FALSE);
+@@ -517,6 +546,8 @@ static void
+ play_uri (GstPlay * play, const gchar * next_uri)
+ {
+   gchar *loc;
++  GstElement *sink;
++  DispRect rect;
+ 
+   gst_element_set_state (play->playbin, GST_STATE_READY);
+   play_reset (play);
+@@ -527,6 +558,23 @@ play_uri (GstPlay * play, const gchar * next_uri)
+ 
+   g_object_set (play->playbin, "uri", next_uri, NULL);
+ 
++  if (play->v4l2sink)
++  {
++      sink = gst_element_factory_make ("v4l2sink", NULL);
++	  if (sink != NULL)
++		  g_object_set (play->playbin, "video-sink", sink, NULL);
++	  else
++		  g_warning ("Couldn't create v4l2 video sink");
++
++	  g_print ("video sink %s\n", gst_object_get_name(sink));
++	  rect = play->rect;
++	  g_print ("(x, y, w, h) is (%d, %d, %d, %d)\n", rect.left, rect.top, rect.width, rect.height);
++	  g_object_set (G_OBJECT (sink), "overlay-top", rect.top, NULL);
++	  g_object_set (G_OBJECT (sink), "overlay-left", rect.left, NULL);
++	  g_object_set (G_OBJECT (sink), "overlay-width", rect.width, NULL);
++	  g_object_set (G_OBJECT (sink), "overlay-height", rect.height, NULL);
++  }
++
+   switch (gst_element_set_state (play->playbin, GST_STATE_PAUSED)) {
+     case GST_STATE_CHANGE_FAILURE:
+       /* ignore, we should get an error message posted on the bus */
+@@ -1086,6 +1134,7 @@ int
+ main (int argc, char **argv)
+ {
+   GstPlay *play;
++  DispRect rect;
+   GPtrArray *playlist;
+   gboolean print_version = FALSE;
+   gboolean interactive = TRUE;
+@@ -1116,6 +1165,14 @@ main (int argc, char **argv)
+         N_("Disable interactive control via the keyboard"), NULL},
+     {"volume", 0, 0, G_OPTION_ARG_DOUBLE, &volume,
+         N_("Volume"), NULL},
++    {"overlay-top", 'y', 0, G_OPTION_ARG_INT, &rect.top,
++        N_("The topmost (y) coordinate of the video overlay; top left corner of screen is 0,0; for v4l2sink only"), NULL},
++    {"overlay-left", 'x', 0, G_OPTION_ARG_INT, &rect.left,
++        N_("The leftmost (x) coordinate of the video overlay; top left corner of screen is 0,0; for v4l2sink only"), NULL},
++    {"overlay-width", 'w', 0, G_OPTION_ARG_INT, &rect.width,
++        N_("The width of the video overlay; for v4l2sink only"), NULL},
++    {"overlay-height", 'h', 0, G_OPTION_ARG_INT, &rect.height,
++        N_("The height of the video overlay; for v4l2sink only"), NULL},
+     {"playlist", 0, 0, G_OPTION_ARG_FILENAME, &playlist_file,
+         N_("Playlist file containing input media files"), NULL},
+     {"quiet", 'q', 0, G_OPTION_ARG_NONE, &quiet,
+@@ -1132,6 +1189,12 @@ main (int argc, char **argv)
+   textdomain (GETTEXT_PACKAGE);
+ #endif
+ 
++  /* init rect */
++  rect.top = 0;
++  rect.left = 0;
++  rect.width = 1024;
++  rect.height = 600;
++
+   g_set_prgname ("gst-play-" GST_API_VERSION);
+ 
+   ctx = g_option_context_new ("FILE1|URI1 [FILE2|URI2] [FILE3|URI3] ...");
+@@ -1221,7 +1284,7 @@ main (int argc, char **argv)
+     shuffle_uris (uris, num);
+ 
+   /* prepare */
+-  play = play_new (uris, audio_sink, video_sink, gapless, volume);
++  play = play_new (uris, audio_sink, video_sink, gapless, volume, rect);
+ 
+   if (play == NULL) {
+     g_printerr
+-- 
+1.9.1
+

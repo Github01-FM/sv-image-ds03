@@ -1,0 +1,55 @@
+From 3c3e4aa60ee9de621f20080c6cb27e1ae7b8c9eb Mon Sep 17 00:00:00 2001
+From: Laisheng Hu <laisheng@codeaurora.org>
+Date: Wed, 25 Feb 2015 16:22:28 +0800
+Subject: [PATCH 18/67] we do not drop frame in gstomxvideodecoder plugin 
+ because multiqueue can do qos
+
+Change-Id: I415d85a2a0afa6db4cb7e550a027c86dbffa0bdf
+---
+ omx/gstomxvideodec.c | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index cfc25b8..353aab5 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -1603,7 +1603,7 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+   GstVideoCodecFrame *frame;
+   GstFlowReturn flow_ret = GST_FLOW_OK;
+   GstOMXAcquireBufferReturn acq_return;
+-  GstClockTimeDiff deadline;
++//  GstClockTimeDiff deadline;
+   OMX_ERRORTYPE err;
+   OMX_CONFIG_RECTTYPE *crop_rect = &self->dec_out_port->crop_rect;
+ 
+@@ -1807,7 +1807,7 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+   gst_omx_video_dec_clean_older_frames (self, buf,
+       gst_video_decoder_get_frames (GST_VIDEO_DECODER (self)));
+   
+-
++  /* // delete by laisheng :do not drop frame because we have multiqueue 
+   if (frame
+       && (deadline = gst_video_decoder_get_max_decode_time
+           (GST_VIDEO_DECODER (self), frame)) < 0) {
+@@ -1823,7 +1823,9 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+ #endif
+ 	flow_ret = gst_video_decoder_drop_frame (GST_VIDEO_DECODER (self), frame);
+     frame = NULL;
+-  } else if (!frame && (buf->omx_buf->nFilledLen > 0 || buf->eglimage)) {
++  } else
++  //delete end*/
++  if (!frame && (buf->omx_buf->nFilledLen > 0 || buf->eglimage)) {
+     GstBuffer *outbuf = NULL;
+ 
+     /* This sometimes happens at EOS or if the input is not properly framed,
+@@ -1982,6 +1984,7 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+     flow_ret = gst_video_decoder_drop_frame (GST_VIDEO_DECODER (self), frame);
+     frame = NULL;
+   }
++ 
+ 
+   GST_DEBUG_OBJECT (self, "Read frame from component");
+ 
+-- 
+1.9.1
+

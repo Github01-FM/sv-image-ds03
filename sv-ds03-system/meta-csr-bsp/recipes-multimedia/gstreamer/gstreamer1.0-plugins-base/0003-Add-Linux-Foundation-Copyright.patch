@@ -1,0 +1,45 @@
+From 544fcc681759dff9f6db147d1df0c7c8f9f6a3b5 Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Wed, 9 Mar 2016 10:48:21 +0800
+Subject: [PATCH 3/8] Add Linux Foundation Copyright
+
+Change-Id: I859354b34486584f438055e7ac70c8c95b0826cd
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ gst-libs/gst/video/gstvideodecoder.c | 4 ++++
+ tools/gst-play.c                     | 4 ++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/gst-libs/gst/video/gstvideodecoder.c b/gst-libs/gst/video/gstvideodecoder.c
+index 94c90cc..b66066e 100644
+--- a/gst-libs/gst/video/gstvideodecoder.c
++++ b/gst-libs/gst/video/gstvideodecoder.c
+@@ -22,6 +22,10 @@
+  * Boston, MA 02110-1301, USA.
+  */
+ 
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
++
+ /**
+  * SECTION:gstvideodecoder
+  * @short_description: Base class for video decoders
+diff --git a/tools/gst-play.c b/tools/gst-play.c
+index 974001e..2bd5724 100644
+--- a/tools/gst-play.c
++++ b/tools/gst-play.c
+@@ -20,6 +20,10 @@
+  * Boston, MA 02110-1301, USA.
+  */
+ 
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
++
+ #ifdef HAVE_CONFIG_H
+ #include "config.h"
+ #endif
+-- 
+1.9.1
+

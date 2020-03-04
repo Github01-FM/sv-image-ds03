@@ -1,0 +1,26 @@
+From e23e20beec5b23b9ca94ccee512f087d3b28f20d Mon Sep 17 00:00:00 2001
+From: Laisheng Hu <laisheng@codeaurora.org>
+Date: Wed, 7 Jan 2015 11:01:31 +0800
+Subject: [PATCH 10/67] disable use buffer mode
+
+Change-Id: I9f2c78a34e496306e8cdee376bea10ddcf3d24fb
+---
+ omx/gstomxvideodec.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/omx/gstomxvideodec.h b/omx/gstomxvideodec.h
+index 5dcdfcb..e5346af 100644
+--- a/omx/gstomxvideodec.h
++++ b/omx/gstomxvideodec.h
+@@ -33,7 +33,7 @@
+ 
+ G_BEGIN_DECLS
+ 
+-#define _USE_V4L2_BUFFER_
++//#define _USE_V4L2_BUFFER_
+ 
+ #define GST_TYPE_OMX_VIDEO_DEC \
+   (gst_omx_video_dec_get_type())
+-- 
+1.9.1
+

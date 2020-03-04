@@ -1,0 +1,160 @@
+From 2352ebc216d2c0a616cfba422d2da343ec7e7a0d Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Wed, 23 Mar 2016 09:55:02 +0800
+Subject: [PATCH 19/31] APBU-11757 bugfix
+
+Resolution unstable after pause or replay during video playback
+
+1. Fix the complication between display-aspect-ratio and overlay properties
+2. Fix the computation of display rectangle
+
+Change-Id: Ia17f9c81e74efc20147a7fa515e3ad676b6173e3
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ sys/v4l2/gstv4l2sink.c | 82 ++++++++++++++++++++++++++++++++++++--------------
+ 1 file changed, 60 insertions(+), 22 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2sink.c b/sys/v4l2/gstv4l2sink.c
+index ff76b2e..de6478d 100644
+--- a/sys/v4l2/gstv4l2sink.c
++++ b/sys/v4l2/gstv4l2sink.c
+@@ -155,7 +155,7 @@ gst_v4l2sink_class_init (GstV4l2SinkClass * klass)
+ 
+   g_object_class_install_property (gobject_class, PROP_DISPLAY_ASPECT_RATIO,
+       g_param_spec_boolean ("display-aspect-ratio", "Display aspect ratio",
+-          "When enabled, keep width/height as display aspect ratio", TRUE,
++          "When enabled, keep width/height as display aspect ratio. Carefully use with overlay properties", TRUE,
+           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+   g_object_class_install_property (gobject_class, PROP_OVERLAY_TOP,
+       g_param_spec_int ("overlay-top", "Overlay top",
+@@ -258,9 +258,9 @@ enum
+ };
+ 
+ static void
+-gst_v4l2sink_sync_overlay_fields (GstV4l2Sink * v4l2sink)
++gst_v4l2sink_force_aspect_ratio (GstV4l2Sink * v4l2sink)
+ {
+-  if (!v4l2sink->overlay_fields_set && !v4l2sink->disp_aspect_ratio)
++  if (!v4l2sink->disp_aspect_ratio && v4l2sink->overlay_fields_set)
+     return;
+ 
+   if (GST_V4L2_IS_OPEN (v4l2sink->v4l2object)) {
+@@ -277,36 +277,30 @@ gst_v4l2sink_sync_overlay_fields (GstV4l2Sink * v4l2sink)
+     }
+ 
+     GST_DEBUG_OBJECT (v4l2sink,
+-        "setting overlay: overlay_fields_set=0x%02x, top=%d, left=%d, width=%d, height=%d",
+-        v4l2sink->overlay_fields_set,
+-        v4l2sink->overlay.top, v4l2sink->overlay.left,
+-        v4l2sink->overlay.width, v4l2sink->overlay.height);
+-
+-    GST_DEBUG_OBJECT (v4l2sink,
+         "getting format: top=%d, left=%d, width=%d, height=%d",
+         format.fmt.win.w.top, format.fmt.win.w.left,
+         format.fmt.win.w.width, format.fmt.win.w.height);
+ 
+-    if (v4l2sink->overlay_fields_set & RECT_TOP_SET)
+-      format.fmt.win.w.top = v4l2sink->overlay.top;
+-    if (v4l2sink->overlay_fields_set & RECT_LEFT_SET)
+-      format.fmt.win.w.left = v4l2sink->overlay.left;
+-    if (v4l2sink->overlay_fields_set & RECT_WIDTH_SET)
+-      format.fmt.win.w.width = v4l2sink->overlay.width;
+-    if (v4l2sink->overlay_fields_set & RECT_HEIGHT_SET)
+-      format.fmt.win.w.height = v4l2sink->overlay.height;
+-
+-	if (v4l2sink->disp_aspect_ratio && v4l2sink->video_width > 0 && v4l2sink->video_height > 0)
++	if (!v4l2sink->overlay_fields_set && v4l2sink->disp_aspect_ratio && v4l2sink->video_width > 0 && v4l2sink->video_height > 0)
+ 	{
++		float toleration;
++
++		toleration = (format.fmt.win.w.width * 1.0 / format.fmt.win.w.height) - (v4l2sink->video_width * 1.0 / v4l2sink->video_height);
+ 		int x, y, w, h;
+-		if (format.fmt.win.w.width * v4l2sink->video_height > format.fmt.win.w.height * v4l2sink->video_width)
++
++		GST_DEBUG_OBJECT (v4l2sink, "toleration: %f", toleration);
++		if (toleration > -0.01 && toleration < 0.01)
++			return;
++
++		if (toleration > 0.01)
+ 		{
+ 			w = format.fmt.win.w.height * v4l2sink->video_width / v4l2sink->video_height;
+ 			h = format.fmt.win.w.height;
+ 			x = format.fmt.win.w.top;
+ 			y = format.fmt.win.w.left + format.fmt.win.w.width / 2 - w / 2;
+ 		}
+-		else
++
++		if (toleration < -0.01)
+ 		{
+ 			w = format.fmt.win.w.width;
+ 			h = format.fmt.win.w.width * v4l2sink->video_height / v4l2sink->video_width;
+@@ -330,6 +324,49 @@ gst_v4l2sink_sync_overlay_fields (GstV4l2Sink * v4l2sink)
+       return;
+     }
+ 
++    v4l2sink->overlay = format.fmt.win.w;
++  }
++}
++
++static void
++gst_v4l2sink_sync_overlay_fields (GstV4l2Sink * v4l2sink)
++{
++  if (!v4l2sink->disp_aspect_ratio && !v4l2sink->overlay_fields_set) 
++    return;
++
++  if (GST_V4L2_IS_OPEN (v4l2sink->v4l2object)) {
++
++    gint fd = v4l2sink->v4l2object->video_fd;
++    struct v4l2_format format;
++
++    memset (&format, 0x00, sizeof (struct v4l2_format));
++    format.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_OVERLAY;
++
++    if (v4l2_ioctl (fd, VIDIOC_G_FMT, &format) < 0) {
++      GST_WARNING_OBJECT (v4l2sink, "VIDIOC_G_FMT failed");
++      return;
++    }
++
++    GST_DEBUG_OBJECT (v4l2sink,
++        "setting overlay: overlay_fields_set=0x%02x, top=%d, left=%d, width=%d, height=%d",
++        v4l2sink->overlay_fields_set,
++        v4l2sink->overlay.top, v4l2sink->overlay.left,
++        v4l2sink->overlay.width, v4l2sink->overlay.height);
++
++    if (v4l2sink->overlay_fields_set & RECT_TOP_SET)
++      format.fmt.win.w.top = v4l2sink->overlay.top;
++    if (v4l2sink->overlay_fields_set & RECT_LEFT_SET)
++      format.fmt.win.w.left = v4l2sink->overlay.left;
++    if (v4l2sink->overlay_fields_set & RECT_WIDTH_SET)
++      format.fmt.win.w.width = v4l2sink->overlay.width;
++    if (v4l2sink->overlay_fields_set & RECT_HEIGHT_SET)
++      format.fmt.win.w.height = v4l2sink->overlay.height;
++
++    if (v4l2_ioctl (fd, VIDIOC_S_FMT, &format) < 0) {
++      GST_WARNING_OBJECT (v4l2sink, "VIDIOC_S_FMT failed");
++      return;
++    }
++
+     v4l2sink->overlay_fields_set = 0;
+     v4l2sink->overlay = format.fmt.win.w;
+   }
+@@ -396,7 +433,7 @@ gst_v4l2sink_set_property (GObject * object,
+     switch (prop_id) {
+ 	  case PROP_DISPLAY_ASPECT_RATIO:
+ 	    v4l2sink->disp_aspect_ratio = g_value_get_boolean (value);
+-		gst_v4l2sink_sync_overlay_fields (v4l2sink);
++		gst_v4l2sink_force_aspect_ratio (v4l2sink);
+ 		break;
+       case PROP_OVERLAY_TOP:
+         v4l2sink->overlay.top = g_value_get_int (value);
+@@ -592,6 +629,7 @@ gst_v4l2sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
+   GST_VIDEO_SINK_HEIGHT (v4l2sink) = v4l2sink->video_height;
+ 
+   gst_v4l2sink_sync_overlay_fields (v4l2sink);
++  gst_v4l2sink_force_aspect_ratio (v4l2sink);
+   gst_v4l2sink_sync_crop_fields (v4l2sink);
+ 
+   return TRUE;
+-- 
+1.9.1
+

@@ -1,0 +1,2028 @@
+From b4de2105761da8f95d7af28baced16b8d3bffa82 Mon Sep 17 00:00:00 2001
+From: "Nancy.Zou" <Nancy.Zou@csr.com>
+Date: Fri, 13 May 2016 13:34:08 +0800
+Subject: [PATCH] add overlay support and hw vsync for weston.
+
+This is the first version and it's designed for multi-output and
+multi-overlay. Default hw vsync is disabled. Now camera preview
+can go through overlay path, need to verify more cases.
+
+origin from 1.8.0 0010-add-overlay-support-and-hw-vsync-for-weston.patch
+Signed-off-by: Nancy.Zou <Nancy.Zou@csr.com>
+---
+ Makefile.am            |   3 +-
+ src/compositor-fbdev.c | 751 +++++++++++++++++++++++++++++++++++++++++++++++-
+ src/compositor.h       |   3 +
+ src/gl-renderer.c      | 101 +++++++
+ src/pvr2d.h            | 766 +++++++++++++++++++++++++++++++++++++++++++++++++
+ src/vdsscomp.h         | 168 +++++++++++
+ 6 files changed, 1782 insertions(+), 10 deletions(-)
+ create mode 100644 src/pvr2d.h
+ create mode 100644 src/vdsscomp.h
+
+diff --git a/Makefile.am b/Makefile.am
+index 62719c9..404009c 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -343,7 +343,8 @@ fbdev_backend_la_LIBADD =			\
+ 	$(FBDEV_COMPOSITOR_LIBS)		\
+ 	$(INPUT_BACKEND_LIBS)			\
+ 	libsession-helper.la			\
+-	libshared.la
++	libshared.la				\
++	-lpvr2d
+ fbdev_backend_la_CFLAGS =			\
+ 	$(COMPOSITOR_CFLAGS)			\
+ 	$(EGL_CFLAGS)				\
+diff --git a/src/compositor-fbdev.c b/src/compositor-fbdev.c
+index 81281d0..27bf94a 100644
+--- a/src/compositor-fbdev.c
++++ b/src/compositor-fbdev.c
+@@ -50,6 +50,24 @@
+ #include "gl-renderer.h"
+ #include "presentation_timing-server-protocol.h"
+ 
++
++#ifdef SUPPORT_VDSSCOMP
++
++#define MAX_OVERLAY_PIPE 4
++#define FBDEV_OUTPUT_PRIMARY 	0
++#define FBDEV_OUTPUT_EXTERNAL 	1
++#define FBDEV_NUM_OUTPUT 	2
++
++#define SGX_DC_IDX	1
++
++#include <sys/socket.h>
++#include <sys/un.h>
++#include <linux/types.h>
++#include <linux/netlink.h>
++#include "vdsscomp.h"
++#include "pvr2d.h"
++#endif
++
+ struct fbdev_backend {
+ 	struct weston_backend base;
+ 	struct weston_compositor *compositor;
+@@ -59,6 +77,16 @@ struct fbdev_backend {
+ 	struct udev_input input;
+ 	int use_pixman;
+ 	struct wl_listener session_listener;
++#ifdef USE_HW_VSYNC
++	int32_t uevent_fd;/*for hw vsync uevent*/
++#endif
++#ifdef SUPPORT_VDSSCOMP
++	bool hw_overlay_enable;/*a switch controlled by env variable*/
++	uint32_t output_num;
++	PVR2DCONTEXTHANDLE pvr2d_context;
++	PVR2DFLIPCHAINHANDLE pvr2d_flipchain;
++	struct vdsscomp_setup_data setup_data;/*flip data passed to km*/
++#endif
+ };
+ 
+ struct fbdev_screeninfo {
+@@ -76,6 +104,15 @@ struct fbdev_screeninfo {
+ 	unsigned int refresh_rate; /* Hertz */
+ };
+ 
++#ifdef SUPPORT_VDSSCOMP
++struct flip_state {
++	bool is_dirty;
++	PVR2DMEMINFO *meminfo[4];
++	PVR2D_HANDLE fence;
++	struct vdsscomp_setup_disp_data current;/*data using by hw*/
++};
++#endif
++
+ struct fbdev_output {
+ 	struct fbdev_backend *backend;
+ 	struct weston_output base;
+@@ -93,6 +130,15 @@ struct fbdev_output {
+ 	pixman_image_t *shadow_surface;
+ 	void *shadow_buf;
+ 	uint8_t depth;
++
++#ifdef SUPPORT_VDSSCOMP
++	uint32_t type;/*primary device or second device*/
++	bool has_GPU_layer;/*true if view need to be rendered by GPU*/
++	bool is_enable;
++	struct weston_plane ovl_plane;/*overlay view is rearragned to it*/
++	int32_t ovl_cnt;
++	struct flip_state state;
++#endif
+ };
+ 
+ struct fbdev_parameters {
+@@ -101,6 +147,7 @@ struct fbdev_parameters {
+ 	int use_gl;
+ };
+ 
++
+ struct gl_renderer_interface *gl_renderer;
+ 
+ static const char default_seat[] = "seat0";
+@@ -122,6 +169,10 @@ fbdev_output_start_repaint_loop(struct weston_output *output)
+ {
+ 	struct timespec ts;
+ 
++#ifdef USE_HW_VSYNC
++	return;
++#endif
++
+ 	weston_compositor_read_presentation_clock(output->compositor, &ts);
+ 	weston_output_finish_frame(output, &ts, PRESENTATION_FEEDBACK_INVALID);
+ }
+@@ -176,8 +227,524 @@ fbdev_output_repaint_pixman(struct weston_output *base, pixman_region32_t *damag
+ 	 * Finish the frame synchronised to the specified refresh rate. The
+ 	 * refresh rate is given in mHz and the interval in ms. */
+ 	wl_event_source_timer_update(output->finish_frame_timer,
+-	                             1000000 / output->mode.refresh);
++			1000000 / output->mode.refresh);
++}
++
++#ifdef SUPPORT_VDSSCOMP
++static int convert_pvr2dfmt_to_shmfmt(int fmt)
++{
++	switch(fmt)
++	{
++		case PVR2D_RGB565:
++			return WL_SHM_FORMAT_RGB565;
++		case PVR2D_RGB888:
++			return WL_SHM_FORMAT_XRGB8888;
++		case PVR2D_ARGB8888:
++			return WL_SHM_FORMAT_ARGB8888;
++		default:
++			return -1;
++	}
++}
++
++static int convert_shmfmt_to_vdss(int fmt)
++{
++	switch(fmt)
++	{
++		case WL_SHM_FORMAT_RGB565:
++			return VDSSCOMP_PIXELFORMAT_565;
++		case WL_SHM_FORMAT_XRGB8888:
++			return VDSSCOMP_PIXELFORMAT_BGRX_8880;
++		case WL_SHM_FORMAT_ARGB8888:
++			return VDSSCOMP_PIXELFORMAT_8888;
++		case WL_SHM_FORMAT_YUYV:
++		case WL_SHM_FORMAT_YUYV_TWO_FIELDS:
++			return VDSSCOMP_PIXELFORMAT_YVYU;
++		case WL_SHM_FORMAT_NV12_VXD_INTERLACED:
++		case WL_SHM_FORMAT_NV12_VXD:
++			return VDSSCOMP_PIXELFORMAT_NV12;
++		default:
++			return -1;
++	}
++
++}
++
++static int stride2pixel(uint32_t stride, int fmt)
++{
++	switch(fmt)
++	{
++		case WL_SHM_FORMAT_RGB565:
++		case WL_SHM_FORMAT_YUYV:
++		case WL_SHM_FORMAT_YUYV_TWO_FIELDS:
++			return stride / 2;
++		case WL_SHM_FORMAT_XRGB8888:
++		case WL_SHM_FORMAT_ARGB8888:
++			return stride / 4;
++		case WL_SHM_FORMAT_NV12_VXD:
++		case WL_SHM_FORMAT_NV12_VXD_INTERLACED:
++			return stride;
++		default:
++			return 0;
++	}
++}
++
++static bool is_YUV(int fmt)
++{
++	switch(fmt)
++	{
++		case WL_SHM_FORMAT_NV12_VXD:
++		case WL_SHM_FORMAT_YUYV:
++		case WL_SHM_FORMAT_YUYV_TWO_FIELDS:
++		case WL_SHM_FORMAT_NV12_VXD_INTERLACED:
++			return true;
++		default:
++			return false;
++	}
++}
++
++static bool is_interlaced(int fmt)
++{
++	switch(fmt)
++	{
++		case WL_SHM_FORMAT_NV12_VXD_INTERLACED:
++		case WL_SHM_FORMAT_YUYV_TWO_FIELDS:
++			return true;
++		default:
++			return false;
++	}
++}
++
++/*TODO: add more format */
++static bool is_support_fmt(int fmt)
++{
++	switch(fmt)
++	{
++		case WL_SHM_FORMAT_NV12_VXD:
++		case WL_SHM_FORMAT_YUYV:
++		case WL_SHM_FORMAT_YUYV_TWO_FIELDS:
++		case WL_SHM_FORMAT_NV12_VXD_INTERLACED:
++			return true;
++		default:
++			return false;
++	}
++}
++
++#define ALIGN(x,a)      (((x) + (a) - 1L) & ~((a) - 1L))
++static uint32_t get_aligned_height(uint32_t height, int fmt)
++{
++        switch (fmt)
++        {
++                case WL_SHM_FORMAT_NV12_VXD:
++                        height = ALIGN(height, 16);
++                        break;
++                case WL_SHM_FORMAT_NV12_VXD_INTERLACED:
++                        height = ALIGN(height, 32);
++                        break;
++                default:
++                        break;
++        }
++
++        return height;
++}
++
++static bool
++fbdev_output_check_overlay_assignment(struct fbdev_output *output,
++				struct weston_view *ev)
++{
++	struct weston_buffer *buffer = ev->surface->buffer_ref.buffer;
++	struct weston_buffer_viewport *viewport = &ev->surface->buffer_viewport;
++	uint32_t fmt;
++
++	/*TODO: need to check these conditions */
++	if (buffer == NULL ||
++		!buffer->shm_buffer||
++		output->base.transform != viewport->buffer.transform ||
++		ev->output_mask != (1u << output->base.id))
++		return false;
++
++	if (ev->geometry.scissor_enabled)
++		return false;
++
++	fmt = wl_shm_buffer_get_format(buffer->shm_buffer);
++	if(!is_support_fmt(fmt))
++		return false;
++
++	/* Only YUV overlay can support scaling */
++	if (viewport->buffer.scale != 1 && !is_YUV(fmt))
++		return false;
++
++	if (output->ovl_cnt >= MAX_OVERLAY_PIPE)
++		return false;
++
++	return true;
++}
++
++static bool
++is_overlap(struct weston_view *ev, pixman_region32_t *opaque)
++{
++	pixman_region32_t overlap;
++	bool ret = false;
++
++	/* This may have problem to use sub surface's opaque directly while
++	 * it is scaled, however, weston does not update transform opaque
++	 * region for it unless we set the scaled opaque region after creating
++	 * it. */
++	pixman_region32_init(&overlap);
++	pixman_region32_intersect(&overlap, opaque, &ev->surface->opaque);
++	if(pixman_region32_equal(&overlap, &ev->surface->opaque))
++		ret = true;
++	pixman_region32_fini(&overlap);
++
++	return ret;
++}
++
++static void
++fbdev_assign_planes(struct weston_output *base)
++{
++	struct fbdev_output *output = to_fbdev_output(base);
++	struct fbdev_backend *c = output->backend;
++	struct weston_view *ev, *next, *last_ov = NULL;
++	struct weston_plane *primary = &c->base.primary_plane;
++	struct weston_plane *ovl_plane = &output->ovl_plane;
++	bool has_GPU_layer = false;
++	pixman_region32_t opaque;
++
++	pixman_region32_init(&opaque);
++	output->ovl_cnt = 0;
++
++	/* overlay view need to meet three conditions:
++	 * 1. env variable which not disable hw overlay feature.
++	 * 2. view is not covered completely by other opaque views.
++	 * 3. meet hw overlay conditions. */
++	wl_list_for_each_safe(ev, next, &c->base.view_list, link) {
++		struct weston_surface *es = ev->surface;
++		if (c->hw_overlay_enable &&
++			!is_overlap(ev, &opaque) &&
++			fbdev_output_check_overlay_assignment(output, ev)) {
++			weston_view_move_to_plane(ev, ovl_plane);
++			last_ov = ev;
++			output->ovl_cnt++;
++			/* All other planes are a direct scanout of a
++			 * single client buffer.
++			 */
++			ev->psf_flags =
++				PRESENTATION_FEEDBACK_KIND_ZERO_COPY;
++			es->keep_buffer = true;
++		} else {
++			weston_view_move_to_plane(ev, primary);
++			/* compute all opaque area for views that are on top
++			 * of overlay view. */
++			pixman_region32_union(&opaque, &opaque,
++						&ev->surface->opaque);
++			has_GPU_layer = true;
++			/* cursor plane involves a copy */
++			ev->psf_flags = 0;
++			es->keep_buffer = false;
++		}
++	}
++
++	pixman_region32_fini(&opaque);
++
++	/* remove the last overlay view when it occupys the last pipe
++	 * if the fb target's content also need to be updated, because
++	 * fb target also need to occupy one pipe */
++	if (has_GPU_layer) {
++		if (output->ovl_cnt == MAX_OVERLAY_PIPE && last_ov) {
++			struct weston_surface *es = last_ov->surface;
++			weston_view_move_to_plane(last_ov, primary);
++			ev->psf_flags = 0;
++			es->keep_buffer = false;
++		} else
++			output->ovl_cnt++;
++	}
++	output->has_GPU_layer = has_GPU_layer;
++}
++
++static pixman_box32_t
++get_src_crop_region(struct fbdev_output *output, struct weston_view *view)
++{
++	struct weston_buffer_viewport *viewport;
++	wl_fixed_t sx1, sy1, sx2, sy2;
++	pixman_region32_t rect;
++	pixman_box32_t *box, tbox, ret;
++	int32_t width, height;
++
++	pixman_region32_init(&rect);
++	pixman_region32_intersect(&rect, &view->transform.boundingbox,
++				  &output->base.region);
++	box = pixman_region32_extents(&rect);
++
++	/* Why need to translate int to fixed? */
++	weston_view_from_global_fixed(view,
++				      wl_fixed_from_int(box->x1),
++				      wl_fixed_from_int(box->y1),
++				      &sx1, &sy1);
++	weston_view_from_global_fixed(view,
++				      wl_fixed_from_int(box->x2),
++				      wl_fixed_from_int(box->y2),
++				      &sx2, &sy2);
++
++	viewport = &view->surface->buffer_viewport;
++	width = view->surface->width;
++	height = view->surface->height;
++	if (sx1 < 0)
++		sx1 = 0;
++	if (sy1 < 0)
++		sy1 = 0;
++	if (sx2 > wl_fixed_from_int(width))
++		sx2 = wl_fixed_from_int(width);
++	if (sy2 > wl_fixed_from_int(height))
++		sy2 = wl_fixed_from_int(height);
++
++	tbox.x1 = sx1;
++	tbox.y1 = sy1;
++	tbox.x2 = sx2;
++	tbox.y2 = sy2;
++
++	ret = weston_transformed_rect(wl_fixed_from_int(width),
++				       wl_fixed_from_int(height),
++				       viewport->buffer.transform,
++				       viewport->buffer.scale,
++				       tbox);
++
++	ret.x1 = wl_fixed_to_int(ret.x1);
++	ret.y1 = wl_fixed_to_int(ret.y1);
++	ret.x2 = wl_fixed_to_int(ret.x2);
++	ret.y2 = wl_fixed_to_int(ret.y2);
++
++	pixman_region32_fini(&rect);
++	return ret;
++}
++
++static pixman_box32_t
++get_dst_display_region(struct fbdev_output *output, struct weston_view *view)
++{
++	pixman_region32_t rect;
++	pixman_box32_t *box, ret;
++
++	pixman_region32_init(&rect);
++	pixman_region32_intersect(&rect, &view->transform.boundingbox,
++				&output->base.region);
++	pixman_region32_translate(&rect, -output->base.x, -output->base.y);
++	box = pixman_region32_extents(&rect);
++	ret = weston_transformed_rect(output->base.width,
++				output->base.height,
++				output->base.transform,
++				output->base.current_scale,
++				*box);
++
++	pixman_region32_fini(&rect);
++	return ret;
++}
++
++
++static void
++setup_overlay_info(struct vdsscomp_layer_info *info,
++		uint32_t width, uint32_t height, uint32_t shm_fmt,
++		pixman_box32_t *src, pixman_box32_t *dst)
++{
++	info->width = width;
++	info->height = height;
++	info->fmt = convert_shmfmt_to_vdss(shm_fmt);
++
++	info->src_rect.left = src->x1;
++	info->src_rect.right = src->x2 - 1;
++	info->src_rect.top = src->y1;
++	info->src_rect.bottom = src->y2 - 1;
++
++	info->dst_rect.left = dst->x1;
++	info->dst_rect.right = dst->x2 - 1;
++	info->dst_rect.top = dst->y1;
++	info->dst_rect.bottom = dst->y2 - 1;
++
++	info->pre_mult_alpha = 1;
++	info->enabled = 1;
++
++	if(is_interlaced(shm_fmt)) {
++		if (shm_fmt == WL_SHM_FORMAT_YUYV_TWO_FIELDS)
++			info->interlace.interlaced = 1;
++		info->interlace.mode = VDSSCOMP_3MEDIAN;
++		info->interlace.field_offset = info->width * info->height;
++	}
++}
++
++static int
++process_flip(struct fbdev_backend *fbc, PVR2D_HANDLE *fence)
++{
++	struct weston_output *base, *next;
++	uint32_t output_index = 0, overlay_num = 0;
++	int32_t i;
++	struct vdsscomp_setup_data data, *pdata;
++	PVR2DMEMINFO *meminfo[8] = {};
++
++	memset(&data, 0, sizeof(data));
++	pdata = &data;
++
++	wl_list_for_each_safe(base, next, &fbc->base.output_list, link) {
++		struct fbdev_output *output = to_fbdev_output(base);
++
++		/*TODO: handle output is disabled */
++		if (!output->is_enable)
++			continue;
++
++		struct flip_state *state = &output->state;
++		/* for dual output case, if only one output is updating,
++		 * we also need to keep another output show its content */
++		pdata->disps[output_index] = state->current;
++
++		for(i = 0; i < output->ovl_cnt; i++)
++			meminfo[i] = state->meminfo[i];
++
++		overlay_num += output->ovl_cnt;
++		output_index++;
++	}
++
++	pdata->num_disps = output_index;
++	PVR2DPresentFlip2(fbc->pvr2d_context, fbc->pvr2d_flipchain,
++			meminfo,
++			overlay_num,
++			&data, sizeof(data),
++			fence);
++
++	fbc->setup_data = data;
++	return 0;
++}
++
++/* We do nothing to damage now. maybe need to handle in future */
++static void
++fbdev_output_process_overlay(struct fbdev_output *output,
++			pixman_region32_t *damage)
++{
++	struct fbdev_backend *fbc = output->backend;
++	struct weston_view *ev, *next;
++	pixman_box32_t sbox, dbox;
++	struct vdsscomp_setup_disp_data *current;
++	struct vdsscomp_layer_info layer_info;
++	uint32_t width, height, stride;
++	uint32_t overlay_index = 0;
++	int32_t fmt;
++	struct flip_state *state = &output->state;
++	void *fence = NULL;
++
++	if (output->ovl_cnt == 0) {
++		weston_log("no overlay\n");
++		return;
++	}
++
++	if (output->type != FBDEV_OUTPUT_PRIMARY &&
++		output->type != FBDEV_OUTPUT_EXTERNAL) {
++		weston_log("invalid output\n");
++		return;
++	}
++
++	memset(state->meminfo, 0, sizeof(state->meminfo));
++
++	current = &state->current;
++	current->dirty_mask = 0;
++	/* GPU layer always assign first */
++	current->scn.top_layer = VDSSCOMP_LAYER0;
++
++	if (output->has_GPU_layer) {
++		/* get fb target meminfo */
++		if (output->type == FBDEV_OUTPUT_PRIMARY) {
++			if (PVR2DGetSwapBuffer(fbc->pvr2d_context,
++					fbc->pvr2d_flipchain,
++					&state->meminfo[overlay_index])) {
++				weston_log("can not get fb target mem info\n");
++				return;
++			}
++			if (PVR2DGetFlipChainInfo(fbc->pvr2d_context,
++					fbc->pvr2d_flipchain,
++					&width, &height, &stride, &fmt)) {
++				weston_log("can not get fb target geometry\n");
++				return;
++			}
++		}
++		/*TODO: add case for second output*/
++		sbox.x1 = sbox.y1 = 0;
++		sbox.x2 = stride;
++		sbox.y2 = height;
++		dbox = sbox;
++
++		memset(&layer_info, 0, sizeof(layer_info));
++		setup_overlay_info(&layer_info, stride, height,
++				convert_pvr2dfmt_to_shmfmt(fmt),
++				&sbox, &dbox);
++		if (current->num_layers <= overlay_index ||
++			memcmp(&current->layers[overlay_index],
++				&layer_info, sizeof(layer_info))) {
++			current->dirty_mask |= 1 << overlay_index;
++			current->layers[overlay_index] = layer_info;
++		}
++		current->phys_addr[overlay_index] = overlay_index;
++		overlay_index++;
++	}
++
++	/* handle overlay view. Because hw layer order is 0->3->2->1, however,
++	 * compositor build views following the rule that the more later the
++	 * view is created, the more front it will be in the view list, so we
++	 * need to traverse the view list by reverse order */
++	wl_list_for_each_reverse_safe(ev, next, &fbc->base.view_list, link) {
++		struct weston_surface *es = ev->surface;
++		struct weston_buffer *buf = es->buffer_ref.buffer;
++		int32_t fd;
++
++		if (ev->plane != &output->ovl_plane)
++			continue;
++
++		/* get meminfo for overlay view, just ignore it if its meminfo
++		 * is not found and it will not be shown by hw later */
++		fd = wl_shm_buffer_get_fd(buf->shm_buffer);
++		if (PVR2DFindMemInfo(fbc->pvr2d_context,
++					fd,
++					&state->meminfo[overlay_index])) {
++			weston_log("can not get overly view mem info\n");
++			continue;
++		}
++
++		fmt = wl_shm_buffer_get_format(buf->shm_buffer);
++		stride = wl_shm_buffer_get_stride(buf->shm_buffer);
++		width = stride2pixel(stride, fmt);
++		height = wl_shm_buffer_get_height(buf->shm_buffer);
++		/* patch height for special vxd fmt */
++		height = get_aligned_height(height, fmt);
++
++		/*
++		 * Calculate the source & dest rects properly based on actual
++		 * position (note the caller has called weston_view_update_transform()
++		 * for us already).
++		 */
++		sbox = get_src_crop_region(output, ev);
++		dbox = get_dst_display_region(output, ev);
++
++		memset(&layer_info, 0, sizeof(layer_info));
++		setup_overlay_info(&layer_info, width, height, fmt,
++				&sbox, &dbox);
++		if (current->num_layers <= overlay_index ||
++			memcmp(&current->layers[overlay_index],
++				&layer_info, sizeof(layer_info))) {
++			current->dirty_mask |= 1 << overlay_index;
++			current->layers[overlay_index] = layer_info;
++		}
++		current->phys_addr[overlay_index] = overlay_index;
++		overlay_index++;
++	}
++
++	/* update real overlay number */
++	output->ovl_cnt = current->num_layers = overlay_index;
++
++	/* disable the no used pipe which is set in previous round */
++	for (; overlay_index < MAX_OVERLAY_PIPE; overlay_index++) {
++		current = &state->current;
++		if (current->layers[overlay_index].enabled) {
++			current->dirty_mask |= 1 << overlay_index;
++			current->layers[overlay_index].enabled = 0;
++		}
++	}
++
++	/* fire */
++	process_flip(fbc, &fence);
+ }
++#endif
+ 
+ static int
+ fbdev_output_repaint(struct weston_output *base, pixman_region32_t *damage)
+@@ -186,21 +753,62 @@ fbdev_output_repaint(struct weston_output *base, pixman_region32_t *damage)
+ 	struct fbdev_backend *fbb = output->backend;
+ 	struct weston_compositor *ec = fbb->compositor;
+ 
++#ifdef SUPPORT_VDSSCOMP
++	ec->renderer->repaint_output(base, damage);
++	/* Update the damage region. */
++	pixman_region32_subtract(&ec->primary_plane.damage,
++	                        &ec->primary_plane.damage, damage);
++
++	fbdev_output_process_overlay(output, damage);
++#ifdef USE_HW_VSYNC
++	wl_event_source_fd_update(output->finish_frame_timer,
++				WL_EVENT_READABLE | WL_EVENT_ONESHOT);
++#else
++	wl_event_source_timer_update(output->finish_frame_timer,
++				1000000 / output->mode.refresh);
++#endif
++#else /*SUPPORT_VDSSCOMP*/
+ 	if (fbb->use_pixman) {
+ 		fbdev_output_repaint_pixman(base,damage);
+ 	} else {
+ 		ec->renderer->repaint_output(base, damage);
+ 		/* Update the damage region. */
+ 		pixman_region32_subtract(&ec->primary_plane.damage,
+-	                         &ec->primary_plane.damage, damage);
+-
++				&ec->primary_plane.damage, damage);
++#ifdef USE_HW_VSYNC
++		wl_event_source_fd_update(output->finish_frame_timer,
++				WL_EVENT_READABLE | WL_EVENT_ONESHOT);
++#else
+ 		wl_event_source_timer_update(output->finish_frame_timer,
+-	                             1000000 / output->mode.refresh);
++				1000000 / output->mode.refresh);
++#endif
+ 	}
++#endif /*SUPPORT_VDSSCOMP*/
+ 
+ 	return 0;
+ }
+ 
++#ifdef USE_HW_VSYNC
++static int
++finish_frame_handler(int fd, uint32_t mask, void *data)
++{
++	struct fbdev_output *output = data;
++	struct timespec ts;
++	char buf[4096];
++
++	recv(fd, buf, sizeof(buf) - 1, MSG_DONTWAIT);
++	if (strstr(buf, "change@/devices/platform/vdsscomp") == NULL)
++	{
++		wl_event_source_fd_update(output->finish_frame_timer,
++			WL_EVENT_READABLE | WL_EVENT_ONESHOT);
++		return 0;
++	}
++
++	weston_compositor_read_presentation_clock(output->base.compositor, &ts);
++	weston_output_finish_frame(&output->base, &ts, 0);
++	return 1;
++}
++#else
+ static int
+ finish_frame_handler(void *data)
+ {
+@@ -212,7 +820,7 @@ finish_frame_handler(void *data)
+ 
+ 	return 1;
+ }
+-
++#endif
+ static pixman_format_code_t
+ calculate_pixman_format(struct fb_var_screeninfo *vinfo,
+                         struct fb_fix_screeninfo *finfo)
+@@ -531,6 +1139,12 @@ fbdev_output_create(struct fbdev_backend *backend,
+ 	wl_list_init(&output->base.mode_list);
+ 	wl_list_insert(&output->base.mode_list, &output->mode.link);
+ 
++#ifdef SUPPORT_VDSSCOMP
++	output->base.assign_planes = fbdev_assign_planes;
++	weston_plane_init(&output->ovl_plane, &compositor->base, 0, 0);
++	weston_compositor_stack_plane(&compositor->base, &output->ovl_plane, 0);
++#endif
++
+ 	output->base.current_mode = &output->mode;
+ 	output->base.subpixel = WL_OUTPUT_SUBPIXEL_UNKNOWN;
+ 	output->base.make = "unknown";
+@@ -584,8 +1198,12 @@ fbdev_output_create(struct fbdev_backend *backend,
+ 
+ 	loop = wl_display_get_event_loop(backend->compositor->wl_display);
+ 	output->finish_frame_timer =
++#ifdef USE_HW_VSYNC
++		wl_event_loop_add_fd(loop, compositor->uevent_fd, WL_EVENT_READABLE,
++					finish_frame_handler, output);
++#else
+ 		wl_event_loop_add_timer(loop, finish_frame_handler, output);
+-
++#endif
+ 	weston_compositor_add_output(backend->compositor, &output->base);
+ 
+ 	weston_log("fbdev output %d×%d px\n",
+@@ -593,6 +1211,17 @@ fbdev_output_create(struct fbdev_backend *backend,
+ 	weston_log_continue(STAMP_SPACE "guessing %d Hz and 96 dpi\n",
+ 	                    output->mode.refresh / 1000);
+ 
++#ifdef SUPPORT_VDSSCOMP
++	if(!strcmp(device, "/dev/fb0"))
++		output->type = FBDEV_OUTPUT_PRIMARY;
++	else
++		output->type = FBDEV_OUTPUT_EXTERNAL;
++	output->is_enable = true;
++	output->has_GPU_layer = false;
++	output->ovl_cnt = 0;
++	memset(&output->state, 0, sizeof(output->state));
++	compositor->output_num++;
++#endif
+ 	return 0;
+ 
+ out_shadow_surface:
+@@ -640,7 +1269,12 @@ fbdev_output_destroy(struct weston_output *base)
+ 
+ 	/* Remove the output. */
+ 	weston_output_destroy(&output->base);
+-
++#ifdef SUPPORT_VDSSCOMP
++	if (compositor->output_num == 0)
++		weston_log("error! already no output.\n");
++	else
++		compositor->output_num--;
++#endif
+ 	free(output);
+ }
+ 
+@@ -710,6 +1344,9 @@ fbdev_output_reenable(struct fbdev_backend *backend,
+ 		}
+ 	}
+ 
++#ifdef SUPPORT_VDSSCOMP
++	output->is_enable = true;
++#endif
+ 	return 0;
+ 
+ err:
+@@ -727,7 +1364,14 @@ fbdev_output_disable(struct weston_output *base)
+ 
+ 	weston_log("Disabling fbdev output.\n");
+ 
++#ifdef SUPPORT_VDSSCOMP
++	if (!compositor->use_pixman) {
++		output->is_enable = false;
++		return;
++	}
++#else
+ 	if ( ! backend->use_pixman) return;
++#endif
+ 
+ 	if (output->hw_surface != NULL) {
+ 		pixman_image_unref(output->hw_surface);
+@@ -750,6 +1394,11 @@ fbdev_backend_destroy(struct weston_compositor *base)
+ 	/* Chain up. */
+ 	weston_launcher_destroy(base->launcher);
+ 
++#ifdef USE_HW_VSYNC
++	if (compositor->uevent_fd >= 0)
++		close(compositor->uevent_fd);
++#endif
++
+ 	free(backend);
+ }
+ 
+@@ -811,6 +1460,66 @@ switch_vt_binding(struct weston_keyboard *keyboard, uint32_t time,
+ 	weston_launcher_activate_vt(compositor->launcher, key - KEY_F1 + 1);
+ }
+ 
++#ifdef SUPPORT_VDSSCOMP
++static int
++context_init(struct fbdev_backend *comp)
++{
++	/* get the 2d context by the display class device index, generally there is
++	 * only one display class,so the index of it should be 1 */
++	if (PVR2DGetDeviceContext(SGX_DC_IDX, &comp->pvr2d_context)) {
++		weston_log("get pvr2d context fail\n");
++		return -1;
++	}
++
++	if (PVR2DGetFlipChain(comp->pvr2d_context, &comp->pvr2d_flipchain)) {
++		weston_log("get pvr2d flipchain fail\n");
++		return -1;
++	}
++
++	return 0;
++}
++
++static int
++open_uevent_socket(void)
++{
++	struct sockaddr_nl addr;
++	int sz = 64 * 1024;
++	int fd = -1;
++
++	memset(&addr, 0, sizeof(addr));
++	addr.nl_family = AF_NETLINK;
++	addr.nl_pid = getpid();
++	addr.nl_groups = 0xffffffff;
++
++	fd = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_KOBJECT_UEVENT);
++	if(fd < 0) {
++		weston_log("failed to create uevent socket.\n");
++		return -1;
++	}
++
++	setsockopt(fd, SOL_SOCKET, SO_RCVBUFFORCE, &sz, sizeof(sz));
++
++	if(bind(fd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
++		weston_log("failed to bind uevent socket.\n");
++		close(fd);
++		return -1;
++	}
++
++	return fd;
++}
++
++static bool
++is_support_overlay(void)
++{
++	const char *overlay_disable = getenv("WESTON_OVERLAY_DISABLE");
++
++	if (overlay_disable == NULL)
++		return true;
++	else
++		return false;
++}
++#endif
++
+ static struct fbdev_backend *
+ fbdev_backend_create(struct weston_compositor *compositor, int *argc, char *argv[],
+                      struct weston_config *config,
+@@ -872,22 +1581,46 @@ fbdev_backend_create(struct weston_compositor *compositor, int *argc, char *argv
+ 		}
+ 
+ 		if (gl_renderer->create(compositor, NO_EGL_PLATFORM,
++#ifdef SUPPORT_VDSSCOMP
++	                                    (void*)-1,
++#else
+ 					EGL_DEFAULT_DISPLAY,
++#endif
+ 					gl_renderer->opaque_attribs,
+ 					NULL, 0) < 0) {
+ 			weston_log("gl_renderer_create failed.\n");
+ 			goto out_launcher;
+ 		}
+ 	}
++#ifdef SUPPORT_VDSSCOMP
++       if (context_init(compositor) < 0)
++               goto out_pixman;
++
++       memset(&compositor->setup_data, 0, sizeof(compositor->setup_data));
++       compositor->hw_overlay_enable = is_support_overlay();
++#endif
++
++#ifdef USE_HW_VSYNC
++       compositor->uevent_fd = open_uevent_socket();
++       if (compositor->uevent_fd < 0)
++               goto out_launcher;
++#endif
++
+ 
+ 	if (fbdev_output_create(backend, param->device) < 0)
++#ifdef USE_HW_VSYNC
++		goto out_vsync;
++#else		
+ 		goto out_launcher;
+-
++#endif
+ 	udev_input_init(&backend->input, compositor, backend->udev, seat_id);
+ 
+ 	compositor->backend = &backend->base;
+ 	return backend;
+-
++#ifdef USE_HW_VSYNC
++out_vsync:
++       close(compositor->uevent_fd);
++#endif
+ out_launcher:
+ 	weston_launcher_destroy(compositor->launcher);
+ 
+diff --git a/src/compositor.h b/src/compositor.h
+index 49b1946..c2e7c44 100644
+--- a/src/compositor.h
++++ b/src/compositor.h
+@@ -36,6 +36,9 @@ extern "C" {
+ #include <pixman.h>
+ #include <xkbcommon/xkbcommon.h>
+ 
++//#define SUPPORT_VDSSCOMP
++//#define USE_HW_VSYNC
++
+ #define WL_HIDE_DEPRECATED
+ #include <wayland-server.h>
+ 
+diff --git a/src/gl-renderer.c b/src/gl-renderer.c
+index cc41346..c66c13a 100644
+--- a/src/gl-renderer.c
++++ b/src/gl-renderer.c
+@@ -776,6 +776,103 @@ out:
+ 	pixman_region32_fini(&repaint);
+ }
+ 
++#ifdef SUPPORT_VDSSCOMP
++static void
++clear_region(struct weston_view *ev, pixman_region32_t *region,
++		pixman_region32_t *surf_region,
++		GLfloat r, GLfloat g, GLfloat b, GLfloat a)
++{
++	struct weston_compositor *ec = ev->surface->compositor;
++	struct gl_renderer *gr = get_renderer(ec);
++	GLfloat *v;
++	unsigned int *vtxcnt;
++	int i, first, nfans;
++	const GLfloat color[4] = {r, g, b, a};
++
++	/* The final region to be painted is the intersection of
++	 * 'region' and 'surf_region'. However, 'region' is in the global
++	 * coordinates, and 'surf_region' is in the surface-local
++	 * coordinates. texture_region() will iterate over all pairs of
++	 * rectangles from both regions, compute the intersection
++	 * polygon for each pair, and store it as a triangle fan if
++	 * it has a non-zero area (at least 3 vertices1, actually).
++	 */
++	nfans = texture_region(ev, region, surf_region);
++
++	v = gr->vertices.data;
++	vtxcnt = gr->vtxcnt.data;
++
++	/* position: */
++	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof *v, &v[0]);
++	glEnableVertexAttribArray(0);
++	glUniform4fv(gr->solid_shader.color_uniform, 1, color);
++
++	for (i = 0, first = 0; i < nfans; i++) {
++		glUniform1f(gr->solid_shader.alpha_uniform, 1.0);
++		glDrawArrays(GL_TRIANGLE_FAN, first, vtxcnt[i]);
++		first += vtxcnt[i];
++	}
++
++	glDisableVertexAttribArray(0);
++
++	gr->vertices.size = 0;
++	gr->vtxcnt.size = 0;
++}
++
++static void
++overlay_view_clearfb(struct weston_view *ev, struct weston_output *output,
++	  pixman_region32_t *damage) /* in global coordinates */
++{
++	struct weston_compositor *ec = ev->surface->compositor;
++	struct gl_renderer *gr = get_renderer(ec);
++	struct gl_surface_state *gs = get_surface_state(ev->surface);
++	/* repaint bounding region in global coordinates: */
++	pixman_region32_t repaint;
++	/* opaque region in surface coordinates: */
++	pixman_region32_t surface_opaque;
++	int cw, ch;
++
++	/* In case of a runtime switch of renderers, we may not have received
++	 * an attach for this surface since the switch. In that case we don't
++	 * have a valid buffer or a proper shader set up so skip rendering. */
++	if (!gs->shader)
++		return;
++
++	pixman_region32_init(&repaint);
++	pixman_region32_intersect(&repaint,
++				  &ev->transform.boundingbox, damage);
++	pixman_region32_subtract(&repaint, &repaint, &ev->clip);
++
++	if (!pixman_region32_not_empty(&repaint))
++		goto out;
++
++	glDisable(GL_BLEND);
++
++	gr->base.surface_get_content_size(ev->surface, &cw, &ch);
++
++	use_shader(gr, &gr->solid_shader);
++	shader_uniforms(&gr->solid_shader, ev, output);
++
++	/* XXX: Should we be using ev->transform.opaque here? */
++	pixman_region32_init(&surface_opaque);
++	if (ev->geometry.scissor_enabled)
++		pixman_region32_intersect(&surface_opaque,
++					  &ev->surface->opaque,
++					  &ev->geometry.scissor);
++	else
++		pixman_region32_copy(&surface_opaque, &ev->surface->opaque);
++
++	if (pixman_region32_not_empty(&surface_opaque)) {
++		clear_region(ev, &repaint, &surface_opaque,
++				0.0, 0.0, 0.0, 0.0);
++	}
++
++	pixman_region32_fini(&surface_opaque);
++out:
++	pixman_region32_fini(&repaint);
++}
++#endif
++
+ static void
+ repaint_views(struct weston_output *output, pixman_region32_t *damage)
+ {
+@@ -785,6 +882,10 @@ repaint_views(struct weston_output *output, pixman_region32_t *damage)
+ 	wl_list_for_each_reverse(view, &compositor->view_list, link)
+ 		if (view->plane == &compositor->primary_plane)
+ 			draw_view(view, output, damage);
++#ifdef SUPPORT_VDSSCOMP
++		else
++			overlay_view_clearfb(view, output, damage);
++#endif
+ }
+ 
+ static void
+diff --git a/src/pvr2d.h b/src/pvr2d.h
+new file mode 100644
+index 0000000..6861db4
+--- /dev/null
++++ b/src/pvr2d.h
+@@ -0,0 +1,766 @@
++/*************************************************************************/ /*!
++@Copyright      Copyright (c) Imagination Technologies Ltd. All Rights Reserved
++@License        Dual MIT/GPLv2
++
++The contents of this file are subject to the MIT license as set out below.
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in
++all copies or substantial portions of the Software.
++
++Alternatively, the contents of this file may be used under the terms of
++the GNU General Public License Version 2 ("GPL") in which case the provisions
++of GPL are applicable instead of those above.
++
++If you wish to allow use of your version of this file only under the terms of
++GPL, and not to allow others to use your version of this file under the terms
++of the MIT license, indicate your decision by deleting the provisions above
++and replace them with the notice and other provisions required by GPL as set
++out in the file called "GPL-COPYING" included in this distribution. If you do
++not delete the provisions above, a recipient may use your version of this file
++under the terms of either the MIT license or GPL.
++ 
++This License is also included in this distribution in the file called
++"MIT-COPYING".
++
++EXCEPT AS OTHERWISE STATED IN A NEGOTIATED AGREEMENT: (A) THE SOFTWARE IS
++PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
++BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
++PURPOSE AND NONINFRINGEMENT; AND (B) IN NO EVENT SHALL THE AUTHORS OR
++COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
++IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
++CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
++
++*/ /**************************************************************************/
++
++
++/******************************************************************************
++Modifications :-
++$Log: pvr2d.h $
++******************************************************************************/
++
++#ifndef _PVR2D_H_
++#define _PVR2D_H_
++
++#ifdef __cplusplus
++extern "C" {
++#endif 
++
++/* PVR2D Platform-specific definitions */
++#if defined (__linux__)
++#define PVR2D_EXPORT __attribute__((visibility("default")))
++#define PVR2D_IMPORT
++#else
++#define PVR2D_EXPORT
++#define PVR2D_IMPORT
++#endif
++
++/* PVR2D header revision */
++#define PVR2D_REV_MAJOR		3
++#define PVR2D_REV_MINOR		6
++
++/* Basic types */
++typedef enum
++{
++	PVR2D_FALSE = 0,
++	PVR2D_TRUE
++} PVR2D_BOOL;
++
++typedef void* PVR2D_HANDLE;
++
++typedef char             PVR2D_CHAR,	*PVR2D_PCHAR;
++typedef unsigned char    PVR2D_UCHAR,	*PVR2D_PUCHAR;
++
++typedef int              PVR2D_INT,		*PVR2D_PINT;
++typedef unsigned int     PVR2D_UINT,	*PVR2D_PUINT;
++
++typedef unsigned short	 PVR2D_UINT16,	*PVR2D_PUINT16;
++typedef signed short	 PVR2D_INT16,	*PVR2D_PINT16;
++
++typedef long             PVR2D_LONG,	*PVR2D_PLONG;
++typedef unsigned long    PVR2D_ULONG,	*PVR2D_PULONG;
++
++typedef void             PVR2D_VOID,	*PVR2D_PVOID;
++
++/* services/stream ID */
++typedef unsigned int      PVR2D_SID;
++
++/* error codes */
++typedef enum
++{
++	PVR2D_OK = 0,
++	PVR2DERROR_INVALID_PARAMETER = -1,
++	PVR2DERROR_DEVICE_UNAVAILABLE = -2,
++	PVR2DERROR_INVALID_CONTEXT = -3,
++	PVR2DERROR_MEMORY_UNAVAILABLE = -4,
++	PVR2DERROR_DEVICE_NOT_PRESENT = -5,
++	PVR2DERROR_IOCTL_ERROR = -6,
++	PVR2DERROR_GENERIC_ERROR = -7,
++	PVR2DERROR_BLT_NOTCOMPLETE = -8,
++	PVR2DERROR_HW_FEATURE_NOT_SUPPORTED = -9,
++	PVR2DERROR_NOT_YET_IMPLEMENTED = -10,
++	PVR2DERROR_MAPPING_FAILED = -11
++}PVR2DERROR;
++
++/* 32 bit PVR2D pixel format specifier */
++typedef unsigned long PVR2DFORMAT;
++
++/* Standard PVR2D pixel formats */
++#define	PVR2D_1BPP						0x00UL // 1bpp mask surface or palletized 1 bit source with 2x32 bit CLUT
++#define	PVR2D_RGB565					0x01UL // Common rgb 565 format
++#define	PVR2D_ARGB4444					0x02UL // Common argb 4444 format
++#define	PVR2D_RGB888					0x03UL // Common rgb 888 format
++#define	PVR2D_ARGB8888					0x04UL // Common argb 8888 format
++#define	PVR2D_ARGB1555					0x05UL // Common argb 1555 format
++#define	PVR2D_ALPHA8					0x06UL // Alpha-only 8 bit per pixel (used with a constant fill colour)
++#define	PVR2D_ALPHA4					0x07UL // Alpha-only 4 bits per pixel (used with a constant fill colour)
++#define	PVR2D_PAL2						0x08UL // Palletized 2 bit format (requires   4x32 bit CLUT)
++#define	PVR2D_PAL4						0x09UL // Palletized 4 bit format (requires  16x32 bit CLUT)
++#define	PVR2D_PAL8						0x0AUL // Palletized 8 bit format (requires 256x32 bit CLUT)
++#define PVR2D_U8						0x10UL // monochrome unsigned 8 bit
++#define PVR2D_U88						0x11UL // monochrome unsigned 16 bit
++#define PVR2D_S8						0x12UL // signed 8 bit
++#define PVR2D_YUV422_YUYV				0x13UL // YUV 422 low-high byte order Y0UY1V
++#define PVR2D_YUV422_UYVY				0x14UL // YUV 422 low-high byte order UY0VY1
++#define PVR2D_YUV422_YVYU				0x15UL // YUV 422 low-high byte order Y0VY1U
++#define PVR2D_YUV422_VYUY				0x16UL // YUV 422 low-high byte order VY0UY1
++#define PVR2D_YUV420_2PLANE				0x17UL // YUV420 2 Plane with UV interleaved in plane 2
++#define PVR2D_YUV420_3PLANE				0x18UL // YUV420 3 Plane
++#define PVR2D_2101010ARGB				0x19UL // 32 bit 2 10 10 10 
++#define PVR2D_888RSGSBS					0x1AUL // 3 channel signed 8 bit
++#define PVR2D_16BPP_RAW					0x1BUL // 16 bit raw (no format conversion)
++#define PVR2D_32BPP_RAW					0x1CUL // 32 bit raw
++#define PVR2D_64BPP_RAW					0x1DUL // 64 bit raw
++#define PVR2D_128BPP_RAW				0x1EUL // 128 bit raw
++#define PVR2D_AYUV8888					0x1FUL
++#define PVR2D_F16						0x20UL
++#define	PVR2D_NO_OF_FORMATS				0x21UL
++
++/* Format modifier bit field (DstFormat and SrcFormat bits 16..23) */
++#define PVR2D_FORMAT_MASK				0x0000FFFFUL	// PVR2D Format bits
++#define PVR2D_FORMAT_LAYOUT_MASK		0x000F0000UL	// Format layout (strided / twiddled / tiled)
++#define PVR2D_FORMAT_FLAGS_MASK			0x0FF00000UL	// Surface Flags mask
++
++/* Layout */
++#define PVR2D_FORMAT_LAYOUT_SHIFT		16
++#define PVR2D_FORMAT_LAYOUT_STRIDED		0x00000000UL
++#define PVR2D_FORMAT_LAYOUT_TILED		0x00010000UL
++#define PVR2D_FORMAT_LAYOUT_TWIDDLED	0x00020000UL
++
++/*
++	PVR2D_SURFACE_PDUMP
++	This flag requests a surface pdump, to capture the pixel state after host writes.
++	Not needed if the surface state has resulted from previous SGX 2D/3D core writes.
++*/
++#define PVR2D_SURFACE_PDUMP				0x00100000UL	// calls PVRSRVPDumpMem to capture the surface (pdump builds only) 
++#define PVR2D_BLTRECT_PDUMP				0x00200000UL	// calls PVRSRVPDumpMem to capture the blt rectangle (pdump builds only) 
++
++/*
++	Low level 3D format extension - for blts via the 3D core only.
++	If the top bit of the format field is set then PVR2D reads it as a PVRSRV_PIXEL_FORMAT.
++	The outcome is hardware dependant.
++	There is no guarantee that any specific PVRSRV format will be supported.
++*/
++#define PVR2D_FORMAT_PVRSRV				0x80000000
++
++/* wrap surface type */
++typedef enum
++{
++	PVR2D_WRAPFLAG_NONCONTIGUOUS = 0,
++	PVR2D_WRAPFLAG_CONTIGUOUS = 1
++}PVR2DWRAPFLAGS;
++
++#define	PVR2D_CONTEXT_FLAGS_PRIORITY_MASK			0x00000003
++
++#define	PVR2D_CONTEXT_FLAGS_LOW_PRIORITY_CONTEXT	1
++#define	PVR2D_CONTEXT_FLAGS_NORMAL_PRIORITY_CONTEXT	0
++#define	PVR2D_CONTEXT_FLAGS_HIGH_PRIORITY_CONTEXT	2
++
++/* flags for control information of additional blits */
++typedef enum
++{
++	PVR2D_BLIT_DISABLE_ALL					= 0x00000000,	/* disable all additional controls */
++	PVR2D_BLIT_CK_ENABLE					= 0x00000001,	/* enable colour key */
++	PVR2D_BLIT_GLOBAL_ALPHA_ENABLE			= 0x00000002,	/* enable standard global alpha */
++	PVR2D_BLIT_PERPIXEL_ALPHABLEND_ENABLE	= 0x00000004,	/* enable per-pixel alpha blending */
++	PVR2D_BLIT_PAT_SURFACE_ENABLE			= 0x00000008,	/* enable pattern surf (disable fill) */
++	PVR2D_BLIT_FULLY_SPECIFIED_ALPHA_ENABLE	= 0x00000010,	/* enable fully specified alpha */
++	PVR2D_BLIT_ROT_90						= 0x00000020,	/* apply 90 degree rotation to the blt */
++	PVR2D_BLIT_ROT_180						= 0x00000040,	/* apply 180 degree rotation to the blt */
++	PVR2D_BLIT_ROT_270						= 0x00000080,	/* apply 270 degree rotation to the blt */
++	PVR2D_BLIT_COPYORDER_TL2BR				= 0x00000100,	/* copy order overrides */
++	PVR2D_BLIT_COPYORDER_BR2TL				= 0x00000200,
++	PVR2D_BLIT_COPYORDER_TR2BL				= 0x00000400,
++	PVR2D_BLIT_COPYORDER_BL2TR				= 0x00000800,
++	PVR2D_BLIT_COLKEY_SOURCE				= 0x00001000,	/* Key colour is on the source surface */
++	PVR2D_BLIT_COLKEY_DEST					= 0x00002000,	/* Key colour is on the destination surface */
++	PVR2D_BLIT_COLKEY_MASKED				= 0x00004000,	/* Mask enabled for colour key */
++	PVR2D_BLIT_COLKEY_OP_PASS				= 0x00008000,	/* Colour key op = pass */
++	PVR2D_BLIT_COLKEY_OP_REJECT				= 0x00010000,	/* Colour key op = reject */
++	PVR2D_BLIT_ROP4							= 0x00020000,	/* rop4 pattern support */
++	PVR2D_BLIT_PATH_2DCORE					= 0x00100000,	/* Blt via dedicated 2D Core or PTLA */
++	PVR2D_BLIT_PATH_3DCORE					= 0x00200000,	/* Blt via 3D Core */
++	PVR2D_BLIT_PATH_SWBLT					= 0x00400000,	/* Blt via host software */
++	PVR2D_BLIT_NO_SRC_SYNC_INFO				= 0x00800000,	/* Dont send a source sync info*/
++	PVR2D_BLIT_ISSUE_STATUS_UPDATES			= 0x01000000,	/* Issue SyncInfo status updates */
++
++} PVR2DBLITFLAGS;
++
++/* standard alpha-blending functions, AlphaBlendingFunc field of PVR2DBLTINFO */
++typedef enum
++{
++	PVR2D_ALPHA_OP_SRC_DSTINV = 1,	/* source alpha : Cdst = Csrc*Asrc + Cdst*(1-Asrc) */
++	PVR2D_ALPHA_OP_SRCP_DSTINV = 2	/* premultiplied source alpha : Cdst = Csrc + Cdst*(1-Asrc) */
++} PVR2D_ALPHABLENDFUNC;
++
++/* blend ops for fully specified alpha (SGX 2D Core only) */
++typedef enum
++{
++	PVR2D_BLEND_OP_ZERO = 0,
++	PVR2D_BLEND_OP_ONE = 1,
++	PVR2D_BLEND_OP_SRC = 2,
++	PVR2D_BLEND_OP_DST = 3,
++	PVR2D_BLEND_OP_GLOBAL = 4,
++	PVR2D_BLEND_OP_SRC_PLUS_GLOBAL = 5,
++	PVR2D_BLEND_OP_DST_PLUS_GLOBAL = 6
++}PVR2D_BLEND_OP;
++
++/* SGX 2D Core Fully specified alpha blend :	pAlpha field of PVR2DBLTINFO structure		*/
++/* a fully specified Alpha Blend operation is defined as									*/
++/* DST (ALPHA) = (ALPHA_1 * SRC (ALPHA)) + (ALPHA_3 * DST (ALPHA))							*/
++/* DST (RGB)   = (ALPHA_2 * SRC (RGB)) + (ALPHA_4 * DST (RGB))								*/
++/* if the pre-multiplication stage is enabled then the equations become the following:		*/
++/* PRE_MUL     = ((SRC(A)) * (Global Alpha Value))											*/
++/* DST (ALPHA) = (ALPHA_1 * SRC (ALPHA)) + (PRE_MUL * DST (ALPHA))							*/
++/* DST (RGB)   = (ALPHA_2 * SRC (RGB)) + (PRE_MUL * DST (RGB))								*/
++/* if the transparent source alpha stage is enabled then a source alpha of zero forces the	*/
++/* source to be transparent for that pixel regardless of the blend equation being used.		*/
++typedef struct _PVR2D_ALPHABLT
++{
++	PVR2D_BLEND_OP	eAlpha1;
++	PVR2D_BOOL		bAlpha1Invert;
++	PVR2D_BLEND_OP	eAlpha2;
++	PVR2D_BOOL		bAlpha2Invert;
++	PVR2D_BLEND_OP	eAlpha3;
++	PVR2D_BOOL		bAlpha3Invert;
++	PVR2D_BLEND_OP	eAlpha4;
++	PVR2D_BOOL		bAlpha4Invert;
++	PVR2D_BOOL		bPremulAlpha;			/* enable pre-multiplication stage */
++	PVR2D_BOOL		bTransAlpha;			/* enable transparent source alpha stage */
++	PVR2D_BOOL		bUpdateAlphaLookup;		/* enable and update the 1555-Lookup alpha table */
++	PVR2D_UCHAR		uAlphaLookup0;			/* 8 bit alpha when A=0 in a 1555-Lookup surface */
++	PVR2D_UCHAR		uAlphaLookup1;			/* 8 bit alpha when A=1 in a 1555-Lookup surface */
++	PVR2D_UCHAR		uGlobalRGB;				/* Global Alpha Value for RGB, 0=transparent 255=opaque */
++	PVR2D_UCHAR		uGlobalA;				/* Global Alpha Value for Alpha */
++
++} PVR2D_ALPHABLT, *PPVR2D_ALPHABLT;
++
++
++/* surface memory info structure */
++typedef struct _PVR2DMEMINFO
++{
++	PVR2D_VOID			*pBase;
++	PVR2D_ULONG			ui32MemSize;
++	PVR2D_ULONG			ui32DevAddr;
++	PVR2D_ULONG			ulFlags;
++	PVR2D_VOID			*hPrivateData;
++	PVR2D_VOID			*hPrivateMapData;
++
++	struct _PVR2DMEMINFO *next;
++	struct _PVR2DMEMINFO *pre;
++
++	PVR2D_INT			fd;
++}PVR2DMEMINFO, *PPVR2DMEMINFO;
++
++
++#define PVR2D_MAX_DEVICE_NAME 20
++
++typedef struct _PVR2DDEVICEINFO
++{
++	PVR2D_ULONG		ulDevID;
++	PVR2D_CHAR		szDeviceName[PVR2D_MAX_DEVICE_NAME];
++}PVR2DDEVICEINFO;
++
++
++typedef struct _PVR2DISPLAYINFO
++{
++	PVR2D_ULONG	ulMaxFlipChains;
++	PVR2D_ULONG	ulMaxBuffersInChain;
++	PVR2DFORMAT	eFormat;
++	PVR2D_ULONG	ulWidth;
++	PVR2D_ULONG	ulHeight;
++	PVR2D_LONG	lStride;
++	PVR2D_ULONG	ulMinFlipInterval;
++	PVR2D_ULONG	ulMaxFlipInterval;
++
++}PVR2DDISPLAYINFO;
++
++
++typedef struct _PVR2MISCDISPLAYINFO
++{
++	PVR2D_ULONG ulPhysicalWidthmm;
++	PVR2D_ULONG ulPhysicalHeightmm;
++	PVR2D_ULONG ulUnused[10];
++
++}PVR2DMISCDISPLAYINFO;
++
++typedef struct
++{
++	PVR2DMEMINFO	*pSurfMemInfo;		/* surface memory */
++	PVR2D_ULONG		SurfOffset;			/* byte offset from start of allocation to destination surface pixel 0,0 */
++	PVR2D_LONG		Stride;				/* signed stride */
++	PVR2DFORMAT		Format;				/* format */
++	PVR2D_ULONG		SurfWidth;			/* surface width in pixels */
++	PVR2D_ULONG		SurfHeight;			/* surface height in pixels */
++
++} PVR2D_SURFACE, *PPVR2D_SURFACE;
++
++
++typedef struct _PVR2DBLTINFO
++{
++	PVR2D_ULONG		CopyCode;			/* rop code  */
++	PVR2D_ULONG		Colour;				/* fill colour */
++	PVR2D_ULONG		ColourKey;			/* colour key argb8888 (see CKEY_ defs below) */
++	PVR2D_UCHAR		GlobalAlphaValue;	/* global alpha blending */
++	PVR2D_UCHAR		AlphaBlendingFunc;	/* per-pixel alpha-blending function */
++
++	PVR2DBLITFLAGS	BlitFlags;			/* additional blit control information */
++
++	PVR2DMEMINFO	*pDstMemInfo;		/* destination memory */
++	PVR2D_ULONG		DstOffset;			/* byte offset from start of allocation to destination surface pixel 0,0 */
++	PVR2D_LONG		DstStride;			/* signed stride, the number of bytes from pixel 0,0 to 0,1 */
++	PVR2D_LONG		DstX, DstY;			/* pixel offset from start of dest surface to start of blt rectangle */
++	PVR2D_LONG		DSizeX,DSizeY;		/* blt size */
++	PVR2DFORMAT		DstFormat;			/* dest format */
++	PVR2D_ULONG		DstSurfWidth;		/* size of dest surface in pixels */
++	PVR2D_ULONG		DstSurfHeight;		/* size of dest surface in pixels */
++
++	PVR2DMEMINFO	*pSrcMemInfo;		/* source mem, (source fields are also used for patterns) */
++	PVR2D_ULONG		SrcOffset;			/* byte offset from start of allocation to src/pat surface pixel 0,0 */
++	PVR2D_LONG		SrcStride;			/* signed stride, the number of bytes from pixel 0,0 to 0,1 */
++	PVR2D_LONG		SrcX, SrcY;			/* pixel offset from start of surface to start of source rectangle */
++										/* for patterns this is the start offset within the pattern */
++	PVR2D_LONG		SizeX,SizeY;		/* source rectangle size or pattern size in pixels */
++	PVR2DFORMAT		SrcFormat;			/* source/pattern format */
++	PVR2DMEMINFO	*pPalMemInfo;		/* source/pattern palette memory containing argb8888 colour table */
++	PVR2D_ULONG		PalOffset;			/* byte offset from start of allocation to start of palette */
++	PVR2D_ULONG		SrcSurfWidth;		/* size of source surface in pixels */
++	PVR2D_ULONG		SrcSurfHeight;		/* size of source surface in pixels */
++
++	PVR2DMEMINFO	*pMaskMemInfo;		/* mask memory, 1bpp format implied */
++	PVR2D_ULONG		MaskOffset;			/* byte offset from start of allocation to mask surface pixel 0,0 */
++	PVR2D_LONG		MaskStride;			/* signed stride, the number of bytes from pixel 0,0 to 0,1 */
++	PVR2D_LONG		MaskX, MaskY;		/* mask rect top left (mask size = blt size) */
++	PVR2D_ULONG		MaskSurfWidth;		/* size of mask surface in pixels */
++	PVR2D_ULONG		MaskSurfHeight;		/* size of mask surface in pixels */
++	
++	PPVR2D_ALPHABLT pAlpha;				/* fully specified alpha blend (2DCore only) */
++	
++	PVR2D_ULONG		uSrcChromaPlane1;	/* mem offset from start of source alloc to chroma plane 1 */
++	PVR2D_ULONG		uSrcChromaPlane2;	/* mem offset from start of source alloc to chroma plane 2 */
++	PVR2D_ULONG		uDstChromaPlane1;	/* mem offset from start of dest alloc to chroma plane 1 */
++	PVR2D_ULONG		uDstChromaPlane2;	/* mem offset from start of dest alloc to chroma plane 2 */
++	
++	PVR2D_ULONG		ColourKeyMask;		/* 32 bit colour key mask, only valid when PVR2D_BLIT_COLKEY_MASKED is set */
++
++	PPVR2D_SURFACE	pPat;				/* full rop4 support for patterns if PVR2D_BLIT_ROP4 set (2D Core hardware only) */
++	PVR2D_LONG		PatX, PatY;			/* pattern start offset if PVR2D_BLIT_ROP4 set (2D Core hardware only) */
++
++}PVR2DBLTINFO, *PPVR2DBLTINFO;
++
++
++typedef struct _PVR2DRECT
++{
++	PVR2D_LONG left, top;
++	PVR2D_LONG right, bottom;
++} PVR2DRECT, *PPVR2DRECT;
++
++
++typedef struct
++{
++	PVR2D_ULONG		uChromaPlane1;		/* YUV multiplane - byte offset from start of alloc to chroma plane 1 */
++	PVR2D_ULONG		uChromaPlane2;		/* YUV multiplane - byte offset from start of alloc to chroma plane 2 */
++	PVR2D_LONG		Reserved[2];		/* Reserved, must be zero */
++
++} PVR2D_SURFACE_EXT, *PPVR2D_SURFACE_EXT;
++
++typedef struct
++{
++	PVR2D_ULONG		*pUseCode;					/* USSE code */
++	PVR2D_ULONG		UseCodeSize;				/* usse code size in bytes */
++
++} PVR2D_USECODE, *PPVR2D_USECODE;
++
++typedef struct
++{
++	PVR2D_SURFACE			sDst;				/* destination surface */
++	PVR2D_SURFACE			sSrc;				/* source surface */
++	PVR2DRECT				rcDest;				/* destination rectangle */
++	PVR2DRECT				rcSource;			/* source rectangle */
++	PVR2D_HANDLE			hUseCode;			/* custom USE code (NULL implies source copy) */
++	PVR2D_ULONG				UseParams[2];		/* per-blt params for use code */
++
++} PVR2D_3DBLT, *PPVR2D_3DBLT;
++
++typedef struct
++{
++	PVR2D_SURFACE			sDst;						/* destination surface */
++	PVR2DRECT				rcDest;						/* destination rectangle; scaling is supported */
++	PVR2D_SURFACE			sSrc;						/* source surface */
++	PVR2DRECT				rcSource;					/* source rectangle; scaling is supported */
++	PPVR2D_SURFACE			pSrc2;						/* optional second source surface (NULL if not required) */
++	PVR2DRECT*				prcSource2;					/* optional pSrc2 rectangle */
++	PVR2D_HANDLE			hUseCode;					/* custom USSE shader code (NULL implies default source copy) */
++	PVR2D_ULONG				UseParams[2];				/* per-blt params for usse code */
++	PVR2D_ULONG				uiNumTemporaryRegisters;	/* no. of temporary registers used in custom shader code */
++	PVR2D_BOOL				bDisableDestInput;			/* set true if the destination is output only */
++	PPVR2D_SURFACE_EXT		pDstExt;					/* Extended format params for dest */
++	PPVR2D_SURFACE_EXT		pSrcExt[2];					/* Extended format params for source 1 and 2 */
++	PVR2D_LONG				Reserved[4];				/* Reserved, must be zero */
++
++} PVR2D_3DBLT_EXT, *PPVR2D_3DBLT_EXT;
++
++
++#define MAKE_COPY_BLIT(src,soff,dest,doff,sx,sy,dx,dy,sz)
++
++typedef void* PVR2DCONTEXTHANDLE;
++typedef void* PVR2DFLIPCHAINHANDLE;
++
++
++// CopyCode field of PVR2DBLTINFO structure:
++// the CopyCode field of the PVR2DBLTINFO structure should contain a rop3 or rop4 code.
++// a rop3 is an 8 bit code that describes a blt with three inputs : source dest and pattern
++// rop4 is a 16 bit code that describes a blt with four inputs : source dest pattern and mask
++// common rop3 codes are defined below
++// a colour fill blt is processed in the pattern channel as a constant colour with a rop code of 0xF0
++// PVR2D_BLIT_PAT_SURFACE_ENABLE defines whether the pattern channel is a surface or a fill colour.
++// a rop4 is defined by two rop3 codes, and the 1 bit-per-pixel mask surface defines which is used.
++// a common rop4 is 0xAAF0 which is the mask copy blt used for text glyphs.
++// CopyCode is taken to be a rop4 when pMaskMemInfo is non zero, otherwise it is assumed to be a rop3
++// use the PVR2DMASKROP4 macro below to construct a rop4 from two rop3's
++// rop3a is the rop used when mask pixel = 1, and rop3b when mask = 0
++#define PVR2DROP4(rop3b, rop3a)			((rop3b<<8)|rop3a)
++
++/* common rop codes */
++#define PVR2DROPclear				0x00       /* 0 (whiteness) */
++#define PVR2DROPset					0xFF       /* 1 (blackness) */
++#define PVR2DROPnoop				0xAA       /* dst (used for masked blts) */
++
++/* source and  dest rop codes */
++#define PVR2DROPand					0x88       /* src AND dst */
++#define PVR2DROPandReverse			0x44       /* src AND NOT dst */
++#define PVR2DROPcopy				0xCC       /* src (used for source copy and alpha blts) */
++#define PVR2DROPandInverted			0x22       /* NOT src AND dst */
++#define PVR2DROPxor					0x66       /* src XOR dst */
++#define PVR2DROPor					0xEE       /* src OR dst */
++#define PVR2DROPnor					0x11       /* NOT src AND NOT dst */
++#define PVR2DROPequiv				0x99       /* NOT src XOR dst */
++#define PVR2DROPinvert				0x55       /* NOT dst */
++#define PVR2DROPorReverse			0xDD       /* src OR NOT dst */
++#define PVR2DROPcopyInverted		0x33       /* NOT src */
++#define PVR2DROPorInverted			0xBB       /* NOT src OR dst */
++#define PVR2DROPnand				0x77       /* NOT src OR NOT dst */
++
++/* pattern rop codes */
++#define PVR2DPATROPand				0xA0       /* pat AND dst */
++#define PVR2DPATROPandReverse		0x50       /* pat AND NOT dst */
++#define PVR2DPATROPcopy				0xF0       /* pat (used for solid color fills and pattern blts) */
++#define PVR2DPATROPandInverted		0x0A       /* NOT pat AND dst */
++#define PVR2DPATROPxor				0x5A       /* pat XOR dst */
++#define PVR2DPATROPor				0xFA       /* pat OR dst */
++#define PVR2DPATROPnor				0x05       /* NOT pat AND NOT dst */
++#define PVR2DPATROPequiv			0xA5       /* NOT pat XOR dst */
++#define PVR2DPATROPinvert			0x55       /* NOT dst */
++#define PVR2DPATROPorReverse		0xF5       /* pat OR NOT dst */
++#define PVR2DPATROPcopyInverted		0x0F       /* NOT pat */
++#define PVR2DPATROPorInverted		0xAF       /* NOT pat OR dst */
++#define PVR2DPATROPnand				0x5F       /* NOT pat OR NOT dst */
++
++/* common rop4 codes */
++#define PVR2DROP4MaskedCopy              PVR2DROP4(PVR2DROPnoop,PVR2DROPcopy)		/* masked source copy blt (used for rounded window corners etc) */
++#define PVR2DROP4MaskedFill              PVR2DROP4(PVR2DROPnoop,PVR2DPATROPcopy)	/* masked colour fill blt (used for text) */
++
++/* Legacy support */
++#define PVR2DROP3_PATMASK			PVR2DPATROPcopy
++#define PVR2DROP3_SRCMASK			PVR2DROPcopy
++
++/* pixmap memory alignment */
++#define PVR2D_ALIGNMENT_4			4			/* DWORD alignment */
++#define PVR2D_ALIGNMENT_ANY			0			/* no alignment    */
++#define PVR2D_ALIGNMENT_PALETTE		16			/* 16 byte alignment is required for palettes */
++
++/* Heap number for PVR2DGetFrameBuffer */
++#define PVR2D_FB_PRIMARY_SURFACE 0
++
++#define PVR2D_PRESENT_PROPERTY_SRCSTRIDE	(1UL << 0)
++#define PVR2D_PRESENT_PROPERTY_DSTSIZE		(1UL << 1)
++#define PVR2D_PRESENT_PROPERTY_DSTPOS		(1UL << 2)
++#define PVR2D_PRESENT_PROPERTY_CLIPRECTS	(1UL << 3)
++#define PVR2D_PRESENT_PROPERTY_INTERVAL		(1UL << 4)
++
++#define PVR2D_CREATE_FLIPCHAIN_SHARED		(1UL << 0)
++#define PVR2D_CREATE_FLIPCHAIN_QUERY		(1UL << 1)
++#define PVR2D_CREATE_FLIPCHAIN_OEMOVERLAY   (1UL << 2)
++#define PVR2D_CREATE_FLIPCHAIN_AS_BLITCHAIN (1UL << 3)
++
++/* Colour-key colour must be translated into argb8888 format */
++#define CKEY_8888(P)		(P)
++#define CKEY_4444(P)		(((P&0xF000UL)<<16) | ((P&0x0F00UL)<<12) | ((P&0x00F0UL)<<8) | ((P&0x000FUL)<<4))
++#define CKEY_1555(P)		(((P&0x8000UL)<<16) | ((P&0x7C00UL)<<9)  | ((P&0x3E0UL)<<6)  | ((P&0x1FUL)<<3))
++#define CKEY_565(P)			(((P&0xF800UL)<<8)  | ((P&0x7E0UL)<<5)   | ((P&0x1FUL)<<3))
++#define CKEY_MASK_8888		0x00FFFFFFUL
++#define CKEY_MASK_4444		0x00F0F0F0UL
++#define CKEY_MASK_1555		0x00F8F8F8UL	/* Alpha is not normally included in the key test */
++#define CKEY_MASK_565		0x00F8FCF8UL
++
++/* Fill colours must be translated into argb8888 format */
++#define CFILL_4444(P)		(((P&0xF000UL)<<16) | ((P&0x0F00UL)<<12) | ((P&0x00F0UL)<<8) | ((P&0x000FUL)<<4))
++#define CFILL_1555(P)		(((P&0x8000UL)<<16) | ((P&0x7C00UL)<<9)  | ((P&0x3E0UL)<<6)  | ((P&0x1FUL)<<3))
++#define CFILL_565(P)		(((P&0xF800UL)<<8)  | ((P&0x7E0UL)<<5)   | ((P&0x1FUL)<<3))
++
++/* PVR2DCreateDeviceContext flags */
++#define PVR2D_XSERVER_PROC			0x00000001UL		/* Set for the Xserver connection */
++#define PVR2D_FLAGS_PDUMP_ACTIVE	0x00000002UL		/* Set when pdumping from multiple processes */
++
++/* PVR2DMemAlloc flags */
++#define PVR2D_MEM_UNCACHED			0x00000000UL	/* Default */
++#define PVR2D_MEM_CACHED			0x00000001UL	/* Caller must flush and sync when necessary */
++#define PVR2D_MEM_WRITECOMBINE		0x00000002UL
++
++/* Functions that the library exports */
++
++PVR2D_IMPORT
++PVR2D_INT PVR2DEnumerateDevices(PVR2DDEVICEINFO *pDevInfo);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DCreateDeviceContext(PVR2D_ULONG ulDevID,
++									PVR2DCONTEXTHANDLE* phContext,
++									PVR2D_ULONG ulFlags);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DDestroyDeviceContext(PVR2DCONTEXTHANDLE hContext);
++
++PVR2D_EXPORT
++PVR2DERROR PVR2DGetDeviceContext(PVR2D_ULONG ulDevID,
++								 PVR2DCONTEXTHANDLE* phContext);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DGetDeviceInfo(PVR2DCONTEXTHANDLE hContext,
++							  PVR2DDISPLAYINFO *pDisplayInfo);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DGetMiscDisplayInfo(PVR2DCONTEXTHANDLE hContext,
++							  PVR2DMISCDISPLAYINFO *pMiscDisplayInfo);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DGetScreenMode(PVR2DCONTEXTHANDLE hContext,
++							  PVR2DFORMAT *pFormat,
++							  PVR2D_LONG *plWidth,
++							  PVR2D_LONG *plHeight,
++							  PVR2D_LONG *plStride,
++							  PVR2D_INT *piRefreshRate);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DGetFrameBuffer(PVR2DCONTEXTHANDLE hContext,
++							   PVR2D_INT nHeap,
++							   PVR2DMEMINFO **ppsMemInfo);
++PVR2D_EXPORT
++PVR2DERROR PVR2DFindMemInfo(PVR2DCONTEXTHANDLE	hContext,
++							PVR2D_INT			uiIonFd,
++							PVR2DMEMINFO		**ppsMemInfoOut);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DMemAlloc(PVR2DCONTEXTHANDLE hContext,
++						 PVR2D_ULONG ulBytes,
++						 PVR2D_ULONG ulAlign,
++						 PVR2D_ULONG ulFlags,
++						 PVR2DMEMINFO **ppsMemInfo);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DMemExport(PVR2DCONTEXTHANDLE hContext,
++						 PVR2D_ULONG ulFlags,
++						 PVR2DMEMINFO *psMemInfo,
++						 PVR2D_HANDLE *phMemHandle);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DMemWrap(PVR2DCONTEXTHANDLE hContext,
++						PVR2D_VOID *pMem,
++						PVR2D_ULONG ulFlags,
++						PVR2D_ULONG ulBytes,
++						PVR2D_ULONG alPageAddress[],
++						PVR2DMEMINFO **ppsMemInfo);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DMemMap(PVR2DCONTEXTHANDLE hContext,
++						PVR2D_ULONG ulFlags,
++						PVR2D_HANDLE hMemHandle,
++						PVR2DMEMINFO **ppsDstMem);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DMemFree(PVR2DCONTEXTHANDLE hContext,
++						PVR2DMEMINFO *psMemInfo);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DBlt(PVR2DCONTEXTHANDLE hContext,
++					PVR2DBLTINFO *pBltInfo);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DBltClipped(PVR2DCONTEXTHANDLE hContext,
++						   PVR2DBLTINFO *pBltInfo,
++						   PVR2D_ULONG ulNumClipRects,
++						   PVR2DRECT *pClipRects);
++
++PVR2D_EXPORT
++PVR2DERROR PVR2DSet1555Alpha (PVR2DCONTEXTHANDLE hContext,
++							  PVR2D_UCHAR Alpha0, PVR2D_UCHAR Alpha1);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DQueryBlitsComplete(PVR2DCONTEXTHANDLE hContext,
++								   const PVR2DMEMINFO *pMemInfo,
++								   PVR2D_UINT uiWaitForComplete);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DSetPresentBltProperties(PVR2DCONTEXTHANDLE hContext,
++										PVR2D_ULONG ulPropertyMask,
++										PVR2D_LONG lSrcStride,
++										PVR2D_ULONG ulDstWidth,
++										PVR2D_ULONG ulDstHeight,
++										PVR2D_LONG lDstXPos,
++										PVR2D_LONG lDstYPos,
++										PVR2D_ULONG ulNumClipRects,
++										PVR2DRECT *pClipRects,
++										PVR2D_ULONG ulSwapInterval);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DPresentBlt(PVR2DCONTEXTHANDLE hContext,
++						   PVR2DMEMINFO *pMemInfo,
++						   PVR2D_LONG lRenderID);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DCreateFlipChain(PVR2DCONTEXTHANDLE hContext,
++								PVR2D_ULONG ulFlags,
++								PVR2D_ULONG ulNumBuffers,
++								PVR2D_ULONG ulWidth,
++								PVR2D_ULONG ulHeight,
++								PVR2DFORMAT eFormat,
++								PVR2D_LONG *plStride,
++								PVR2D_ULONG *pulFlipChainID,
++								PVR2DFLIPCHAINHANDLE *phFlipChain);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DDestroyFlipChain(PVR2DCONTEXTHANDLE hContext,
++								 PVR2DFLIPCHAINHANDLE hFlipChain);
++
++PVR2D_EXPORT
++PVR2DERROR PVR2DGetFlipChain(PVR2DCONTEXTHANDLE hContext,
++							 PVR2DFLIPCHAINHANDLE* phFlipChain);
++
++PVR2D_EXPORT
++PVR2DERROR PVR2DGetFlipChainInfo(PVR2DCONTEXTHANDLE hContext,
++								 PVR2DFLIPCHAINHANDLE hFlipChain,
++								 PVR2D_UINT *puiWidth, PVR2D_UINT *puiHeight,
++								 PVR2D_UINT *puiStride, PVR2D_INT *piFormat);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DGetFlipChainBuffers(PVR2DCONTEXTHANDLE hContext,
++									PVR2DFLIPCHAINHANDLE hFlipChain,
++									PVR2D_ULONG *pulNumBuffers,
++									PVR2DMEMINFO *psMemInfo[]);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DSetPresentFlipProperties(PVR2DCONTEXTHANDLE hContext,
++										 PVR2DFLIPCHAINHANDLE hFlipChain,
++										 PVR2D_ULONG ulPropertyMask,
++										 PVR2D_LONG lDstXPos,
++										 PVR2D_LONG lDstYPos,
++										 PVR2D_ULONG ulNumClipRects, 
++										 PVR2DRECT *pClipRects,
++										 PVR2D_ULONG ulSwapInterval);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DPresentFlip(PVR2DCONTEXTHANDLE hContext,
++							PVR2DFLIPCHAINHANDLE hFlipChain,
++							PVR2DMEMINFO *psMemInfo,
++							PVR2D_LONG lRenderID);
++PVR2D_EXPORT
++PVR2DERROR PVR2DPresentFlip2(PVR2DCONTEXTHANDLE hContext,
++							 PVR2DFLIPCHAINHANDLE hFlipChain,
++							 PVR2DMEMINFO **pps2DMemInfo,
++							 PVR2D_ULONG ulNumBuffers,
++							 PVR2D_PVOID pvPrivData,
++							 PVR2D_ULONG ulPrivDataLength,
++							 PVR2D_HANDLE *phFence);
++
++PVR2D_EXPORT
++PVR2DERROR PVR2DGetSwapBuffer(PVR2DCONTEXTHANDLE hContext,
++							  PVR2DFLIPCHAINHANDLE hFlipChain,
++							  PVR2DMEMINFO **pps2DMemInfo);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DGetAPIRev(PVR2D_LONG *lRevMajor, PVR2D_LONG *lRevMinor);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DLoadUseCode (const PVR2DCONTEXTHANDLE hContext, const PVR2D_UCHAR	*pUseCode,
++									const PVR2D_ULONG UseCodeSize, PVR2D_HANDLE *pUseCodeHandle);
++PVR2D_IMPORT
++PVR2DERROR PVR2DFreeUseCode (const PVR2DCONTEXTHANDLE hContext, const PVR2D_HANDLE hUseCodeHandle);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DBlt3D (const PVR2DCONTEXTHANDLE hContext, const PPVR2D_3DBLT pBlt3D);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DBlt3DExt (const PVR2DCONTEXTHANDLE hContext, const PPVR2D_3DBLT_EXT pBlt3D);
++
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DModifyPendingOps(const PVR2DCONTEXTHANDLE hContext,
++								 PVR2D_HANDLE *phSyncModObj,
++								 PVR2DMEMINFO *psMemInfo,
++								 PVR2D_BOOL  bIsWriteOp,
++								 PVR2D_ULONG *pulReadOpsPending,
++								 PVR2D_ULONG *pulWriteOpsPending);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DModifyCompleteOps(const PVR2DCONTEXTHANDLE hContext,
++								  PVR2D_HANDLE hSyncModObj);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DFlushToSyncModObj(const PVR2DCONTEXTHANDLE hContext,
++								  PVR2D_HANDLE hSyncModObj,
++								  PVR2D_BOOL bWait);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DTakeSyncToken(const PVR2DCONTEXTHANDLE hContext,
++							  PVR2DMEMINFO *psMemInfo,
++							  PVR2D_HANDLE *phSyncToken,
++							  PVR2D_ULONG *pulReadOpsPending,
++							  PVR2D_ULONG *pulWriteOpsPending);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DReleaseSyncToken(const PVR2DCONTEXTHANDLE hContext,
++								 PVR2D_HANDLE hSyncToken);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DFlushToSyncToken(const PVR2DCONTEXTHANDLE hContext,
++								 PVR2DMEMINFO *psMemInfo,
++								 PVR2D_HANDLE hSyncToken,
++								 PVR2D_BOOL bWait);
++
++PVR2D_IMPORT
++PVR2DERROR PVR2DWaitForNextHardwareEvent(const PVR2DCONTEXTHANDLE hContext);
++
++#ifdef __cplusplus
++}
++#endif 
++
++#endif /* _PVR2D_H_ */
++
++/******************************************************************************
++ End of file (pvr2d.h)
++******************************************************************************/
+diff --git a/src/vdsscomp.h b/src/vdsscomp.h
+new file mode 100644
+index 0000000..2ccdb6d
+--- /dev/null
++++ b/src/vdsscomp.h
+@@ -0,0 +1,168 @@
++/*
++ * linux/include/video/vdsscomp.h
++ *
++ * Copyright (c) 2011 - 2014 Cambridge Silicon Radio Limited, a CSR plc
++ * group company.
++ *
++ * Licensed under GPLv2 or later.
++ */
++
++#ifndef __LINUX_VDSSCOMP_H
++#define __LINUX_VDSSCOMP_H
++
++#define MAX_LAYERS	4
++
++enum vdsscomp_display_type {
++	VDSSCOMP_DISPLAY_NONE = 0x0,
++	VDSSCOMP_DISPLAY_RGB = 0x1,
++	VDSSCOMP_DISPLAY_HDMI = 0x2,
++	VDSSCOMP_DISPLAY_LVDS = 0x4,
++};
++
++enum vdsscomp_layer {
++	VDSSCOMP_LAYER0 = 0,
++	VDSSCOMP_LAYER1,
++	VDSSCOMP_LAYER2,
++	VDSSCOMP_LAYER3,
++	VDSSCOMP_CURSOR = 6,
++};
++
++/* stay the same with vdss_pixelformat */
++enum vdsscomp_pixelformat {
++	VDSSCOMP_PIXELFORMAT_UNKNOWN = 0,
++
++	VDSSCOMP_PIXELFORMAT_1BPP = 1,
++	VDSSCOMP_PIXELFORMAT_2BPP = 2,
++	VDSSCOMP_PIXELFORMAT_4BPP = 3,
++	VDSSCOMP_PIXELFORMAT_8BPP = 4,
++
++	VDSSCOMP_PIXELFORMAT_565 = 5,
++	VDSSCOMP_PIXELFORMAT_5551 = 6,
++	VDSSCOMP_PIXELFORMAT_4444 = 7,
++	VDSSCOMP_PIXELFORMAT_5550 = 8,
++	VDSSCOMP_PIXELFORMAT_BGRX_8880 = 9,
++	VDSSCOMP_PIXELFORMAT_8888 = 10,
++
++	VDSSCOMP_PIXELFORMAT_556 = 11,
++	VDSSCOMP_PIXELFORMAT_655 = 12,
++	VDSSCOMP_PIXELFORMAT_RGBX_8880 = 13,
++	VDSSCOMP_PIXELFORMAT_666 = 14,
++
++	VDSSCOMP_PIXELFORMAT_15BPPGENERIC = 15,
++	VDSSCOMP_PIXELFORMAT_16BPPGENERIC = 16,
++	VDSSCOMP_PIXELFORMAT_24BPPGENERIC = 17,
++	VDSSCOMP_PIXELFORMAT_32BPPGENERIC = 18,
++
++	VDSSCOMP_PIXELFORMAT_UYVY = 19,
++	VDSSCOMP_PIXELFORMAT_UYNV = 20,
++	VDSSCOMP_PIXELFORMAT_YUY2 = 21,
++	VDSSCOMP_PIXELFORMAT_YUYV = 22,
++	VDSSCOMP_PIXELFORMAT_YUNV = 23,
++	VDSSCOMP_PIXELFORMAT_YVYU = 24,
++	VDSSCOMP_PIXELFORMAT_VYUY = 25,
++
++	VDSSCOMP_PIXELFORMAT_IMC2 = 26,
++	VDSSCOMP_PIXELFORMAT_YV12 = 27,
++	VDSSCOMP_PIXELFORMAT_I420 = 28,
++
++	VDSSCOMP_PIXELFORMAT_IMC1 = 29,
++	VDSSCOMP_PIXELFORMAT_IMC3 = 30,
++	VDSSCOMP_PIXELFORMAT_IMC4 = 31,
++	VDSSCOMP_PIXELFORMAT_NV12 = 32,
++	VDSSCOMP_PIXELFORMAT_NV21 = 33,
++	VDSSCOMP_PIXELFORMAT_UYVI = 34,
++	VDSSCOMP_PIXELFORMAT_VLVQ = 35,
++
++	VDSSCOMP_PIXELFORMAT_CUSTOM = 0X1000
++};
++
++struct vdsscomp_video_timings {
++	/* Unit: pixels */
++	__u16 xres;
++	/* Unit: pixels */
++	__u16 yres;
++	/* Unit: KHz */
++	__u32 pixel_clock;
++	/* Unit: pixel clocks */
++	__u16 hsw;	/* Horizontal synchronization pulse width */
++	/* Unit: pixel clocks */
++	__u16 hfp;	/* Horizontal front porch */
++	/* Unit: pixel clocks */
++	__u16 hbp;	/* Horizontal back porch */
++	/* Unit: line clocks */
++	__u16 vsw;	/* Vertical synchronization pulse width */
++	/* Unit: line clocks */
++	__u16 vfp;	/* Vertical front porch */
++	/* Unit: line clocks */
++	__u16 vbp;	/* Vertical back porch */
++};
++
++struct vdsscomp_rect {
++	__s32 left;
++	__s32 top;
++	__u32 right;
++	__u32 bottom;
++};
++
++enum vdsscomp_deinterlace_mode {
++	VDSSCOMP_DI_RESERVED = 0,
++	VDSSCOMP_DI_WEAVE,
++	VDSSCOMP_3MEDIAN,
++	VDSSCOMP_DI_VMRI,
++};
++
++struct vdsscomp_interlace {
++	__u32 field_offset;
++	__u32 interlaced;
++	enum vdsscomp_deinterlace_mode mode;
++};
++
++struct vdsscomp_layer_info {
++	__u32 enabled;
++	enum vdsscomp_pixelformat fmt;
++	struct vdsscomp_interlace interlace;
++	struct vdsscomp_rect src_rect;
++	struct vdsscomp_rect dst_rect;
++
++	__u32 width;		/* surface width/stride */
++	__u32 height;		/* surface height */
++	__u8 pre_mult_alpha;
++	__u8 pack[3];
++};
++
++struct vdsscomp_screen_info {
++	__u32 back_color;
++	__u32 top_layer;
++};
++
++struct vdsscomp_setup_disp_data {
++	__u16 num_layers;
++	__u32 dirty_mask;
++	__u32 phys_addr[MAX_LAYERS];
++	struct vdsscomp_screen_info scn;
++	struct vdsscomp_layer_info layers[MAX_LAYERS];
++};
++
++struct vdsscomp_setup_data {
++	__u32 sync_id; /* for debugging */
++	__u16 num_disps;
++	struct vdsscomp_setup_disp_data disps[2];
++};
++struct vdsscomp_display_info {
++	__u32 ix;
++	__u32 layers_avail;	/* bitmask of available overlays */
++	__u32 layers_owned;		/* bitmask of owned overlays */
++	enum vdsscomp_display_type type;
++	__u8 enabled;
++	struct vdsscomp_video_timings timings;
++	__u16 width_in_mm;		/* screen dimensions */
++	__u16 height_in_mm;
++};
++
++int vdsscomp_gralloc_queue(struct vdsscomp_setup_data *d,
++	void (*cb_fn)(void *, int), void *cb_arg);
++
++ /* Gets information about the display. */
++#define VDSSCIOC_QUERY_DISPLAY	_IOWR('O', 131, struct vdsscomp_display_info)
++
++#endif
+-- 
+1.9.1
+

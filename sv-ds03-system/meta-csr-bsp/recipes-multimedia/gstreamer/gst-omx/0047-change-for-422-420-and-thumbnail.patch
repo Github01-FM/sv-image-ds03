@@ -1,0 +1,204 @@
+From 71ad624101baafdfa5f1fc3285690293b132dc97 Mon Sep 17 00:00:00 2001
+From: Lily Li <lali@codeaurora.org>
+Date: Wed, 2 Sep 2015 15:41:11 +0800
+Subject: [PATCH 47/67] change for 422, 420 and thumbnail
+
+Change-Id: Ic86be75eb77ecd9ec5ce2bb68172845aa72c3ec6
+Signed-off-by: Lily Li <lali@codeaurora.org>
+---
+ omx/gstomxmjpegvideodec.c | 10 +++----
+ omx/gstomxmjpegvideoenc.c | 70 ++++++++++++++++-------------------------------
+ omx/gstomxmjpegvideoenc.h |  4 +--
+ 3 files changed, 29 insertions(+), 55 deletions(-)
+
+diff --git a/omx/gstomxmjpegvideodec.c b/omx/gstomxmjpegvideodec.c
+index f48c1b3..a6faff8 100644
+--- a/omx/gstomxmjpegvideodec.c
++++ b/omx/gstomxmjpegvideodec.c
+@@ -50,10 +50,10 @@ gst_omx_mjpeg_video_dec_class_init (GstOMXMJPEGVIDEODecClass * klass)
+       "Decode MJPEG video streams",
+       "CSR");
+ 
+-	if(!g_strcmp0(videodec_class->cdata.component_name, "OMX.CSR.Decoder.MJPEG"))
+-	{
+-	  gst_omx_set_default_role (&videodec_class->cdata, "csr_decoder.mjpeg");
+-	}
++  if(!g_strcmp0(videodec_class->cdata.component_name, "OMX.CSR.Decoder.MJPEG"))
++  {
++    gst_omx_set_default_role (&videodec_class->cdata, "csr_decoder.mjpeg");
++  }
+ }
+ 
+ static void
+@@ -79,6 +79,6 @@ gst_omx_mjpeg_video_dec_set_format (GstOMXVideoDec * dec, GstOMXPort * port,
+ 
+   port_def.format.video.eCompressionFormat = OMX_VIDEO_CodingMJPEG;
+   ret = gst_omx_port_update_port_definition (port, &port_def) == OMX_ErrorNone;
+-  GST_ERROR("gst_omx_mjpeg_video_dec_set_format ret %d",ret);
++  GST_DEBUG("gst_omx_mjpeg_video_dec_set_format ret %d",ret);
+   return ret;
+ }
+diff --git a/omx/gstomxmjpegvideoenc.c b/omx/gstomxmjpegvideoenc.c
+index 4ec0242..acdad97 100644
+--- a/omx/gstomxmjpegvideoenc.c
++++ b/omx/gstomxmjpegvideoenc.c
+@@ -30,12 +30,10 @@ static void gst_omx_mjpeg_enc_get_property (GObject * object, guint prop_id,
+ enum
+ {
+   PROP_0,
+-  PROP_OUTCOLORFORMAT,
+   PROP_OUTMIMETYPE
+ };
+ 
+-#define GST_OMX_MJPEG_OUTCOLORFORMAT OMX_COLOR_FormatCbYCrY
+-#define GST_OMX_MJPEG_OUTMIMETYPE_IS_THUMBNAIL FALSE
++#define GST_OMX_MJPEG_OUTMIMETYPE "MJPEG422"
+ /* class initialization */
+ 
+ #define DEBUG_INIT \
+@@ -63,21 +61,12 @@ gst_omx_mjpeg_video_enc_class_init (GstOMXMJPEGVIDEOEncClass * klass)
+   gobject_class->get_property = gst_omx_mjpeg_enc_get_property;
+ 
+   g_object_class_install_property (gobject_class, PROP_OUTMIMETYPE,
+-		g_param_spec_boolean ("out-mimetype",
+-			"out mime type of mjpeg",
+-			"out mime type of mjpeg",
+-			GST_OMX_MJPEG_OUTMIMETYPE_IS_THUMBNAIL,
+-			G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+-			GST_PARAM_MUTABLE_READY));
+-  
+-	g_object_class_install_property (gobject_class, PROP_OUTCOLORFORMAT,
+-		g_param_spec_uint ("out-color-format", "Target mjpeg",
+-			"out color format of mjpeg (OMX_COLOR_FormatYUV420Planar=component default)",
+-			0, G_MAXUINT,
+-			GST_OMX_MJPEG_OUTCOLORFORMAT,
+-			G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+-			GST_PARAM_MUTABLE_READY));
+-
++      g_param_spec_string ("out-mimetype",
++      "out mime type of mjpeg: MJPEG422, MJPEG420, MJPEG422THUMBNAIL, MJPEG420THUMBNAIL",
++      "out mime type of mjpeg: MJPEG422, MJPEG420, MJPEG422THUMBNAIL, MJPEG420THUMBNAIL",
++      GST_OMX_MJPEG_OUTMIMETYPE,
++      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
++      GST_PARAM_MUTABLE_READY));
+ 
+   videoenc_class->cdata.default_src_template_caps = "image/jpeg, "
+       "width=(int) [ 16, 4096 ], " "height=(int) [ 16, 4096 ]";
+@@ -97,20 +86,16 @@ gst_omx_mjpeg_video_enc_class_init (GstOMXMJPEGVIDEOEncClass * klass)
+ static void
+ gst_omx_mjpeg_video_enc_init (GstOMXMJPEGVIDEOEnc * self)
+ {
+-  self->is_thumbnail =
+-      GST_OMX_MJPEG_OUTMIMETYPE_IS_THUMBNAIL;
+-  self->color_format =
+-      GST_OMX_MJPEG_OUTCOLORFORMAT;
+-  GST_ERROR("gst_omx_mjpeg_video_enc_init color format %d\n", self->color_format);
++   self->mimetype = malloc(strlen(GST_OMX_MJPEG_OUTMIMETYPE));
++   if(self->mimetype)
++   memcpy(self->mimetype, GST_OMX_MJPEG_OUTMIMETYPE, strlen(GST_OMX_MJPEG_OUTMIMETYPE));
+ }
+ 
+ static gboolean
+ gst_omx_mjpeg_video_enc_flush (GstVideoEncoder * enc)
+ {
+   GstOMXMJPEGVIDEOEnc *self = GST_OMX_MJPEG_VIDEO_ENC (enc);
+-  GST_ERROR("gst_omx_mjpeg_video_enc_flush\n");
+-  g_list_free_full (self->headers, (GDestroyNotify) gst_buffer_unref);
+-  self->headers = NULL;
++  GST_DEBUG("gst_omx_mjpeg_video_enc_flush\n");
+ 
+   return GST_VIDEO_ENCODER_CLASS (parent_class)->flush (enc);
+ }
+@@ -119,10 +104,10 @@ static gboolean
+ gst_omx_mjpeg_video_enc_stop (GstVideoEncoder * enc)
+ {
+   GstOMXMJPEGVIDEOEnc *self = GST_OMX_MJPEG_VIDEO_ENC (enc);
+-    GST_ERROR("gst_omx_mjpeg_video_enc_stop\n");
+-  g_list_free_full (self->headers, (GDestroyNotify) gst_buffer_unref);
+-  self->headers = NULL;
++    GST_DEBUG("gst_omx_mjpeg_video_enc_stop\n");
+ 
++  if(self->mimetype)
++  g_free(self->mimetype);
+   return GST_VIDEO_ENCODER_CLASS (parent_class)->stop (enc);
+ }
+ 
+@@ -137,13 +122,7 @@ gst_omx_mjpeg_video_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
+   gst_omx_port_get_port_definition (GST_OMX_VIDEO_ENC (self)->enc_out_port,
+       &port_def);
+   port_def.format.video.eCompressionFormat = OMX_VIDEO_CodingMJPEG;
+-  port_def.format.video.eColorFormat = self->color_format;
+-  GST_ERROR("gst_omx_mjpeg_video_enc_set_format color format %d\n", port_def.format.video.eColorFormat);
+-  if (self->is_thumbnail) {
+-  	port_def.format.video.cMIMEType = "MJPEG422THUMBNAIL";
+-  } else {
+-  	port_def.format.video.cMIMEType = "MJPEG422";
+-  }
++  port_def.format.video.cMIMEType = self->mimetype;
+   err =
+       gst_omx_port_update_port_definition (GST_OMX_VIDEO_ENC
+       (self)->enc_out_port, &port_def);
+@@ -159,13 +138,12 @@ gst_omx_mjpeg_enc_set_property (GObject * object, guint prop_id,
+     const GValue * value, GParamSpec * pspec)
+ {
+   GstOMXMJPEGVIDEOEnc *self = GST_OMX_MJPEG_VIDEO_ENC (object);
+-  GST_ERROR("gst_omx_mjpeg_enc_set_property\n");
++  GST_DEBUG("gst_omx_mjpeg_enc_set_property\n");
+   switch (prop_id) {
+     case PROP_OUTMIMETYPE:
+-      self->is_thumbnail = g_value_get_boolean (value);
+-      break;
+-    case PROP_OUTCOLORFORMAT:
+-      self->color_format = g_value_get_uint (value);
++      if(self->mimetype)
++      g_free(self->mimetype);
++      self->mimetype = g_value_dup_string (value);
+       break;
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+@@ -178,14 +156,12 @@ gst_omx_mjpeg_enc_get_property (GObject * object, guint prop_id, GValue * value,
+     GParamSpec * pspec)
+ {
+   GstOMXMJPEGVIDEOEnc *self = GST_OMX_MJPEG_VIDEO_ENC (object);
+-  GST_ERROR("gst_omx_mjpeg_enc_get_property\n");
++  GST_DEBUG("gst_omx_mjpeg_enc_get_property\n");
+   switch (prop_id) {
+     case PROP_OUTMIMETYPE:
+-      g_value_set_boolean (value, self->is_thumbnail);
+-      break;
+-    case PROP_OUTCOLORFORMAT:
+-      g_value_set_uint (value, self->color_format);
++      g_value_set_string (value, self->mimetype);
+       break;
++
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+@@ -198,7 +174,7 @@ gst_omx_mjpeg_video_enc_get_caps (GstOMXVideoEnc * enc, GstOMXPort * port,
+ {
+   GstCaps *caps;
+ 
+-    caps = gst_caps_new_empty_simple ("image/jpeg");
++  caps = gst_caps_new_empty_simple ("image/jpeg");
+ 
+   return caps;
+ }
+diff --git a/omx/gstomxmjpegvideoenc.h b/omx/gstomxmjpegvideoenc.h
+index f9e2c38..477c881 100644
+--- a/omx/gstomxmjpegvideoenc.h
++++ b/omx/gstomxmjpegvideoenc.h
+@@ -26,10 +26,8 @@ struct _GstOMXMJPEGVIDEOEnc
+ {
+   GstOMXVideoEnc parent;
+ 
+-  gboolean is_thumbnail;
++  gchar* mimetype;
+   guint32 color_format;
+-
+-  GList *headers;
+ };
+ 
+ struct _GstOMXMJPEGVIDEOEncClass
+-- 
+1.9.1
+

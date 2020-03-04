@@ -1,0 +1,27 @@
+From bc36757bdacc3d406f16ba553827ab312fffafb5 Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Wed, 3 Aug 2016 15:53:44 +0800
+Subject: [PATCH 66/67] Correct vendor name
+
+Change-Id: I280364a3d1a678c15b0124026e283f521a12c113
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ omx/openmax/OMX_IVCommon.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/omx/openmax/OMX_IVCommon.h b/omx/openmax/OMX_IVCommon.h
+index d0216e7..3f9781a 100644
+--- a/omx/openmax/OMX_IVCommon.h
++++ b/omx/openmax/OMX_IVCommon.h
+@@ -602,7 +602,7 @@ typedef struct OMX_CONFIG_AFASSISTANTLIGHTTYPE{
+     OMX_AFASSISTANTLIGHTTYPE eAFAssistantLight;
+ } OMX_CONFIG_AFASSISTANTLIGHTTYPE;
+ 
+-// Qualcomm Vendor Specific
++// QTIL Vendor Specific
+ // Enable field BLEND for interleaved content if needed
+ typedef struct OMX_CONFIG_FIELDBLEND {
+     OMX_U32 nSize;
+-- 
+1.9.1
+

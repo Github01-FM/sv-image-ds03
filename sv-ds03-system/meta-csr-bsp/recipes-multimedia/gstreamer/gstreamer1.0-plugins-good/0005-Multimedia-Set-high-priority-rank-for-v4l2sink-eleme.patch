@@ -1,0 +1,27 @@
+From a130f2d796e1e9fb678ad03a6dd47972d1bac70d Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Fri, 12 Jun 2015 16:41:44 +0800
+Subject: [PATCH 5/8] Multimedia: Set high priority rank for v4l2sink element.
+
+Change-Id: If19c66ee6a0cf0913c5f1a0a80ed0f1c04e9adc5
+Signed-off-by: Xiaofeng Fei <xfei@codeaurora.org>
+---
+ sys/v4l2/gstv4l2.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sys/v4l2/gstv4l2.c b/sys/v4l2/gstv4l2.c
+index 08ff3f5..9b87afa 100644
+--- a/sys/v4l2/gstv4l2.c
++++ b/sys/v4l2/gstv4l2.c
+@@ -195,7 +195,7 @@ plugin_init (GstPlugin * plugin)
+ 
+   if (!gst_element_register (plugin, "v4l2src", GST_RANK_PRIMARY,
+           GST_TYPE_V4L2SRC) ||
+-      !gst_element_register (plugin, "v4l2sink", GST_RANK_NONE,
++      !gst_element_register (plugin, "v4l2sink", GST_RANK_PRIMARY + 1,
+           GST_TYPE_V4L2SINK) ||
+       !gst_element_register (plugin, "v4l2radio", GST_RANK_NONE,
+           GST_TYPE_V4L2RADIO) ||
+-- 
+1.9.1
+

@@ -1,0 +1,29 @@
+From 4563ca81aadfbfbb676b609e3ddc972c79977a05 Mon Sep 17 00:00:00 2001
+From: Lihui <lwen@qti.qualcomm.com>
+Date: Thu, 3 Dec 2015 15:34:07 +0800
+Subject: [PATCH 2/2] add two special format support
+
+yuyv two fields is for camera and nv12 interfalce video format
+
+Change-Id: I098fd7f93d404ccbb2788dbbdfcc2dc2138917fe
+Signed-off-by: Lihui <lwen@qti.qualcomm.com>
+---
+ protocol/wayland.xml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/protocol/wayland.xml b/protocol/wayland.xml
+index 4a8dc18..01fcaf1 100644
+--- a/protocol/wayland.xml
++++ b/protocol/wayland.xml
+@@ -288,6 +288,8 @@
+       <entry name="xrgb8888" value="1" summary="32-bit RGB format"/>
+       <entry name="nv12_vxd" value="2" summary="csr nv12 vxd format"/>
+       <entry name="yuyv" value="3" summary="YUYV format for csr carmera"/>
++      <entry name="yuyv_two_fields" value="4" summary="special carmera format whose even or odd field occupys the first half of the buffer"/>
++      <entry name="nv12_vxd_interlaced" value="5" summary="spcial nv12 video format, odd/even line interlaced"/>
+       <!-- The drm format codes match the #defines in drm_fourcc.h.
+            The formats actually supported by the compositor will be
+            reported by the format event. -->
+-- 
+1.9.1
+

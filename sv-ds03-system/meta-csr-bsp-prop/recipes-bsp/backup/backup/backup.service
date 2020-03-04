@@ -1,0 +1,14 @@
+[Unit]
+Description=CSR Power Backup Service
+After=local-fs.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/backup.sh start
+Restart=always
+RestartSec=5
+TimeoutSec=5
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

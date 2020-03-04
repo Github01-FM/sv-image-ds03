@@ -1,0 +1,515 @@
+From 714dbb9d794f04886dcb2ccba275e7d8817dca63 Mon Sep 17 00:00:00 2001
+From: Laisheng Hu <laisheng@codeaurora.org>
+Date: Mon, 23 Nov 2015 15:50:50 +0800
+Subject: [PATCH 03/10] merge csr waylandsink patch in 1.6
+
+Change-Id: I40d7b01e15b8baacb976d2fc4b86ec14011cc927
+Signed-off-by: Laisheng Hu <laisheng@codeaurora.org>
+---
+ configure.ac                 |   2 +-
+ ext/wayland/Makefile.am      |   4 +-
+ ext/wayland/gstwaylandsink.c |  41 ++++++++++---
+ ext/wayland/gstwaylandsink.h |   1 +
+ ext/wayland/wlshmallocator.c | 134 ++++++++++++++++++++++++++++++++-----------
+ ext/wayland/wlshmallocator.h |   2 +
+ ext/wayland/wlvideoformat.c  |   2 +-
+ ext/wayland/wlwindow.c       |  32 +++++++++--
+ ext/wayland/wlwindow.h       |   5 +-
+ 9 files changed, 174 insertions(+), 49 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index d57c3e0..8847612 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -1931,7 +1931,7 @@ AG_GST_CHECK_FEATURE(DIRECTFB, [directfb], dfbvideosink , [
+ dnl **** Wayland ****
+ translit(dnm, m, l) AM_CONDITIONAL(USE_WAYLAND, true)
+ AG_GST_CHECK_FEATURE(WAYLAND, [wayland sink], wayland , [
+-  PKG_CHECK_MODULES(WAYLAND, wayland-client >= 1.4.0 wayland-scanner, [
++  PKG_CHECK_MODULES(WAYLAND, wayland-client >= 1.4.0, [
+     HAVE_WAYLAND="yes" ], [ HAVE_WAYLAND="no"
+   ])
+ ])
+diff --git a/ext/wayland/Makefile.am b/ext/wayland/Makefile.am
+index e12d99a..0e45fcc 100644
+--- a/ext/wayland/Makefile.am
++++ b/ext/wayland/Makefile.am
+@@ -1,5 +1,7 @@
+ plugin_LTLIBRARIES = libgstwaylandsink.la
+ 
++I_DIR_ION=/usr/src/kernel/drivers/staging/android/uapi
++
+ libgstwaylandsink_la_SOURCES =  \
+ 	gstwaylandsink.c \
+ 	wlshmallocator.c \
+@@ -10,7 +12,7 @@ libgstwaylandsink_la_SOURCES =  \
+ 	scaler-protocol.c
+ 
+ libgstwaylandsink_la_CFLAGS = $(GST_CFLAGS) $(GST_PLUGINS_BASE_CFLAGS) \
+-                               $(WAYLAND_CFLAGS) $(GST_PLUGINS_BAD_CFLAGS)
++                               $(WAYLAND_CFLAGS) $(GST_PLUGINS_BAD_CFLAGS)  -I=$(I_DIR_ION)
+ libgstwaylandsink_la_LIBADD = \
+ 	$(GST_PLUGINS_BASE_LIBS) \
+ 	-lgstvideo-$(GST_API_VERSION) \
+diff --git a/ext/wayland/gstwaylandsink.c b/ext/wayland/gstwaylandsink.c
+index 7cc4bba..c4e009d 100644
+--- a/ext/wayland/gstwaylandsink.c
++++ b/ext/wayland/gstwaylandsink.c
+@@ -60,7 +60,8 @@ enum
+ enum
+ {
+   PROP_0,
+-  PROP_DISPLAY
++  PROP_DISPLAY,
++  PROP_FULLSCREEN
+ };
+ 
+ GST_DEBUG_CATEGORY (gstwayland_debug);
+@@ -158,6 +159,11 @@ gst_wayland_sink_class_init (GstWaylandSinkClass * klass)
+       g_param_spec_string ("display", "Wayland Display name", "Wayland "
+           "display name to connect to, if not supplied via the GstContext",
+           NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
++
++   g_object_class_install_property (gobject_class, PROP_FULLSCREEN,
++      g_param_spec_boolean ("fullscreen", "Fullscreen",
++          "Whether the surface should be made fullscreen", FALSE,
++          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+ }
+ 
+ static void
+@@ -179,6 +185,11 @@ gst_wayland_sink_get_property (GObject * object,
+       g_value_set_string (value, sink->display_name);
+       GST_OBJECT_UNLOCK (sink);
+       break;
++    case PROP_FULLSCREEN:
++      GST_OBJECT_LOCK (sink);
++      g_value_set_boolean (value, sink->fullscreen);
++      GST_OBJECT_UNLOCK (sink);
++      break;
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+@@ -197,6 +208,12 @@ gst_wayland_sink_set_property (GObject * object,
+       sink->display_name = g_value_dup_string (value);
+       GST_OBJECT_UNLOCK (sink);
+       break;
++    case PROP_FULLSCREEN:
++      GST_OBJECT_LOCK (sink);
++      sink->fullscreen = g_value_get_boolean (value);
++      gst_wl_window_set_display(sink->window,&sink->video_info,sink->fullscreen);
++      GST_OBJECT_UNLOCK (sink);
++      break;
+     default:
+       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+       break;
+@@ -434,6 +451,7 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
+   GArray *formats;
+   gint i;
+   GstStructure *structure;
++  GstWlShmAllocator *wl_allocator;
+ 
+   sink = GST_WAYLAND_SINK (bsink);
+ 
+@@ -464,7 +482,10 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
+ 
+   structure = gst_buffer_pool_get_config (newpool);
+   gst_buffer_pool_config_set_params (structure, caps, info.size, 2, 0);
+-  gst_buffer_pool_config_set_allocator (structure, gst_wl_shm_allocator_get (),
++  wl_allocator = (GstWlShmAllocator *)gst_wl_shm_allocator_get ();
++  wl_allocator->info.width  = info.width;
++  wl_allocator->info.height  = info.height;
++  gst_buffer_pool_config_set_allocator (structure, wl_allocator,
+       NULL);
+   if (!gst_buffer_pool_set_config (newpool, structure))
+     goto config_failed;
+@@ -556,7 +577,6 @@ render_last_buffer (GstWaylandSink * sink)
+ 
+   wlbuffer = gst_buffer_get_wl_buffer (sink->last_buffer);
+   surface = gst_wl_window_get_wl_surface (sink->window);
+-
+   g_atomic_int_set (&sink->redraw_pending, TRUE);
+   callback = wl_surface_frame (surface);
+   wl_callback_add_listener (callback, &frame_callback_listener, sink);
+@@ -590,13 +610,16 @@ gst_wayland_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
+     if (!sink->window) {
+       /* if we were not provided a window, create one ourselves */
+       sink->window =
+-          gst_wl_window_new_toplevel (sink->display, &sink->video_info);
++          gst_wl_window_new_toplevel (sink->display, &sink->video_info,sink->fullscreen);
+     }
+   }
+ 
+   /* drop buffers until we get a frame callback */
+   if (g_atomic_int_get (&sink->redraw_pending) == TRUE)
+-    goto done;
++  {
++	GST_WARNING_OBJECT (sink,"drop buffers until we get a frame callback");
++	 // goto done;
++  }
+ 
+   /* make sure that the application has called set_render_rectangle() */
+   if (G_UNLIKELY (sink->window->render_rectangle.w == 0))
+@@ -665,7 +688,7 @@ gst_wayland_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
+ 
+   /* drop double rendering */
+   if (G_UNLIKELY (to_render == sink->last_buffer)) {
+-    GST_LOG_OBJECT (sink, "Buffer already being rendered");
++    GST_WARNING_OBJECT (sink,"Buffer already being rendered");
+     goto done;
+   }
+ 
+@@ -673,7 +696,10 @@ gst_wayland_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
+   render_last_buffer (sink);
+ 
+   if (buffer != to_render)
+-    gst_buffer_unref (to_render);
++  {
++        GST_WARNING_OBJECT (sink,"buffer != to_render unref!");
++	gst_buffer_unref (to_render);
++  }
+   goto done;
+ 
+ no_window_size:
+@@ -852,3 +878,4 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
+     waylandsink,
+     "Wayland Video Sink", plugin_init, VERSION, "LGPL", GST_PACKAGE_NAME,
+     GST_PACKAGE_ORIGIN)
++
+diff --git a/ext/wayland/gstwaylandsink.h b/ext/wayland/gstwaylandsink.h
+index afbed40..350cc4a 100644
+--- a/ext/wayland/gstwaylandsink.h
++++ b/ext/wayland/gstwaylandsink.h
+@@ -65,6 +65,7 @@ struct _GstWaylandSink
+   gboolean redraw_pending;
+   GMutex render_lock;
+   GstBuffer *last_buffer;
++  gboolean fullscreen;
+ };
+ 
+ struct _GstWaylandSinkClass
+diff --git a/ext/wayland/wlshmallocator.c b/ext/wayland/wlshmallocator.c
+index 6d82b23..c118ec0 100644
+--- a/ext/wayland/wlshmallocator.c
++++ b/ext/wayland/wlshmallocator.c
+@@ -30,54 +30,96 @@
+ #include <unistd.h>
+ #include <sys/mman.h>
+ #include <sys/types.h>
++#include <ion.h>
++#include <fcntl.h>
+ 
+ GST_DEBUG_CATEGORY_EXTERN (gstwayland_debug);
+ #define GST_CAT_DEFAULT gstwayland_debug
+ 
++#define PAGESIZE 4096
++#define gst_wl_shm_allocator_parent_class parent_class
++
+ G_DEFINE_TYPE (GstWlShmAllocator, gst_wl_shm_allocator, GST_TYPE_ALLOCATOR);
+ 
++#define AL(a,b) (((a)+(b)-1)&~((b)-1))
++
+ static GstMemory *
+ gst_wl_shm_allocator_alloc (GstAllocator * allocator, gsize size,
+     GstAllocationParams * params)
+ {
+   GstWlShmAllocator *self = GST_WL_SHM_ALLOCATOR (allocator);
+-  char filename[1024];
+-  static int init = 0;
+-  int fd;
+   gpointer data;
+   GstWlShmMemory *mem;
+-
+-  /* TODO: make use of the allocation params, if necessary */
+-
+-  /* allocate shm pool */
+-  snprintf (filename, 1024, "%s/%s-%d-%s", g_get_user_runtime_dir (),
+-      "wayland-shm", init++, "XXXXXX");
+-
+-  fd = g_mkstemp (filename);
+-  if (fd < 0) {
+-    GST_ERROR_OBJECT (self, "opening temp file %s failed: %s", filename,
+-        strerror (errno));
++  GstVideoInfo *info = &(self->info);
++  struct ion_fd_data *pFdData ;
++  struct ion_handle_data sHandleData = {};
++  struct ion_allocation_data sAllocInfo;
++  gint fd,err;
++
++  pFdData = g_slice_new0 (struct ion_fd_data);
++  /* allocate ion buffer */
++  if(size > PAGESIZE)
++    size = AL(info->width,64) * AL(info->height,16) * 3 / 2;
++  size = AL(size,PAGESIZE);
++
++  sAllocInfo.len          = size;
++  sAllocInfo.align        = PAGESIZE;
++//	sAllocInfo.heap_id_mask = ION_HEAP_SYSTEM_MASK;
++  sAllocInfo.heap_id_mask  = ION_HEAP_TYPE_DMA_MASK;
++  sAllocInfo.flags = 0;
++
++  err = ioctl(self->ion_fd, ION_IOC_ALLOC, &sAllocInfo);
++  if(err)
++  {
++    GST_ERROR_OBJECT (self, "error ION_IOC_ALLOC");
+     return NULL;
+   }
+-  if (ftruncate (fd, size) < 0) {
+-    GST_ERROR_OBJECT (self, "ftruncate failed: %s", strerror (errno));
+-    close (fd);
++  
++  pFdData->handle = sAllocInfo.handle;
++  sHandleData.handle = sAllocInfo.handle;
++  err = ioctl(self->ion_fd, ION_IOC_SHARE, pFdData);
++  if(err)
++  {
++    GST_ERROR_OBJECT (self, "error ION_IOC_SHARE");
++    ioctl(self->ion_fd, ION_IOC_FREE, &sHandleData);
+     return NULL;
+   }
+ 
+-  data = mmap (NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+-  if (data == MAP_FAILED) {
+-    GST_ERROR_OBJECT (self, "mmap failed: %s", strerror (errno));
+-    close (fd);
++  /* Now we have a share fd, we don't need the ion_handle in this
++   * process any more. Free it (which just drops the refcount).
++   */
++  err = ioctl(self->ion_fd, ION_IOC_FREE, &sHandleData);
++  if(err)
++  {
++    close(pFdData->fd);
++    return NULL;
++  }
++  fd = pFdData->fd;
++
++  data  = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
++  if ( data  == MAP_FAILED)
++  {
++    GST_ERROR_OBJECT (self, "mmap failed: for ION BUFFER");
++    ioctl(self->ion_fd, ION_IOC_FREE, &sHandleData);
++    close(fd);
+     return NULL;
+   }
+ 
+-  unlink (filename);
++  if((data == NULL)||((guint32) (data) & 0xFFF))
++  {
++    GST_ERROR_OBJECT (self, " wayland ion buffer allocator failed!\n");
++    ioctl(self->ion_fd, ION_IOC_FREE, &sHandleData);
++    close(fd);
++    return NULL;
++  }
+ 
+   mem = g_slice_new0 (GstWlShmMemory);
+-  gst_memory_init ((GstMemory *) mem, GST_MEMORY_FLAG_NO_SHARE, allocator, NULL,
++  gst_memory_init ((GstMemory *) mem, 0, allocator, NULL,
+       size, 0, 0, size);
+-  mem->data = data;
++
++  pFdData->handle = data;
++  pFdData->fd = fd;
++  mem->data = pFdData;
+   mem->fd = fd;
+ 
+   return (GstMemory *) mem;
+@@ -87,12 +129,21 @@ static void
+ gst_wl_shm_allocator_free (GstAllocator * allocator, GstMemory * memory)
+ {
+   GstWlShmMemory *shm_mem = (GstWlShmMemory *) memory;
+-
+-  if (shm_mem->fd != -1)
+-    close (shm_mem->fd);
+-  munmap (shm_mem->data, memory->maxsize);
+-
+-  g_slice_free (GstWlShmMemory, shm_mem);
++  if(shm_mem != NULL)
++  {
++    struct ion_fd_data *ion_fd = shm_mem->data;
++
++    if(shm_mem->fd != -1)
++    {
++       ioctl(ion_fd, ION_IOC_IMPORT, ion_fd) ;
++       ioctl(ion_fd, ION_IOC_FREE, ion_fd);
++       if(ion_fd->handle != NULL)
++          munmap(ion_fd->handle, memory->size);
++       close (shm_mem->fd);
++       g_slice_free (struct ion_fd_data, ion_fd);
++    }
++    g_slice_free (GstWlShmMemory, shm_mem);
++  }
+ }
+ 
+ static gpointer
+@@ -107,6 +158,19 @@ gst_wl_shm_mem_unmap (GstMemory * mem)
+ }
+ 
+ static void
++gst_wl_shm_allocator_finalize (GObject * obj)
++{
++  GstWlShmAllocator *allocator = (GstWlShmAllocator *) obj;
++
++  GST_LOG_OBJECT (obj, "called");
++
++  close (allocator->ion_fd);
++  allocator->ion_fd = -1;
++
++  G_OBJECT_CLASS (parent_class)->finalize (obj);
++}
++
++static void
+ gst_wl_shm_allocator_class_init (GstWlShmAllocatorClass * klass)
+ {
+   GstAllocatorClass *alloc_class = (GstAllocatorClass *) klass;
+@@ -123,6 +187,12 @@ gst_wl_shm_allocator_init (GstWlShmAllocator * self)
+   self->parent_instance.mem_unmap = gst_wl_shm_mem_unmap;
+ 
+   GST_OBJECT_FLAG_SET (self, GST_ALLOCATOR_FLAG_CUSTOM_ALLOC);
++  
++  self->ion_fd = open("/dev/ion", O_RDWR);
++  if (self->ion_fd < 0)
++  {
++    GST_ERROR_OBJECT (self,"error open dev/ion");
++  }
+ }
+ 
+ void
+@@ -158,6 +228,8 @@ gst_wl_shm_memory_construct_wl_buffer (GstMemory * mem, GstWlDisplay * display,
+   width = GST_VIDEO_INFO_WIDTH (info);
+   height = GST_VIDEO_INFO_HEIGHT (info);
+   stride = GST_VIDEO_INFO_PLANE_STRIDE (info, 0);
++  stride = AL(info->width,64); /* wl buffer stride should be aligned to 64 byte*/
++
+   size = GST_VIDEO_INFO_SIZE (info);
+   format = gst_video_format_to_wl_shm_format (GST_VIDEO_INFO_FORMAT (info));
+ 
+@@ -173,8 +245,6 @@ gst_wl_shm_memory_construct_wl_buffer (GstMemory * mem, GstWlDisplay * display,
+   wbuffer = wl_shm_pool_create_buffer (wl_pool, 0, width, height, stride,
+       format);
+ 
+-  close (shm_mem->fd);
+-  shm_mem->fd = -1;
+   wl_shm_pool_destroy (wl_pool);
+ 
+   return wbuffer;
+diff --git a/ext/wayland/wlshmallocator.h b/ext/wayland/wlshmallocator.h
+index f12882c..e764946 100644
+--- a/ext/wayland/wlshmallocator.h
++++ b/ext/wayland/wlshmallocator.h
+@@ -53,6 +53,8 @@ struct _GstWlShmMemory
+ struct _GstWlShmAllocator
+ {
+   GstAllocator parent_instance;
++  gint ion_fd;
++  GstVideoInfo info;
+ };
+ 
+ struct _GstWlShmAllocatorClass
+diff --git a/ext/wayland/wlvideoformat.c b/ext/wayland/wlvideoformat.c
+index 1302da6..efb915d 100644
+--- a/ext/wayland/wlvideoformat.c
++++ b/ext/wayland/wlvideoformat.c
+@@ -65,7 +65,7 @@ static const wl_VideoFormat formats[] = {
+   {WL_SHM_FORMAT_YVYU, GST_VIDEO_FORMAT_YVYU},
+   {WL_SHM_FORMAT_UYVY, GST_VIDEO_FORMAT_UYVY},
+   {WL_SHM_FORMAT_AYUV, GST_VIDEO_FORMAT_AYUV},
+-  {WL_SHM_FORMAT_NV12, GST_VIDEO_FORMAT_NV12},
++  {WL_SHM_FORMAT_NV12_VXD, GST_VIDEO_FORMAT_NV12},
+   {WL_SHM_FORMAT_NV21, GST_VIDEO_FORMAT_NV21},
+   {WL_SHM_FORMAT_NV16, GST_VIDEO_FORMAT_NV16},
+   {WL_SHM_FORMAT_YUV410, GST_VIDEO_FORMAT_YUV9},
+diff --git a/ext/wayland/wlwindow.c b/ext/wayland/wlwindow.c
+index a964335..985955f 100644
+--- a/ext/wayland/wlwindow.c
++++ b/ext/wayland/wlwindow.c
+@@ -138,9 +138,11 @@ gst_wl_window_new_internal (GstWlDisplay * display)
+       1, 1);
+ 
+   buf = gst_buffer_new_allocate (gst_wl_shm_allocator_get (), info.size, NULL);
++#if 0 /* comment off  by lshu*/
+   gst_buffer_map (buf, &mapinfo, GST_MAP_WRITE);
+   *((guint32 *) mapinfo.data) = 0;      /* paint it black */
+   gst_buffer_unmap (buf, &mapinfo);
++#endif
+   wlbuf =
+       gst_wl_shm_memory_construct_wl_buffer (gst_buffer_peek_memory (buf, 0),
+       display, &info);
+@@ -162,9 +164,28 @@ gst_wl_window_new_internal (GstWlDisplay * display)
+ 
+   return window;
+ }
++void *
++gst_wl_window_set_display (GstWlWindow *window, const GstVideoInfo * info,gboolean fullscreen)
++{
++  gint width;
++  if(window == NULL)
++    return;
++
++  if(fullscreen)
++    wl_shell_surface_set_fullscreen (window->shell_surface,
++      WL_SHELL_SURFACE_FULLSCREEN_METHOD_SCALE, 0, NULL);
++  else
++    wl_shell_surface_set_toplevel (window->shell_surface);
++
++  /* set the initial size to be the same as the reported video size */
++  width =
++      gst_util_uint64_scale_int_round (info->width, info->par_n, info->par_d);
++  gst_wl_window_set_render_rectangle (window, 0, 0, width, info->height);
++
++}
+ 
+ GstWlWindow *
+-gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info)
++gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info, gboolean fullscreen)
+ {
+   GstWlWindow *window;
+   gint width;
+@@ -178,7 +199,7 @@ gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info)
+   if (window->shell_surface) {
+     wl_shell_surface_add_listener (window->shell_surface,
+         &shell_surface_listener, window);
+-    wl_shell_surface_set_toplevel (window->shell_surface);
++    gst_wl_window_set_display(window,info,fullscreen);
+   } else {
+     GST_ERROR ("Unable to get wl_shell_surface");
+ 
+@@ -186,10 +207,6 @@ gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info)
+     return NULL;
+   }
+ 
+-  /* set the initial size to be the same as the reported video size */
+-  width =
+-      gst_util_uint64_scale_int_round (info->width, info->par_n, info->par_d);
+-  gst_wl_window_set_render_rectangle (window, 0, 0, width, info->height);
+ 
+   return window;
+ }
+@@ -312,6 +329,9 @@ gst_wl_window_set_render_rectangle (GstWlWindow * window, gint x, gint y,
+   window->render_rectangle.y = y;
+   window->render_rectangle.w = w;
+   window->render_rectangle.h = h;
++   /* video resolution is also changed*/
++  window->video_width = w;
++  window->video_height = h;
+ 
+   /* position the area inside the parent - needs a parent commit to apply */
+   if (window->area_subsurface)
+diff --git a/ext/wayland/wlwindow.h b/ext/wayland/wlwindow.h
+index e22cb26..f6c8d78 100644
+--- a/ext/wayland/wlwindow.h
++++ b/ext/wayland/wlwindow.h
+@@ -65,8 +65,11 @@ struct _GstWlWindowClass
+ 
+ GType gst_wl_window_get_type (void);
+ 
++void * gst_wl_window_set_display (GstWlWindow *window,
++        const GstVideoInfo * info,gboolean fullscreen);
++
+ GstWlWindow *gst_wl_window_new_toplevel (GstWlDisplay * display,
+-        const GstVideoInfo * info);
++        const GstVideoInfo * info, gboolean fullscreen);
+ GstWlWindow *gst_wl_window_new_in_surface (GstWlDisplay * display,
+         struct wl_surface * parent);
+ 
+-- 
+1.9.1
+

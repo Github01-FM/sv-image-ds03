@@ -1,0 +1,127 @@
+From 861a00d58b5d99ae4750c0166f15404cd354157d Mon Sep 17 00:00:00 2001
+From: "Nancy.Zou" <Nancy.Zou@csr.com>
+Date: Tue, 17 May 2016 09:52:19 +0800
+Subject: [PATCH] struct fbdev replace fbcompositoir in version 1.9
+
+Signed-off-by: Nancy.Zou <Nancy.Zou@csr.com>
+---
+ src/compositor-fbdev.c | 34 +++++++++++++++++-----------------
+ 1 file changed, 17 insertions(+), 17 deletions(-)
+
+diff --git a/src/compositor-fbdev.c b/src/compositor-fbdev.c
+index 078f451..9828869 100644
+--- a/src/compositor-fbdev.c
++++ b/src/compositor-fbdev.c
+@@ -440,7 +440,7 @@ static bool
+ fbdev_output_check_overlay_assignment(struct fbdev_output *output,
+ 				struct weston_view *ev)
+ {
+-	struct fbdev_compositor *fbc = output->compositor;
++	struct fbdev_backend *fbc = output->backend;
+ 	struct weston_buffer *buffer = ev->surface->buffer_ref.buffer;
+ 	struct weston_buffer_viewport *viewport = &ev->surface->buffer_viewport;
+ 	pixman_box32_t src, dst;
+@@ -550,7 +550,7 @@ fbdev_assign_planes(struct weston_output *base)
+ 	struct fbdev_output *output = to_fbdev_output(base);
+ 	struct fbdev_backend *c = output->backend;
+ 	struct weston_view *ev, *next, *last_ov = NULL, *last_yuv_view = NULL;
+-	struct weston_plane *primary = &c->base.primary_plane;
++	struct weston_plane *primary = &c->compositor->primary_plane;
+ 	struct weston_plane *ovl_plane = &output->ovl_plane;
+ 	bool has_GPU_layer = false;
+ 	pixman_region32_t opaque;
+@@ -563,7 +563,7 @@ fbdev_assign_planes(struct weston_output *base)
+ 	 * 1. env variable which not disable hw overlay feature.
+ 	 * 2. view is not covered completely by other opaque views.
+ 	 * 3. meet hw overlay conditions. */
+-	wl_list_for_each_safe(ev, next, &c->base.view_list, link) {
++	wl_list_for_each_safe(ev, next, &c->compositor->view_list, link) {
+ 		struct weston_surface *es = ev->surface;
+ 		if (c->hw_overlay_enable &&
+ 			!is_overlap(ev, &opaque) &&
+@@ -656,7 +656,7 @@ process_flip(struct fbdev_backend *fbc, PVR2D_HANDLE *fence)
+ 	memset(&data, 0, sizeof(data));
+ 	pdata = &data;
+ 
+-	wl_list_for_each_safe(base, next, &fbc->base.output_list, link) {
++	wl_list_for_each_safe(base, next, &fbc->compositor->output_list, link) {
+ 		struct fbdev_output *output = to_fbdev_output(base);
+ 
+ 		/*TODO: handle output is disabled */
+@@ -760,7 +760,7 @@ fbdev_output_process_overlay(struct fbdev_output *output,
+ 	 * compositor build views following the rule that the more later the
+ 	 * view is created, the more front it will be in the view list, so we
+ 	 * need to traverse the view list by reverse order */
+-	wl_list_for_each_reverse_safe(ev, next, &fbc->base.view_list, link) {
++	wl_list_for_each_reverse_safe(ev, next, &fbc->compositor->view_list, link) {
+ 		struct weston_surface *es = ev->surface;
+ 		struct weston_buffer *buf = es->buffer_ref.buffer;
+ 		int32_t fd;
+@@ -1216,8 +1216,8 @@ fbdev_output_create(struct fbdev_backend *backend,
+ 
+ #ifdef SUPPORT_VDSSCOMP
+ 	output->base.assign_planes = fbdev_assign_planes;
+-	weston_plane_init(&output->ovl_plane, &compositor->base, 0, 0);
+-	weston_compositor_stack_plane(&compositor->base, &output->ovl_plane, 0);
++	weston_plane_init(&output->ovl_plane, backend->compositor, 0, 0);
++	weston_compositor_stack_plane(backend->compositor, &output->ovl_plane, 0);
+ #endif
+ 
+ 	output->base.current_mode = &output->mode;
+@@ -1295,7 +1295,7 @@ fbdev_output_create(struct fbdev_backend *backend,
+ 	output->has_GPU_layer = false;
+ 	output->ovl_cnt = 0;
+ 	memset(&output->state, 0, sizeof(output->state));
+-	compositor->output_num++;
++	backend->output_num++;
+ #endif
+ 	return 0;
+ 
+@@ -1345,10 +1345,10 @@ fbdev_output_destroy(struct weston_output *base)
+ 	/* Remove the output. */
+ 	weston_output_destroy(&output->base);
+ #ifdef SUPPORT_VDSSCOMP
+-	if (compositor->output_num == 0)
++	if (backend->output_num == 0)
+ 		weston_log("error! already no output.\n");
+ 	else
+-		compositor->output_num--;
++		backend->output_num--;
+ #endif
+ 	free(output);
+ }
+@@ -1440,7 +1440,7 @@ fbdev_output_disable(struct weston_output *base)
+ 	weston_log("Disabling fbdev output.\n");
+ 
+ #ifdef SUPPORT_VDSSCOMP
+-	if (!compositor->use_pixman) {
++	if (!backend->use_pixman) {
+ 		output->is_enable = false;
+ 		return;
+ 	}
+@@ -1668,16 +1668,16 @@ fbdev_backend_create(struct weston_compositor *compositor, int *argc, char *argv
+ 		}
+ 	}
+ #ifdef SUPPORT_VDSSCOMP
+-       if (context_init(compositor) < 0)
+-               goto out_pixman;
++       if (context_init(backend) < 0)
++               goto out_launcher;
+ 
+-       memset(&compositor->setup_data, 0, sizeof(compositor->setup_data));
+-       compositor->hw_overlay_enable = is_support_overlay();
++       memset(&backend->setup_data, 0, sizeof(backend->setup_data));
++       backend->hw_overlay_enable = is_support_overlay();
+ #endif
+ 
+ #ifdef USE_HW_VSYNC
+-       compositor->uevent_fd = open_uevent_socket();
+-       if (compositor->uevent_fd < 0)
++       backend->uevent_fd = open_uevent_socket();
++       if (backend->uevent_fd < 0)
+                goto out_launcher;
+ #endif
+ 
+-- 
+1.9.1
+

@@ -1,0 +1,40 @@
+From 063a773293c846ad11e2ee5efdb1a21bdc8a6945 Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Thu, 12 Mar 2015 16:55:49 +0800
+Subject: [PATCH 2/8] APBU-10139: gst-play can not play the second stream
+
+Disable pool checking on v4l2 sink, because gst-omx will copy a
+buffer from rendering buffer, but it will do not include pool value.
+
+Change-Id: I904ea1a2b101761d2b60b8de6f3bff7eed51860a
+Signed-off-by: Xiaofeng Fei <xfei@codeaurora.org>
+---
+ sys/v4l2/gstv4l2bufferpool.c | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2bufferpool.c b/sys/v4l2/gstv4l2bufferpool.c
+index 6c89bd1..588725c 100644
+--- a/sys/v4l2/gstv4l2bufferpool.c
++++ b/sys/v4l2/gstv4l2bufferpool.c
+@@ -1844,8 +1844,16 @@ gst_v4l2_buffer_pool_process (GstV4l2BufferPool * pool, GstBuffer ** buf)
+           GstV4l2MemoryGroup *group;
+           gint index;
+ 
+-          if ((*buf)->pool != bpool)
+-            goto copying;
++          if ((*buf)->pool != bpool) {
++            /* APBU-10143 Todo.
++               Temp disable this check, the buffer from gst-omx will not
++               include pool value. but it should not goto copying.
++            */
++            GST_WARNING_OBJECT(pool,
++              "pool in gstbuffer is not equal to v4l2 pool");
++
++            //goto copying;
++          }
+ 
+           if (!gst_v4l2_is_buffer_valid (*buf, &group))
+             goto copying;
+-- 
+1.9.1
+

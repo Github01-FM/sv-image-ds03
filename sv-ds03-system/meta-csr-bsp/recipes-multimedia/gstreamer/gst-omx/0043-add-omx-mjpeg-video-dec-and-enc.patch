@@ -1,0 +1,601 @@
+From 8b73ff3676e604543f247160fe41c30ef6707d18 Mon Sep 17 00:00:00 2001
+From: Lily Li <lali@codeaurora.org>
+Date: Thu, 13 Aug 2015 15:13:07 +0800
+Subject: [PATCH 43/67] add omx mjpeg video dec and enc
+
+Change-Id: Ie619ea5837c2a5e72f64faae2570f075c42b4159
+Signed-off-by: Lily Li <lali@codeaurora.org>
+---
+ omx/Makefile.am           |   9 +-
+ omx/gstomx.c              |   7 +-
+ omx/gstomxmjpegvideodec.c |  84 +++++++++++++++++++
+ omx/gstomxmjpegvideodec.h |  40 +++++++++
+ omx/gstomxmjpegvideoenc.c | 205 ++++++++++++++++++++++++++++++++++++++++++++++
+ omx/gstomxmjpegvideoenc.h |  45 ++++++++++
+ omx/gstomxvideodec.c      |   6 ++
+ omx/gstomxvideoenc.c      |  13 ++-
+ parsed_data_gstomx.conf   |  18 ++++
+ unparsed_data_gstomx.conf |  18 ++++
+ 10 files changed, 439 insertions(+), 6 deletions(-)
+ create mode 100644 omx/gstomxmjpegvideodec.c
+ create mode 100644 omx/gstomxmjpegvideodec.h
+ create mode 100644 omx/gstomxmjpegvideoenc.c
+ create mode 100644 omx/gstomxmjpegvideoenc.h
+
+diff --git a/omx/Makefile.am b/omx/Makefile.am
+index 74f0f99..0b2ea7c 100644
+--- a/omx/Makefile.am
++++ b/omx/Makefile.am
+@@ -19,7 +19,10 @@ libgstomx_la_SOURCES = gstomx.c  \
+       gstomxvp6dec.c  \
+       gstomxwmvdec.c  \
+       gstomxavsdec.c  \
+-      gstomxsorensondec.c
++      gstomxsorensondec.c \
++      gstomxvideoenc.c \
++      gstomxmjpegvideodec.c \
++      gstomxmjpegvideoenc.c 
+ 
+ 
+ libgstomx_la_CFLAGS = $(GST_PLUGINS_BASE_CFLAGS) $(GST_BASE_CFLAGS) $(GST_CFLAGS) -DHAS_GSTREAMER -I openmax
+@@ -57,5 +60,7 @@ noinst_HEADERS = \
+   gstomxaacenc.h \
+   gstomxaudiosink.h \
+   gstomxanalogaudiosink.h \
+-  gstomxhdmiaudiosink.h
++  gstomxhdmiaudiosink.h \
++  gstomxmjpegvideoenc.h \
++  gstomxmjpegvideodec.h
+ 
+diff --git a/omx/gstomx.c b/omx/gstomx.c
+index 276b7e1..d1ebce0 100644
+--- a/omx/gstomx.c
++++ b/omx/gstomx.c
+@@ -40,7 +40,8 @@
+ #include "gstomxvp6dec.h"
+ #include "gstomxwmvdec.h"
+ #include "gstomxavsdec.h"
+-
++#include "gstomxmjpegvideodec.h"
++#include "gstomxmjpegvideoenc.h"
+ GST_DEBUG_CATEGORY (gstomx_debug);
+ #define GST_CAT_DEFAULT gstomx_debug
+ 
+@@ -2374,7 +2375,8 @@ static const GGetTypeFunction types[] = {
+   gst_omx_wmv_dec_get_type, gst_omx_mjpeg_dec_get_type,
+   gst_omx_vp8_dec_get_type, gst_omx_vp6_dec_get_type,
+   gst_omx_real_video_dec_get_type, gst_omx_avs_dec_get_type,
+-  gst_omx_sorenson_dec_get_type
++  gst_omx_sorenson_dec_get_type, gst_omx_mjpeg_video_dec_get_type,
++  gst_omx_mjpeg_video_enc_get_type
+ };
+ 
+ struct TypeOffest
+@@ -2385,6 +2387,7 @@ struct TypeOffest
+ 
+ static const struct TypeOffest base_types[] = {
+   {gst_omx_video_dec_get_type, G_STRUCT_OFFSET (GstOMXVideoDecClass, cdata)},
++  {gst_omx_video_enc_get_type, G_STRUCT_OFFSET (GstOMXVideoEncClass, cdata)},
+ };
+ 
+ static GKeyFile *config = NULL;
+diff --git a/omx/gstomxmjpegvideodec.c b/omx/gstomxmjpegvideodec.c
+new file mode 100644
+index 0000000..f48c1b3
+--- /dev/null
++++ b/omx/gstomxmjpegvideodec.c
+@@ -0,0 +1,84 @@
++#ifdef HAVE_CONFIG_H
++#include "config.h"
++#endif
++
++#include "gstomxmjpegvideodec.h"
++
++GST_DEBUG_CATEGORY_STATIC (gst_omx_mjpeg_video_dec_debug_category);
++#define GST_CAT_DEFAULT gst_omx_mjpeg_video_dec_debug_category
++
++/* prototypes */
++static gboolean gst_omx_mjpeg_video_dec_is_format_change (GstOMXVideoDec * dec,
++    GstOMXPort * port, GstVideoCodecState * state);
++static gboolean gst_omx_mjpeg_video_dec_set_format (GstOMXVideoDec * dec,
++    GstOMXPort * port, GstVideoCodecState * state);
++
++enum
++{
++  PROP_0
++};
++
++/* class initialization */
++
++#define DEBUG_INIT \
++  GST_DEBUG_CATEGORY_INIT (gst_omx_mjpeg_video_dec_debug_category, "omxmjpegvideodec", 0, \
++      "debug category for gst-omx video decoder base class");
++
++G_DEFINE_TYPE_WITH_CODE (GstOMXMJPEGVIDEODec, gst_omx_mjpeg_video_dec,
++    GST_TYPE_OMX_VIDEO_DEC, DEBUG_INIT);
++
++static void
++gst_omx_mjpeg_video_dec_class_init (GstOMXMJPEGVIDEODecClass * klass)
++{
++  GstOMXVideoDecClass *videodec_class = GST_OMX_VIDEO_DEC_CLASS (klass);
++  GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
++
++  videodec_class->is_format_change =
++      GST_DEBUG_FUNCPTR (gst_omx_mjpeg_video_dec_is_format_change);
++  videodec_class->set_format = GST_DEBUG_FUNCPTR (gst_omx_mjpeg_video_dec_set_format);
++
++  videodec_class->cdata.default_sink_template_caps = "image/jpeg, ";
++  videodec_class->cdata.default_src_template_caps =
++      "video/x-raw, "
++      "format = NV12, "
++      "width = " GST_VIDEO_SIZE_RANGE ", "
++      "height = " GST_VIDEO_SIZE_RANGE ", " "framerate = " "(fraction) [ 0, 100 ]";
++
++  gst_element_class_set_static_metadata (element_class,
++      "OpenMAX-CSR MJPEG Video Decoder",
++      "Codec/Decoder/Video",
++      "Decode MJPEG video streams",
++      "CSR");
++
++	if(!g_strcmp0(videodec_class->cdata.component_name, "OMX.CSR.Decoder.MJPEG"))
++	{
++	  gst_omx_set_default_role (&videodec_class->cdata, "csr_decoder.mjpeg");
++	}
++}
++
++static void
++gst_omx_mjpeg_video_dec_init (GstOMXMJPEGVIDEODec * self)
++{
++}
++
++static gboolean
++gst_omx_mjpeg_video_dec_is_format_change (GstOMXVideoDec * dec,
++    GstOMXPort * port, GstVideoCodecState * state)
++{
++  return FALSE;
++}
++
++static gboolean
++gst_omx_mjpeg_video_dec_set_format (GstOMXVideoDec * dec, GstOMXPort * port,
++    GstVideoCodecState * state)
++{
++  gboolean ret;
++  OMX_PARAM_PORTDEFINITIONTYPE port_def;
++
++  gst_omx_port_get_port_definition (port, &port_def);
++
++  port_def.format.video.eCompressionFormat = OMX_VIDEO_CodingMJPEG;
++  ret = gst_omx_port_update_port_definition (port, &port_def) == OMX_ErrorNone;
++  GST_ERROR("gst_omx_mjpeg_video_dec_set_format ret %d",ret);
++  return ret;
++}
+diff --git a/omx/gstomxmjpegvideodec.h b/omx/gstomxmjpegvideodec.h
+new file mode 100644
+index 0000000..4ec0fa9
+--- /dev/null
++++ b/omx/gstomxmjpegvideodec.h
+@@ -0,0 +1,40 @@
++#ifndef __GST_OMX_MJPEG_VIDEO_DEC_H__
++#define __GST_OMX_MJPEG_VIDEO_DEC_H__
++
++#include <gst/gst.h>
++#include "gstomxvideodec.h"
++
++G_BEGIN_DECLS
++
++#define GST_TYPE_OMX_MJPEG_VIDEO_DEC \
++  (gst_omx_mjpeg_video_dec_get_type())
++#define GST_OMX_MJPEG_VIDEO_DEC(obj) \
++  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_OMX_MJPEG_VIDEO_DEC,GstOMXMJPEGVIDEODec))
++#define GST_OMX_MJPEG_VIDEO_DEC_CLASS(klass) \
++  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_OMX_MJPEG_VIDEO_DEC,GstOMXMJPEGVIDEODecClass))
++#define GST_OMX_MJPEG_VIDEO_DEC_GET_CLASS(obj) \
++  (G_TYPE_INSTANCE_GET_CLASS((obj),GST_TYPE_OMX_MJPEG_VIDEO_DEC,GstOMXMJPEGVIDEODecClass))
++#define GST_IS_OMX_MJPEG_VIDEO_DEC(obj) \
++  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_OMX_MJPEG_VIDEO_DEC))
++#define GST_IS_OMX_MJPEG_VIDEO_DEC_CLASS(obj) \
++  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_OMX_MJPEG_VIDEO_DEC))
++
++typedef struct _GstOMXMJPEGVIDEODec GstOMXMJPEGVIDEODec;
++typedef struct _GstOMXMJPEGVIDEODecClass GstOMXMJPEGVIDEODecClass;
++
++struct _GstOMXMJPEGVIDEODec
++{
++  GstOMXVideoDec parent;
++};
++
++struct _GstOMXMJPEGVIDEODecClass
++{
++  GstOMXVideoDecClass parent_class;
++};
++
++GType gst_omx_mjpeg_video_dec_get_type (void);
++
++G_END_DECLS
++
++#endif /* __GST_OMX_MJPEG_VIDEO_DEC_H__ */
++
+diff --git a/omx/gstomxmjpegvideoenc.c b/omx/gstomxmjpegvideoenc.c
+new file mode 100644
+index 0000000..4ec0242
+--- /dev/null
++++ b/omx/gstomxmjpegvideoenc.c
+@@ -0,0 +1,205 @@
++#ifdef HAVE_CONFIG_H
++#include "config.h"
++#endif
++
++#include <gst/gst.h>
++
++#include "gstomxmjpegvideoenc.h"
++
++#ifdef USE_OMX_TARGET_RPI
++#include <OMX_Broadcom.h>
++#include <OMX_Index.h>
++#endif
++
++GST_DEBUG_CATEGORY_STATIC (gst_omx_mjpeg_video_enc_debug_category);
++#define GST_CAT_DEFAULT gst_omx_mjpeg_video_enc_debug_category
++
++/* prototypes */
++static gboolean gst_omx_mjpeg_video_enc_set_format (GstOMXVideoEnc * enc,
++    GstOMXPort * port, GstVideoCodecState * state);
++static gboolean gst_omx_mjpeg_video_enc_flush (GstVideoEncoder * enc);
++static gboolean gst_omx_mjpeg_video_enc_stop (GstVideoEncoder * enc);
++static GstCaps *gst_omx_mjpeg_video_enc_get_caps (GstOMXVideoEnc * enc,
++    GstOMXPort * port, GstVideoCodecState * state);
++
++static void gst_omx_mjpeg_enc_set_property (GObject * object, guint prop_id,
++    const GValue * value, GParamSpec * pspec);
++static void gst_omx_mjpeg_enc_get_property (GObject * object, guint prop_id,
++    GValue * value, GParamSpec * pspec);
++
++enum
++{
++  PROP_0,
++  PROP_OUTCOLORFORMAT,
++  PROP_OUTMIMETYPE
++};
++
++#define GST_OMX_MJPEG_OUTCOLORFORMAT OMX_COLOR_FormatCbYCrY
++#define GST_OMX_MJPEG_OUTMIMETYPE_IS_THUMBNAIL FALSE
++/* class initialization */
++
++#define DEBUG_INIT \
++  GST_DEBUG_CATEGORY_INIT (gst_omx_mjpeg_video_enc_debug_category, "omxmjpegvideoenc", 0, \
++      "debug category for gst-omx video encoder base class");
++
++#define parent_class gst_omx_mjpeg_video_enc_parent_class
++G_DEFINE_TYPE_WITH_CODE (GstOMXMJPEGVIDEOEnc, gst_omx_mjpeg_video_enc,
++    GST_TYPE_OMX_VIDEO_ENC, DEBUG_INIT);
++
++static void
++gst_omx_mjpeg_video_enc_class_init (GstOMXMJPEGVIDEOEncClass * klass)
++{
++  GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
++  GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
++  GstVideoEncoderClass *basevideoenc_class = GST_VIDEO_ENCODER_CLASS (klass);
++  GstOMXVideoEncClass *videoenc_class = GST_OMX_VIDEO_ENC_CLASS (klass);
++
++  videoenc_class->set_format = GST_DEBUG_FUNCPTR (gst_omx_mjpeg_video_enc_set_format);
++  basevideoenc_class->flush = gst_omx_mjpeg_video_enc_flush;
++  basevideoenc_class->stop = gst_omx_mjpeg_video_enc_stop;
++  videoenc_class->get_caps = GST_DEBUG_FUNCPTR (gst_omx_mjpeg_video_enc_get_caps);
++
++  gobject_class->set_property = gst_omx_mjpeg_enc_set_property;
++  gobject_class->get_property = gst_omx_mjpeg_enc_get_property;
++
++  g_object_class_install_property (gobject_class, PROP_OUTMIMETYPE,
++		g_param_spec_boolean ("out-mimetype",
++			"out mime type of mjpeg",
++			"out mime type of mjpeg",
++			GST_OMX_MJPEG_OUTMIMETYPE_IS_THUMBNAIL,
++			G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
++			GST_PARAM_MUTABLE_READY));
++  
++	g_object_class_install_property (gobject_class, PROP_OUTCOLORFORMAT,
++		g_param_spec_uint ("out-color-format", "Target mjpeg",
++			"out color format of mjpeg (OMX_COLOR_FormatYUV420Planar=component default)",
++			0, G_MAXUINT,
++			GST_OMX_MJPEG_OUTCOLORFORMAT,
++			G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
++			GST_PARAM_MUTABLE_READY));
++
++
++  videoenc_class->cdata.default_src_template_caps = "image/jpeg, "
++      "width=(int) [ 16, 4096 ], " "height=(int) [ 16, 4096 ]";
++  videoenc_class->cdata.default_sink_template_caps = "video/x-raw, "
++      "width = " GST_VIDEO_SIZE_RANGE ", "
++      "height = " GST_VIDEO_SIZE_RANGE ", " "framerate = " "(fraction) [ 0, 60 ]";
++
++  gst_element_class_set_static_metadata (element_class,
++      "OpenMAX-CSR MJPEG Video Encoder",
++      "Codec/Encoder/Video",
++      "Encode MJPEG video streams",
++      "CSR");
++
++  gst_omx_set_default_role (&videoenc_class->cdata, "video_encoder.mjpeg");
++}
++
++static void
++gst_omx_mjpeg_video_enc_init (GstOMXMJPEGVIDEOEnc * self)
++{
++  self->is_thumbnail =
++      GST_OMX_MJPEG_OUTMIMETYPE_IS_THUMBNAIL;
++  self->color_format =
++      GST_OMX_MJPEG_OUTCOLORFORMAT;
++  GST_ERROR("gst_omx_mjpeg_video_enc_init color format %d\n", self->color_format);
++}
++
++static gboolean
++gst_omx_mjpeg_video_enc_flush (GstVideoEncoder * enc)
++{
++  GstOMXMJPEGVIDEOEnc *self = GST_OMX_MJPEG_VIDEO_ENC (enc);
++  GST_ERROR("gst_omx_mjpeg_video_enc_flush\n");
++  g_list_free_full (self->headers, (GDestroyNotify) gst_buffer_unref);
++  self->headers = NULL;
++
++  return GST_VIDEO_ENCODER_CLASS (parent_class)->flush (enc);
++}
++
++static gboolean
++gst_omx_mjpeg_video_enc_stop (GstVideoEncoder * enc)
++{
++  GstOMXMJPEGVIDEOEnc *self = GST_OMX_MJPEG_VIDEO_ENC (enc);
++    GST_ERROR("gst_omx_mjpeg_video_enc_stop\n");
++  g_list_free_full (self->headers, (GDestroyNotify) gst_buffer_unref);
++  self->headers = NULL;
++
++  return GST_VIDEO_ENCODER_CLASS (parent_class)->stop (enc);
++}
++
++static gboolean
++gst_omx_mjpeg_video_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
++    GstVideoCodecState * state)
++{
++  GstOMXMJPEGVIDEOEnc *self = GST_OMX_MJPEG_VIDEO_ENC (enc);
++  OMX_PARAM_PORTDEFINITIONTYPE port_def;
++  OMX_ERRORTYPE err;
++
++  gst_omx_port_get_port_definition (GST_OMX_VIDEO_ENC (self)->enc_out_port,
++      &port_def);
++  port_def.format.video.eCompressionFormat = OMX_VIDEO_CodingMJPEG;
++  port_def.format.video.eColorFormat = self->color_format;
++  GST_ERROR("gst_omx_mjpeg_video_enc_set_format color format %d\n", port_def.format.video.eColorFormat);
++  if (self->is_thumbnail) {
++  	port_def.format.video.cMIMEType = "MJPEG422THUMBNAIL";
++  } else {
++  	port_def.format.video.cMIMEType = "MJPEG422";
++  }
++  err =
++      gst_omx_port_update_port_definition (GST_OMX_VIDEO_ENC
++      (self)->enc_out_port, &port_def);
++  if (err != OMX_ErrorNone)
++    return FALSE;
++
++  return TRUE;
++
++}
++
++static void
++gst_omx_mjpeg_enc_set_property (GObject * object, guint prop_id,
++    const GValue * value, GParamSpec * pspec)
++{
++  GstOMXMJPEGVIDEOEnc *self = GST_OMX_MJPEG_VIDEO_ENC (object);
++  GST_ERROR("gst_omx_mjpeg_enc_set_property\n");
++  switch (prop_id) {
++    case PROP_OUTMIMETYPE:
++      self->is_thumbnail = g_value_get_boolean (value);
++      break;
++    case PROP_OUTCOLORFORMAT:
++      self->color_format = g_value_get_uint (value);
++      break;
++    default:
++      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
++      break;
++  }
++}
++
++static void
++gst_omx_mjpeg_enc_get_property (GObject * object, guint prop_id, GValue * value,
++    GParamSpec * pspec)
++{
++  GstOMXMJPEGVIDEOEnc *self = GST_OMX_MJPEG_VIDEO_ENC (object);
++  GST_ERROR("gst_omx_mjpeg_enc_get_property\n");
++  switch (prop_id) {
++    case PROP_OUTMIMETYPE:
++      g_value_set_boolean (value, self->is_thumbnail);
++      break;
++    case PROP_OUTCOLORFORMAT:
++      g_value_set_uint (value, self->color_format);
++      break;
++    default:
++      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
++      break;
++  }
++}
++
++static GstCaps *
++gst_omx_mjpeg_video_enc_get_caps (GstOMXVideoEnc * enc, GstOMXPort * port,
++    GstVideoCodecState * state)
++{
++  GstCaps *caps;
++
++    caps = gst_caps_new_empty_simple ("image/jpeg");
++
++  return caps;
++}
++
+diff --git a/omx/gstomxmjpegvideoenc.h b/omx/gstomxmjpegvideoenc.h
+new file mode 100644
+index 0000000..f9e2c38
+--- /dev/null
++++ b/omx/gstomxmjpegvideoenc.h
+@@ -0,0 +1,45 @@
++#ifndef __GST_OMX_MJPEG_VIDEO_ENC_H__
++#define __GST_OMX_MJPEG_VIDEO_ENC_H__
++
++#include <gst/gst.h>
++#include "gstomxvideoenc.h"
++
++G_BEGIN_DECLS
++
++#define GST_TYPE_OMX_MJPEG_VIDEO_ENC \
++  (gst_omx_mjpeg_video_enc_get_type())
++#define GST_OMX_MJPEG_VIDEO_ENC(obj) \
++  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_OMX_MJPEG_VIDEO_ENC,GstOMXMJPEGVIDEOEnc))
++#define GST_OMX_MJPEG_VIDEO_ENC_CLASS(klass) \
++  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_OMX_MJPEG_VIDEO_ENC,GstOMXMJPEGVIDEOEncClass))
++#define GST_OMX_MJPEG_VIDEO_ENC_GET_CLASS(obj) \
++  (G_TYPE_INSTANCE_GET_CLASS((obj),GST_TYPE_OMX_MJPEG_VIDEO_ENC,GstOMXMJPEGVIDEOEncClass))
++#define GST_IS_OMX_MJPEG_VIDEO_ENC(obj) \
++  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_OMX_MJPEG_VIDEO_ENC))
++#define GST_IS_OMX_MJPEG_VIDEO_ENC_CLASS(obj) \
++  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_OMX_MJPEG_VIDEO_ENC))
++
++typedef struct _GstOMXMJPEGVIDEOEnc GstOMXMJPEGVIDEOEnc;
++typedef struct _GstOMXMJPEGVIDEOEncClass GstOMXMJPEGVIDEOEncClass;
++
++struct _GstOMXMJPEGVIDEOEnc
++{
++  GstOMXVideoEnc parent;
++
++  gboolean is_thumbnail;
++  guint32 color_format;
++
++  GList *headers;
++};
++
++struct _GstOMXMJPEGVIDEOEncClass
++{
++  GstOMXVideoEncClass parent_class;
++};
++
++GType gst_omx_mjpeg_video_enc_get_type (void);
++
++G_END_DECLS
++
++#endif /* __GST_OMX_MJPEG_VIDEO_ENC_H__ */
++
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 9f5c08c..bce634a 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -1316,9 +1316,11 @@ static OMX_ERRORTYPE
+ gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self,OMX_CONFIG_RECTTYPE *crop_rect)
+ {
+   GstOMXPort *port;
++  GstOMXPort *in_port;
+   OMX_ERRORTYPE err;
+   GstVideoCodecState *state;
+   OMX_PARAM_PORTDEFINITIONTYPE port_def;
++  OMX_PARAM_PORTDEFINITIONTYPE in_port_def;
+   GstVideoFormat format;
+   GstVideoFlags flags;
+   /* At this point the decoder output port is disabled */
+@@ -1512,6 +1514,10 @@ gst_omx_video_dec_reconfigure_output_port (GstOMXVideoDec * self,OMX_CONFIG_RECT
+   format =
+       gst_omx_video_get_format_from_omx (port_def.format.video.eColorFormat);
+ 
++  in_port = self->dec_in_port;
++  gst_omx_port_get_port_definition (in_port, &in_port_def);
++  if (in_port_def.format.video.eCompressionFormat == OMX_VIDEO_CodingMJPEG && format == GST_VIDEO_FORMAT_UYVY)
++    format= GST_VIDEO_FORMAT_YVYU;
+   if (format == GST_VIDEO_FORMAT_UNKNOWN) {
+     GST_ERROR_OBJECT (self, "Unsupported color format: %d",
+         port_def.format.video.eColorFormat);
+diff --git a/omx/gstomxvideoenc.c b/omx/gstomxvideoenc.c
+index 0f64a02..6a8c5af 100644
+--- a/omx/gstomxvideoenc.c
++++ b/omx/gstomxvideoenc.c
+@@ -358,7 +358,7 @@ gst_omx_video_enc_shutdown (GstOMXVideoEnc * self)
+   GST_DEBUG_OBJECT (self, "Shutting down encoder");
+ 
+   state = gst_omx_component_get_state (self->enc, 0);
+-  if (state > OMX_StateLoaded || state == OMX_StateInvalid) {
++  if (state > OMX_StateLoaded || state == OMX_StateReserved_0x00000000) {
+     if (state > OMX_StateIdle) {
+       gst_omx_component_set_state (self->enc, OMX_StateIdle);
+       gst_omx_component_get_state (self->enc, 5 * GST_SECOND);
+@@ -1132,10 +1132,19 @@ gst_omx_video_enc_set_format (GstVideoEncoder * encoder,
+       if (gst_omx_component_set_state (self->enc,
+               OMX_StateIdle) != OMX_ErrorNone)
+         return FALSE;
+-
++      gst_omx_port_get_port_definition (self->enc_in_port, &port_def);
++      port_def.nBufferSize = info->size;
++      port_def.format.video.nFrameWidth = info->width;
++      port_def.format.video.nFrameHeight = info->height;
++      gst_omx_port_update_port_definition(self->enc_in_port, &port_def);
+       /* Need to allocate buffers to reach Idle state */
+       if (gst_omx_port_allocate_buffers (self->enc_in_port) != OMX_ErrorNone)
+         return FALSE;
++      gst_omx_port_get_port_definition (self->enc_out_port, &port_def);
++      port_def.nBufferSize = info->size;
++      port_def.format.video.nFrameWidth = info->width;
++      port_def.format.video.nFrameHeight = info->height;
++      gst_omx_port_update_port_definition(self->enc_out_port, &port_def);
+       if (gst_omx_port_allocate_buffers (self->enc_out_port) != OMX_ErrorNone)
+         return FALSE;
+     }
+diff --git a/parsed_data_gstomx.conf b/parsed_data_gstomx.conf
+index eaf9e18..a9264d0 100755
+--- a/parsed_data_gstomx.conf
++++ b/parsed_data_gstomx.conf
+@@ -58,6 +58,24 @@ rank=260
+ in-port-index=0
+ out-port-index=1
+ 
++[omxmjpegvideodec]
++type-name=GstOMXMJPEGVIDEODec
++core-name=libomxcore.so
++component-name=OMX.CSR.MJPEG.Decoder
++rank=260
++in-port-index=0
++out-port-index=1
++sink-template-caps=image/jpeg
++
++[omxmjpegvideoenc]
++type-name=GstOMXMJPEGVIDEOEnc
++core-name=libomxcore.so
++component-name=OMX.CSR.MJPEG.Encoder
++rank=256
++in-port-index=0
++out-port-index=1
++hacks=no-disable-outport
++
+ [omxvp8dec]
+ type-name=GstOMXVP8Dec
+ core-name=libomxcore.so
+diff --git a/unparsed_data_gstomx.conf b/unparsed_data_gstomx.conf
+index 380f674..89ae451 100755
+--- a/unparsed_data_gstomx.conf
++++ b/unparsed_data_gstomx.conf
+@@ -59,6 +59,24 @@ rank=260
+ in-port-index=0
+ out-port-index=1
+ 
++[omxmjpegvideodec]
++type-name=GstOMXMJPEGVIDEODec
++core-name=libomxcore.so
++component-name=OMX.CSR.MJPEG.Decoder
++rank=260
++in-port-index=0
++out-port-index=1
++sink-template-caps=image/jpeg
++
++[omxmjpegvideoenc]
++type-name=GstOMXMJPEGVIDEOEnc
++core-name=libomxcore.so
++component-name=OMX.CSR.MJPEG.Encoder
++rank=256
++in-port-index=0
++out-port-index=1
++hacks=no-disable-outport
++
+ [omxvp8dec]
+ type-name=GstOMXVP8Dec
+ core-name=libomxcore.so
+-- 
+1.9.1
+

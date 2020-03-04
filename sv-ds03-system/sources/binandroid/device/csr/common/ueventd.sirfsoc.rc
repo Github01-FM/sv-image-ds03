@@ -1,0 +1,23 @@
+
+# add for usb modem
+/dev/ttyUSB0              0666   root       root
+/dev/ttyUSB1              0666   root       root
+/dev/ttyUSB2              0666   root       root
+/dev/ttyUSB3              0666   root       root
+
+/dev/vxdkernel0	          0666   root       root
+/dev/pvrmved              0666   root       root
+/dev/clcdc                0666   root       root
+/dev/sirfsoc-mbx          0666   root       root
+/dev/gps                  0666   root       root
+/dev/apm_bios             0666   root       root
+/dev/video0               0666   root       root
+/dev/video1               0666   root       root
+/dev/video2               0666   root       root
+/dev/graphics/fb1         0666   root       root
+/dev/ttyS2                0666   root       root
+
+# allow users to write kernel printk
+/dev/ttyprintk            0666   root       root
+
+/sys/devices/platform/sirfsocfb.0/pwm-backlight.0/*  brightness   0664  root   system

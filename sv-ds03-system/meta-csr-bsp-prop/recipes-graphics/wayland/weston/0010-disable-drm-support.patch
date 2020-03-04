@@ -1,0 +1,58 @@
+From c9b3aeb1bbb9450f52b32bccba48063694f05a1e Mon Sep 17 00:00:00 2001
+From: "Nancy.Zou" <Nancy.Zou@csr.com>
+Date: Thu, 17 Dec 2015 13:48:35 +0800
+Subject: [PATCH] disable drm support.
+
+Signed-off-by: Nancy.Zou <Nancy.Zou@csr.com>
+---
+ configure.ac      | 2 +-
+ src/gl-renderer.c | 6 ++++--
+ 2 files changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index 9223a6c..6c2d706 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -87,7 +87,7 @@ if test x$enable_egl = xyes; then
+ 	AC_DEFINE([ENABLE_EGL], [1], [Build Weston with EGL support])
+ 	PKG_CHECK_MODULES(EGL, [egl >= 7.10 glesv2])
+         PKG_CHECK_MODULES([EGL_TESTS], [egl >= 7.10 glesv2 wayland-client wayland-egl])
+-	PKG_CHECK_MODULES([GL_RENDERER], [libdrm])
++	#PKG_CHECK_MODULES([GL_RENDERER], [libdrm])
+ fi
+ 
+ AC_ARG_ENABLE(xkbcommon,
+diff --git a/src/gl-renderer.c b/src/gl-renderer.c
+index 2fda0cb..dea3321 100644
+--- a/src/gl-renderer.c
++++ b/src/gl-renderer.c
+@@ -36,7 +36,6 @@
+ #include <float.h>
+ #include <assert.h>
+ #include <linux/input.h>
+-#include <drm_fourcc.h>
+ #include <../src/kernel/drivers/staging/android/uapi/ion.h>
+ #include <sys/ioctl.h>
+ #include <fcntl.h>
+@@ -1636,7 +1635,7 @@ choose_texture_target(struct linux_dmabuf_buffer *dmabuf)
+ {
+ 	if (dmabuf->n_planes > 1)
+ 		return GL_TEXTURE_EXTERNAL_OES;
+-
++#if 0 //no DRM support
+ 	switch (dmabuf->format & ~DRM_FORMAT_BIG_ENDIAN) {
+ 	case DRM_FORMAT_YUYV:
+ 	case DRM_FORMAT_YVYU:
+@@ -1647,6 +1646,9 @@ choose_texture_target(struct linux_dmabuf_buffer *dmabuf)
+ 	default:
+ 		return GL_TEXTURE_2D;
+ 	}
++#else
++	return GL_TEXTURE_2D;
++#endif
+ }
+ 
+ static void
+-- 
+1.9.1
+

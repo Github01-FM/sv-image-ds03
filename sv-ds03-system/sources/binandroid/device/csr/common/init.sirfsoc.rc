@@ -1,0 +1,120 @@
+on init
+
+# setup the global environment
+    export GST_PLUGIN_PATH /system/lib/gst/plugins
+    export LTT_DAEMON /system/bin/lttd
+    export TSLIB_CONFFILE /system/etc/ts.conf
+    export TSLIB_PLUGINDIR /system/lib/
+    export TSLIB_TSDEVICE /dev/input/event0
+    export VALGRIND_LIB /data/local/valgrind/lib/valgrind
+
+# change permissions
+    chmod 0666 /var/run/gpsctl
+    chmod 0666 /var/run/agiout
+    chmod 0666 /var/run/gpsmode
+    chmod 0777 /dev/mpu
+    chmod 0777 /dev/mpuirq
+    chmod 0777 /dev/accelirq
+    chmod 0777 /dev/timerirq
+    chmod 0777 /dev/pixcir_tangoc_ts0
+
+on fs
+    mkdir /data/ppp 0771 radio system
+    mkdir /data/anr 0777 system system
+    chown system system /data/app
+    chmod 4755 /bin/busybox
+
+#wifi related setting
+  
+#following setting need to be check and correct later after double check and consider the mode of each of file
+
+on post-fs
+    chmod 777 /system/etc/dhcpcd/dhcpcd-hooks/20-dns.conf
+    chmod 777 /system/etc/dhcpcd/dhcpcd-hooks/95-configured
+    insmod /lib/modules/2.6.38.8-sirf/extra/vxdkernel.ko
+
+    insmod /lib/modules/2.6.38.8-sirf/kernel/drivers/char/DR_DRV/dr.ko
+    chmod 777 /dev/dr_driver
+
+# properties that should be set before boot
+    setprop ro.vold.umsdirtyratio 20
+
+on boot
+    chown root system /sys/devices/platform/bt-codec/power/bluetooth_on
+    chmod 0664 /sys/devices/platform/bt-codec/power/bluetooth_on
+    chmod 0666 /system/usr/keychars/qwerty.kcm.bin
+    chmod 0666 /system/etc/ts351xcoe
+
+# cpufreq configurations
+#    write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor interactive
+    chown system system /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+    chmod 0664 /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+    chown system system /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
+    chmod 0664 /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
+    chown system system /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq
+    chmod 0664 /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq
+    chmod 0666 /proc/freq/gfx
+    chmod 0666 /proc/freq/dsp
+
+# some more properties
+    setprop ro.com.google.locationfeatures 1
+    setprop ro.sf.lcd_density 160
+    setprop sys.hibernating 0
+    setprop sys.force.orientation -1
+
+# set use ppp
+    setprop ro.radio.use-ppp yes
+
+# CDMA modem	
+#    setprop ro.cdma.home.operator.numeric 46003
+#    setprop ro.cdma.home.operator.alpha  ChinaTelecom
+
+# WCDMA modem	
+    setprop ro.cdma.home.operator.numeric 46001
+    setprop ro.cdma.home.operator.alpha  ChinaUnicom
+
+#GPS Command I/O port configuration property
+#    setprop ro.gps.debugcom /dev/ttyS2
+
+#shorten the timeout of RILD wakelock from 30 seconds to 1 second, speed up the suspend
+    setprop ro.ril.wake_lock_timeout 1000
+
+# used in SIM700 EDGE module
+service vchanneld-daemon /system/bin/vchanneld
+    user root
+    group radio cache inet misc
+    disabled
+
+service pppd_gprs /etc/ppp/init.gprs-pppd debug file /data/ppp/options.gprs 
+
+service LicenseManager /system/bin/logwrapper /system/bin/LicenseManager AtlasVI
+    class core
+    user root
+    group root
+    oneshot
+
+service gps /system/bin/gps.sh -nrealtime
+    class core
+    user root
+    group root
+    oneshot
+
+service hibernation /system/bin/hibernation.sh
+    disabled
+    oneshot
+
+service dvd-daemon /system/bin/dvdd
+    class core
+    user root
+    group root
+    socket dvd-control stream 0660 root system
+    oneshot
+
+service dhcpcd_usb0 /system/bin/dhcpcd -ABKL
+    disabled
+    oneshot
+
+service Monkey-S /system/bin/monkey-script.sh
+
+service sirfsoc-setup /system/etc/init.sirfsoc.sh
+    oneshot

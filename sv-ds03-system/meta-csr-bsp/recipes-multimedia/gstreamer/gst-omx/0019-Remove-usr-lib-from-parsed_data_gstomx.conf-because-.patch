@@ -1,0 +1,116 @@
+From 5c83b400d937f29f8fab8ec0265c6f05edf4e8ad Mon Sep 17 00:00:00 2001
+From: xf02 <xfei@codeaurora.org>
+Date: Tue, 3 Mar 2015 16:04:04 +0800
+Subject: [PATCH 19/67] Remove /usr/lib from parsed_data_gstomx.conf because
+ platform added LD_LIBRARY_PATH
+
+Change-Id: I83b1dc14566aef4f79b3aec330a173d0ccc723fb
+---
+ parsed_data_gstomx.conf | 22 +++++++++++-----------
+ 1 file changed, 11 insertions(+), 11 deletions(-)
+
+diff --git a/parsed_data_gstomx.conf b/parsed_data_gstomx.conf
+index 0414c2d..5eae064 100755
+--- a/parsed_data_gstomx.conf
++++ b/parsed_data_gstomx.conf
+@@ -1,6 +1,6 @@
+ [omxh264dec]
+ type-name=GstOMXH264Dec
+-core-name=/usr/lib/libomxcore.so
++core-name=libomxcore.so
+ component-name=OMX.IMG.MSVDX.Decoder.AVC
+ rank=260
+ in-port-index=0
+@@ -9,7 +9,7 @@ sink-template-caps=video/x-h264
+ 
+ [omxmpeg4videodec]
+ type-name=GstOMXMPEG4VideoDec
+-core-name=/usr/lib/libomxcore.so
++core-name=libomxcore.so
+ component-name=OMX.IMG.MSVDX.Decoder.MPEG4
+ rank=260
+ in-port-index=0
+@@ -19,7 +19,7 @@ sink-template-caps=video/mpeg, mpegversion = (int) 4
+ 
+ [omxmpeg2videodec]
+ type-name=GstOMXMPEG2VideoDec
+-core-name=/usr/lib/libomxcore.so
++core-name=libomxcore.so
+ component-name=OMX.IMG.MSVDX.Decoder.MPEG2
+ rank=260
+ in-port-index=0
+@@ -29,7 +29,7 @@ sink-template-caps=video/mpeg, mpegversion=(int)2
+ 
+ [omxh263dec]
+ type-name=GstOMXH263Dec
+-core-name=/usr/lib/libomxcore.so
++core-name=libomxcore.so
+ component-name=OMX.IMG.MSVDX.Decoder.H263
+ rank=260
+ in-port-index=0
+@@ -37,7 +37,7 @@ out-port-index=1
+ 
+ [omxsorensondec]
+ type-name=GstOMXSORENSONDec
+-core-name=/usr/lib/libomxcore.so
++core-name=libomxcore.so
+ component-name=OMX.IMG.MSVDX.Decoder.SORENSON
+ sink-template-caps=video/x-flash-video
+ rank=260
+@@ -46,7 +46,7 @@ out-port-index=1
+ 
+ [omxrealvideodec]
+ type-name=GstOMXREALVideoDec
+-core-name=/usr/lib/libomxcore.so
++core-name=libomxcore.so
+ component-name=OMX.IMG.MSVDX.Decoder.REAL
+ rank=260
+ in-port-index=0
+@@ -54,7 +54,7 @@ out-port-index=1
+ 
+ [omxmjpegdec]
+ type-name=GstOMXMJPEGDec
+-core-name=/usr/lib/libomxcore.so
++core-name=libomxcore.so
+ component-name=OMX.IMG.MSVDX.Decoder.JPEG
+ rank=260
+ in-port-index=0
+@@ -62,7 +62,7 @@ out-port-index=1
+ 
+ [omxvp8dec]
+ type-name=GstOMXVP8Dec
+-core-name=/usr/lib/libomxcore.so
++core-name=libomxcore.so
+ component-name=OMX.IMG.MSVDX.Decoder.VP8
+ rank=260
+ in-port-index=0
+@@ -70,7 +70,7 @@ out-port-index=1
+ 
+ [omxvp6dec]
+ type-name=GstOMXVP6Dec
+-core-name=/usr/lib/libomxcore.so
++core-name=libomxcore.so
+ component-name=OMX.IMG.MSVDX.Decoder.VP6
+ rank=260
+ in-port-index=0
+@@ -79,7 +79,7 @@ sink-template-caps=video/x-vp6; video/x-vp6-flash; video/x-vp6-alpha
+   
+ [omxvc1dec]
+ type-name=GstOMXWMVDec
+-core-name=/usr/lib/libomxcore.so
++core-name=libomxcore.so
+ component-name=OMX.IMG.MSVDX.Decoder.VC1
+ rank=260
+ in-port-index=0
+@@ -88,7 +88,7 @@ sink-template-caps=video/x-wmv
+ 
+ [omxavsdec]
+ type-name=GstOMXAVSDec
+-core-name=/usr/lib/libomxcore.so
++core-name=libomxcore.so
+ component-name=OMX.IMG.MSVDX.Decoder.AVS
+ rank=260
+ in-port-index=0
+-- 
+1.9.1
+

@@ -1,0 +1,1224 @@
+state.kasaudiocard {
+	control.1 {
+		iface MIXER
+		name 'Music Pregain'
+		value 119
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.2 {
+		iface MIXER
+		name 'Music Premute'
+		value false
+		comment {
+			access 'read write'
+			type BOOLEAN
+			count 1
+		}
+	}
+	control.3 {
+		iface MIXER
+		name 'User PEQ Band1 Gain'
+		value 60
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 80'
+			dbmin -6000
+			dbmax 2000
+			dbvalue.0 0
+		}
+	}
+	control.4 {
+		iface MIXER
+		name 'User PEQ Band2 Gain'
+		value 60
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 80'
+			dbmin -6000
+			dbmax 2000
+			dbvalue.0 0
+		}
+	}
+	control.5 {
+		iface MIXER
+		name 'User PEQ Band3 Gain'
+		value 60
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 80'
+			dbmin -6000
+			dbmax 2000
+			dbvalue.0 0
+		}
+	}
+	control.6 {
+		iface MIXER
+		name 'User PEQ Band1 FC'
+		value 80
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 24000'
+			dbmin -6000
+			dbmax 2394000
+			dbvalue.0 -2800
+		}
+	}
+	control.7 {
+		iface MIXER
+		name 'User PEQ Band2 FC'
+		value 1000
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 24000'
+			dbmin -6000
+			dbmax 2394000
+			dbvalue.0 400
+		}
+	}
+	control.8 {
+		iface MIXER
+		name 'User PEQ Band3 FC'
+		value 10000
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 24000'
+			dbmin -6000
+			dbmax 2394000
+			dbvalue.0 6500
+		}
+	}
+	control.9 {
+		iface MIXER
+		name 'User PEQ Bands Num'
+		value 0
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 10'
+			dbmin -6000
+			dbmax -5000
+			dbvalue.0 -5000
+		}
+	}
+	control.10 {
+		iface MIXER
+		name 'User PEQ Core Type'
+		value 0
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 2'
+			dbmin -6000
+			dbmax -5800
+			dbvalue.0 -6000
+		}
+	}
+	control.11 {
+		iface MIXER
+		name 'User PEQ Master Gain'
+		value 60
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 80'
+			dbmin -6000
+			dbmax 2000
+			dbvalue.0 0
+		}
+	}
+	control.12 {
+		iface MIXER
+		name 'User PEQ Switch Mode'
+		value 2
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 2'
+			dbmin -6000
+			dbmax -5800
+			dbvalue.0 -5900
+		}
+	}
+	control.13 {
+		iface MIXER
+		name 'User PEQ UCID'
+		value 1
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 10'
+			dbmin -6000
+			dbmax -5000
+			dbvalue.0 -5900
+		}
+	}
+	control.14 {
+		iface MIXER
+		name 'Spk1 PEQ Bands Num'
+		value 0
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 10'
+			dbmin -6000
+			dbmax -5000
+			dbvalue.0 -5000
+		}
+	}
+	control.15 {
+		iface MIXER
+		name 'Spk1 PEQ Core Type'
+		value 0
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 2'
+			dbmin -6000
+			dbmax -5800
+			dbvalue.0 -6000
+		}
+	}
+	control.15 {
+		iface MIXER
+		name 'Spk1 PEQ Master Gain'
+		value 60
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 80'
+			dbmin -6000
+			dbmax 2000
+			dbvalue.0 0
+		}
+	}
+	control.16 {
+		iface MIXER
+		name 'Spk1 PEQ Switch Mode'
+		value 2
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 2'
+			dbmin -6000
+			dbmax -5800
+			dbvalue.0 -5900
+		}
+	}
+	control.17 {
+		iface MIXER
+		name 'Spk1 PEQ UCID'
+		value 1
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 10'
+			dbmin -6000
+			dbmax -5000
+			dbvalue.0 -5900
+		}
+	}
+	control.18 {
+		iface MIXER
+		name 'Spk2 PEQ Bands Num'
+		value 0
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 10'
+			dbmin -6000
+			dbmax -5000
+			dbvalue.0 -5000
+		}
+	}
+	control.19 {
+		iface MIXER
+		name 'Spk2 PEQ Core Type'
+		value 0
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 2'
+			dbmin -6000
+			dbmax -5800
+			dbvalue.0 -6000
+		}
+	}
+	control.20 {
+		iface MIXER
+		name 'Spk2 PEQ Master Gain'
+		value 60
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 80'
+			dbmin -6000
+			dbmax 2000
+			dbvalue.0 0
+		}
+	}
+	control.21 {
+		iface MIXER
+		name 'Spk2 PEQ Switch Mode'
+		value 2
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 2'
+			dbmin -6000
+			dbmax -5800
+			dbvalue.0 -5900
+		}
+	}
+	control.22 {
+		iface MIXER
+		name 'Spk2 PEQ UCID'
+		value 1
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 10'
+			dbmin -6000
+			dbmax -5000
+			dbvalue.0 -5900
+		}
+	}
+	control.23 {
+		iface MIXER
+		name 'Spk3 PEQ Bands Num'
+		value 0
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 10'
+			dbmin -6000
+			dbmax -5000
+			dbvalue.0 -5000
+		}
+	}
+	control.24 {
+		iface MIXER
+		name 'Spk3 PEQ Core Type'
+		value 0
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 2'
+			dbmin -6000
+			dbmax -5800
+			dbvalue.0 -6000
+		}
+	}
+	control.25 {
+		iface MIXER
+		name 'Spk3 PEQ Master Gain'
+		value 60
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 80'
+			dbmin -6000
+			dbmax 2000
+			dbvalue.0 0
+		}
+	}
+	control.26 {
+		iface MIXER
+		name 'Spk3 PEQ Switch Mode'
+		value 2
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 2'
+			dbmin -6000
+			dbmax -5800
+			dbvalue.0 -5900
+		}
+	}
+	control.27 {
+		iface MIXER
+		name 'Spk3 PEQ UCID'
+		value 1
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 10'
+			dbmin -6000
+			dbmax -5000
+			dbvalue.0 -5900
+		}
+	}
+	control.28 {
+		iface MIXER
+		name 'Spk4 PEQ Bands Num'
+		value 0
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 10'
+			dbmin -6000
+			dbmax -5000
+			dbvalue.0 -5000
+		}
+	}
+	control.29 {
+		iface MIXER
+		name 'Spk4 PEQ Core Type'
+		value 0
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 2'
+			dbmin -6000
+			dbmax -5800
+			dbvalue.0 -6000
+		}
+	}
+	control.30 {
+		iface MIXER
+		name 'Spk4 PEQ Master Gain'
+		value 60
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 80'
+			dbmin -6000
+			dbmax 2000
+			dbvalue.0 0
+		}
+	}
+	control.31 {
+		iface MIXER
+		name 'Spk4 PEQ Switch Mode'
+		value 2
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 2'
+			dbmin -6000
+			dbmax -5800
+			dbvalue.0 -5900
+		}
+	}
+	control.32 {
+		iface MIXER
+		name 'Spk4 PEQ UCID'
+		value 1
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 10'
+			dbmin -6000
+			dbmax -5000
+			dbvalue.0 -5900
+		}
+	}
+	control.33 {
+		iface MIXER
+		name 'Music DBE Effect Strength'
+		value 50
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 100'
+		}
+	}
+	control.34 {
+		iface MIXER
+		name 'Music DBE Amp Limit'
+		value 32
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 32'
+			dbmin -3200
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.35 {
+		iface MIXER
+		name 'Music DBE LP FC'
+		value 100
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 300'
+		}
+	}
+	control.36 {
+		iface MIXER
+		name 'Music DBE HP FC'
+		value 100
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 300'
+		}
+	}
+	control.37 {
+		iface MIXER
+		name 'Music DBE Harm Content'
+		value 50
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 100'
+		}
+	}
+	control.38 {
+		iface MIXER
+		name 'Music DBE Xover FC'
+		value 200
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 1000'
+		}
+	}
+	control.39 {
+		iface MIXER
+		name 'Music DBE Mix Balance'
+		value 50
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 100'
+		}
+	}
+	control.40 {
+		iface MIXER
+		name 'Music DBE Switch Mode'
+		value 2
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 2'
+		}
+	}
+	control.41 {
+		iface MIXER
+		name 'Music DBE UCID'
+		value 1
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 2'
+		}
+	}
+	control.42 {
+		iface MIXER
+		name 'Music Chan1 Delay'
+		value 0
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 768'
+		}
+	}
+	control.43 {
+		iface MIXER
+		name 'Music Chan2 Delay'
+		value 0
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 768'
+		}
+	}
+	control.44 {
+		iface MIXER
+		name 'Music Chan3 Delay'
+		value 0
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 768'
+		}
+	}
+	control.45 {
+		iface MIXER
+		name 'Music Chan4 Delay'
+		value 0
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 768'
+		}
+	}
+	control.46 {
+		iface MIXER
+		name 'Capture Pregain'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.47 {
+		iface MIXER
+		name 'Capture Premute'
+		value false
+		comment {
+			access 'read write'
+			type BOOLEAN
+			count 1
+		}
+	}
+	control.48 {
+		iface MIXER
+		name 'Music Stream CH1 Gain'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.49 {
+		iface MIXER
+		name 'Music Stream CH2 Gain'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.50 {
+		iface MIXER
+		name 'Music Stream CH3 Gain'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.51 {
+		iface MIXER
+		name 'Music Stream CH4 Gain'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.52 {
+		iface MIXER
+		name 'Music Stream Vol'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.53 {
+		iface MIXER
+		name 'Music Stream Mute'
+		value false
+		comment {
+			access 'read write'
+			type BOOLEAN
+			count 1
+		}
+	}
+	control.54 {
+		iface MIXER
+		name 'Music Stream Ramp'
+		value.0 4800
+		value.1 240
+		comment {
+			access 'read write'
+			type INTEGER
+			count 2
+			range '0 - 480000'
+		}
+	}
+	control.55 {
+		iface MIXER
+		name 'Navigation Stream CH1 Gain'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.56 {
+		iface MIXER
+		name 'Navigation Stream CH2 Gain'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.57 {
+		iface MIXER
+		name 'Navigation Stream Vol'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.58 {
+		iface MIXER
+		name 'Navigation Stream Mute'
+		value false
+		comment {
+			access 'read write'
+			type BOOLEAN
+			count 1
+		}
+	}
+	control.59 {
+		iface MIXER
+		name 'Navigation Stream Ramp'
+		value.0 96000
+		value.1 240
+		comment {
+			access 'read write'
+			type INTEGER
+			count 2
+			range '0 - 480000'
+		}
+	}
+	control.60 {
+		iface MIXER
+		name 'Alarm Stream CH1 Gain'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.61 {
+		iface MIXER
+		name 'Alarm Stream CH2 Gain'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.62 {
+		iface MIXER
+		name 'Alarm Stream CH3 Gain'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.63 {
+		iface MIXER
+		name 'Alarm Stream CH4 Gain'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.64 {
+		iface MIXER
+		name 'Alarm Stream Vol'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.65 {
+		iface MIXER
+		name 'Alarm Stream Mute'
+		value false
+		comment {
+			access 'read write'
+			type BOOLEAN
+			count 1
+		}
+	}
+	control.66 {
+		iface MIXER
+		name 'Alarm Stream Ramp'
+		value.0 96000
+		value.1 240
+		comment {
+			access 'read write'
+			type INTEGER
+			count 2
+			range '0 - 480000'
+		}
+	}
+	control.67 {
+		iface MIXER
+		name 'Voicecall Stream CH1 Gain'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.68 {
+		iface MIXER
+		name 'Voicecall Stream CH2 Gain'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.69 {
+		iface MIXER
+		name 'Voicecall Stream Vol'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.70 {
+		iface MIXER
+		name 'Voicecall Stream Mute'
+		value false
+		comment {
+			access 'read write'
+			type BOOLEAN
+			count 1
+		}
+	}
+	control.71 {
+		iface MIXER
+		name 'Voicecall Stream Ramp'
+		value.0 96000
+		value.1 240
+		comment {
+			access 'read write'
+			type INTEGER
+			count 2
+			range '0 - 480000'
+		}
+	}
+	control.72 {
+		iface MIXER
+		name 'Multimedia Stream CH1 Gain'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.73 {
+		iface MIXER
+		name 'Multimedia Stream CH2 Gain'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.74 {
+		iface MIXER
+		name 'Multimedia Stream CH3 Gain'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.75 {
+		iface MIXER
+		name 'Multimedia Stream CH4 Gain'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.76 {
+		iface MIXER
+		name 'Multimedia Stream Vol'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 120'
+			dbmin -12000
+			dbmax 0
+			dbvalue.0 0
+		}
+	}
+	control.77 {
+		iface MIXER
+		name 'Multimedia Stream Mute'
+		value false
+		comment {
+			access 'read write'
+			type BOOLEAN
+			count 1
+		}
+	}
+	control.78 {
+		iface MIXER
+		name 'Multimedia Stream Ramp'
+		value.0 96000
+		value.1 240
+		comment {
+			access 'read write'
+			type INTEGER
+			count 2
+			range '0 - 480000'
+		}
+	}
+	control.79 {
+		iface MIXER
+		name 'Main Vol Front Left'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 129'
+			dbmin -12000
+			dbmax 900
+			dbvalue.0 0
+		}
+	}
+	control.80 {
+		iface MIXER
+		name 'Main Vol Front Right'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 129'
+			dbmin -12000
+			dbmax 900
+			dbvalue.0 0
+		}
+	}
+	control.81 {
+		iface MIXER
+		name 'Main Vol Rear Left'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 129'
+			dbmin -12000
+			dbmax 900
+			dbvalue.0 0
+		}
+	}
+	control.82 {
+		iface MIXER
+		name 'Main Vol Rear Right'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 129'
+			dbmin -12000
+			dbmax 900
+			dbvalue.0 0
+		}
+	}
+	control.83 {
+		iface MIXER
+		name 'Main Vol Master Gain'
+		value 120
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 129'
+			dbmin -12000
+			dbmax 900
+			dbvalue.0 0
+		}
+	}
+	control.84 {
+		iface MIXER
+		name 'Main Vol Master Mute'
+		value false
+		comment {
+			access 'read write'
+			type BOOLEAN
+			count 1
+		}
+	}
+	control.85 {
+		iface MIXER
+		name 'Voicecall CVC 2Mic Switch'
+		value false
+		comment {
+			access 'read write'
+			type BOOLEAN
+			count 1
+		}
+	}
+	control.86 {
+		iface MIXER
+		name 'Voicecall CVC Send Mode'
+		value 1
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 2'
+		}
+	}
+	control.87 {
+		iface MIXER
+		name 'Voicecall CVC Send UCID'
+		value 1
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 2'
+		}
+	}
+	control.88 {
+		iface MIXER
+		name 'Voicecall CVC Recv Mode'
+		value 1
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 2'
+		}
+	}
+	control.89 {
+		iface MIXER
+		name 'Voicecall CVC Recv UCID'
+		value 1
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 2'
+		}
+	}
+	control.90 {
+		iface MIXER
+		name 'Playback Volume'
+		value 7 
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 7'
+			dbmin -3200
+			dbmax 900
+			dbvalue.0 -3200
+		}
+	}
+	control.91 {
+		iface MIXER
+		name 'Capture Volume'
+		value 4
+		comment {
+			access 'read write'
+			type INTEGER
+			count 1
+			range '0 - 7'
+			dbmin -3200
+			dbmax 900
+			dbvalue.0 -3200
+		}
+	}
+	control.92 {
+		iface MIXER
+		name 'Input path'
+		value MIC0
+		comment {
+			access 'read write'
+			type ENUMERATED
+			count 1
+			item.0 MIC0
+			item.1 '2MIC'
+			item.2 LINE0
+			item.3 LINE1
+			item.4 LINE2
+			item.5 LINE3
+		}
+	}
+	control.93 {
+		iface MIXER
+		name 'Output mode'
+		value Differential
+		comment {
+			access 'read write'
+			type ENUMERATED
+			count 1
+			item.0 Differential
+			item.1 Single-ended
+		}
+	}
+}

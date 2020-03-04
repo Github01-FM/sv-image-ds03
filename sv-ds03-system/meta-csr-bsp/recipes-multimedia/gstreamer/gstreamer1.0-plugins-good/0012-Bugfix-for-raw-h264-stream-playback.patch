@@ -1,0 +1,27 @@
+From b4bd525618d112bed63f97f6cd2202f413055c98 Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Tue, 29 Dec 2015 18:16:30 +0800
+Subject: [PATCH 12/31] Bugfix for raw h264 stream playback
+
+Change-Id: I689af9662314f9c9a6def21d9569764bc5b3fca2
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ sys/v4l2/gstv4l2object.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sys/v4l2/gstv4l2object.c b/sys/v4l2/gstv4l2object.c
+index 14d17ec..9057fba 100644
+--- a/sys/v4l2/gstv4l2object.c
++++ b/sys/v4l2/gstv4l2object.c
+@@ -2130,7 +2130,7 @@ gst_v4l2_object_probe_caps_for_format_and_size (GstV4l2Object * v4l2object,
+         "continuous frame interval %d/%d to %d/%d", maxdenom, maxnum, denom,
+         num);
+ 
+-    gst_value_set_fraction_range_full (&rates, maxdenom, maxnum, denom, num);
++    gst_value_set_fraction_range_full (&rates, 0, 1, denom, num);
+   } else {
+     goto unknown_type;
+   }
+-- 
+1.9.1
+

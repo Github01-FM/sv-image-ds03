@@ -1,0 +1,53 @@
+The BusyBox built in static need by recovery.
+The BusyBox v1.22.1 in development.
+
+
+To built it in static with Yocto of Qualcomm
+1. remove two lines in ./meta-csr-bsp/conf/machine/atlas7-arm.conf
+	require conf/distro/include/security_flags.inc
+	require conf/distro/include/security_flags_qpsi.inc
+2. remove the busybox_%.bbappend in poky/meta-yocto/recipes-core/busybox/
+3. Config the busybox
+	$bitbake busybox -c menuconfig
+   1) Enable static build 
+      CONFIG_STATIC=y
+   	-> Busybox Settings
+	   -> Build Options
+	      -> Build BusyBox as a static binary (no shared libs)
+   2) Enable 'busybox --install [-s]' support
+      CONFIG_FEATURE_INSTALLER=y
+      -> Busybox Settings
+        -> General Configuration
+   3) Enable other command as below
+      Minium defined functions need for recovery:
+        [, [[, ash, awk, cat, chmod, chown, cp, cut, dd, echo, egrep, env,
+        fdisk, fgrep, fsync, grep, hostid, init, ln, ls, mdev, mkdir, mkdosfs,
+        mkfs.vfat, mknod, mkswap, mount, mv, pwd, readahead, rm, rmdir, sed,
+        setconsole, sh, sleep, switch_root, test, umount
+      [NOTE]You could add these commands below base on the default configuration.
+         mkfs_ext2, mkfs_vfat, fsync, hostid, init, mdev, readahead
+
+4. Build busybox in static
+	$bitbake busybox -c compile -f
+   The busybox.nosuid is built out into
+       ./poky/build/tmp/work/cortexa7hf-vfp-poky-linux-gnueabi/busybox
+       /1.22.1-r32/busybox-1.22.1/busybox.nosuid
+   
+
+5. Copy the busybox.nosuid to the target directory
+   The target directory is
+      ./poky/sources/prebuilts/linux-arm/atlas7/busybox-static/
+   
+   $cp ./poky/build/tmp/work/cortexa7hf-vfp-poky-linux-gnueabi/busybox/
+   1.22.1-r32/busybox-1.22.1/busybox.nosuid   
+   ./poky/sources/prebuilts/linux-arm/atlas7/busybox-static/
+
+The mke2fs is also need by recovery. It is one tool of e2fsprogs which
+also need be built in static. The Yocto use e2fsprogs v1.42.9-r0 in development.
+
+Copy the mke2fs to the target directory after it built out.
+   The target directory is
+      ./poky/sources/prebuilts/linux-arm/atlas7/busybox-static/
+   $cp ./poky/build/tmp/work/cortexa7hf-vfp-poky-linux-gnueabi/busybox/
+   1.22.1-r32/busybox-1.22.1/mke2fs 
+   ./poky/sources/prebuilts/linux-arm/atlas7/busybox-static/

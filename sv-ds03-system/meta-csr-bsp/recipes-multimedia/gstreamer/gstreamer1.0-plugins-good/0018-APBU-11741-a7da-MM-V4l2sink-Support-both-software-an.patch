@@ -1,0 +1,82 @@
+From 59772e79468a05f5a1c94c82087e49546e80d894 Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Tue, 15 Mar 2016 13:45:50 +0800
+Subject: [PATCH 18/31] APBU-11741 [a7da][MM]V4l2sink Support both software and
+ hardware decoder
+
+Release the gstbuffer that is not created by gst-omx, so that
+v4l2sink can support software decoder and hardware decoder together.
+
+Change-Id: I3d067aa17003b5afe18a4caa13d0eb99fdf46f30
+Signed-off-by: Xiaofeng Fei <xfei@codeaurora.org>
+---
+ sys/v4l2/gstv4l2bufferpool.c | 32 +++++++++++++++++++++++++-------
+ 1 file changed, 25 insertions(+), 7 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2bufferpool.c b/sys/v4l2/gstv4l2bufferpool.c
+index 3c32d0f..0c68c79 100644
+--- a/sys/v4l2/gstv4l2bufferpool.c
++++ b/sys/v4l2/gstv4l2bufferpool.c
+@@ -55,7 +55,8 @@ GST_DEBUG_CATEGORY_EXTERN (GST_CAT_PERFORMANCE);
+ #define GST_CAT_DEFAULT v4l2bufferpool_debug
+ 
+ #define GST_V4L2_IMPORT_QUARK gst_v4l2_buffer_pool_import_quark ()
+-
++#define GST_OMX_VIDEO_DEC_OMX_BUFFER_QUARK \
++          gst_v4l2_buffer_pool_omx_buffer_quark ()
+ 
+ /*
+  * GstV4l2BufferPool:
+@@ -192,6 +193,17 @@ gst_v4l2_buffer_pool_import_quark (void)
+   return quark;
+ }
+ 
++static GQuark
++gst_v4l2_buffer_pool_omx_buffer_quark (void)
++{
++  static GQuark quark = 0;
++
++  if (quark == 0)
++    quark = g_quark_from_string ("omx_out_buffer");
++
++  return quark;
++}
++
+ static void
+ _unmap_userptr_frame (struct UserPtrData *data)
+ {
+@@ -1940,7 +1952,10 @@ gst_v4l2_buffer_pool_process (GstV4l2BufferPool * pool, GstBuffer ** buf)
+ 
+           /* Remove our ref, we will still hold this buffer in acquire as needed,
+            * otherwise the pool will think it is outstanding and will refuse to stop. */
+-          // gst_buffer_unref (to_queue);
++          if (gst_mini_object_get_qdata (GST_MINI_OBJECT_CAST (to_queue),
++                GST_OMX_VIDEO_DEC_OMX_BUFFER_QUARK) == NULL) {
++            gst_buffer_unref (to_queue);
++          }
+ 
+           if (g_atomic_int_get (&pool->num_queued) >= pool->min_latency) {
+             GstBuffer *out;
+@@ -1950,11 +1965,14 @@ gst_v4l2_buffer_pool_process (GstV4l2BufferPool * pool, GstBuffer ** buf)
+             if (ret == GST_FLOW_OK && out->pool == NULL) {
+               /* release the rendered buffer back into the pool. This wakes up any
+                * thread waiting for a buffer in _acquire(). */
+-              // gst_v4l2_buffer_pool_release_buffer (bpool, out);
+-              /* This buffer is copied from the allocated buffer, so we can not
+-                 release it to the pool.
+-              */
+-              gst_buffer_unref (out);
++              if (gst_mini_object_get_qdata (GST_MINI_OBJECT_CAST (out),
++                    GST_OMX_VIDEO_DEC_OMX_BUFFER_QUARK) == NULL)
++                gst_v4l2_buffer_pool_release_buffer (bpool, out);
++              else
++                /* This buffer is copied from the allocated buffer, so we can not
++                   release it to the pool.
++                */
++                gst_buffer_unref (out);
+             }
+           }
+           break;
+-- 
+1.9.1
+

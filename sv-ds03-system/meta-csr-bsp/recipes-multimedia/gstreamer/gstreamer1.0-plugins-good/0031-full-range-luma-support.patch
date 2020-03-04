@@ -1,0 +1,145 @@
+From 54287d700fd023794304964887505d4a2246407a Mon Sep 17 00:00:00 2001
+From: Alan Wang <wbo@codeaurora.org>
+Date: Wed, 14 Sep 2016 20:04:08 +0800
+Subject: [PATCH] full range luma support
+
+If output video frame has QTIL_VIDEO_FULL_RANGE, set new fmt NJ12 which
+indicates full range of luma space.
+
+Change-Id: Iac1259334f9415b0792a031747bfef28e2e2f774
+Signed-off-by: Alan Wang <wbo@codeaurora.org>
+---
+ sys/v4l2/ext/videodev2.h     |  1 +
+ sys/v4l2/gstv4l2bufferpool.c | 29 +++++++++++++++++++++++++++++
+ sys/v4l2/gstv4l2bufferpool.h |  7 +++++++
+ sys/v4l2/gstv4l2sink.c       | 26 ++++++++++++++++++++++++++
+ 4 files changed, 63 insertions(+)
+
+diff --git a/sys/v4l2/ext/videodev2.h b/sys/v4l2/ext/videodev2.h
+index c97a9dd..6878834 100644
+--- a/sys/v4l2/ext/videodev2.h
++++ b/sys/v4l2/ext/videodev2.h
+@@ -605,6 +605,7 @@ struct v4l2_pix_format {
+ #define V4L2_PIX_FMT_JPGL	v4l2_fourcc('J', 'P', 'G', 'L') /* JPEG-Lite */
+ #define V4L2_PIX_FMT_SE401      v4l2_fourcc('S', '4', '0', '1') /* se401 janggu compressed rgb */
+ #define V4L2_PIX_FMT_S5C_UYVY_JPG v4l2_fourcc('S', '5', 'C', 'I') /* S5C73M3 interleaved UYVY/JPEG */
++#define V4L2_PIX_FMT_NJ12    v4l2_fourcc('N', 'J', '1', '2') /* QTIL Atlas7 Same as NV12 but with full range(0-255) luma(Y)*/
+ 
+ /* SDR formats - used only for Software Defined Radio devices */
+ #define V4L2_SDR_FMT_CU8          v4l2_fourcc('C', 'U', '0', '8') /* IQ u8 */
+diff --git a/sys/v4l2/gstv4l2bufferpool.c b/sys/v4l2/gstv4l2bufferpool.c
+index ee0a7b0..5b072dd 100644
+--- a/sys/v4l2/gstv4l2bufferpool.c
++++ b/sys/v4l2/gstv4l2bufferpool.c
+@@ -2080,3 +2080,32 @@ gst_v4l2_buffer_pool_copy_at_threshold (GstV4l2BufferPool * pool, gboolean copy)
+   pool->enable_copy_threshold = copy;
+   GST_OBJECT_UNLOCK (pool);
+ }
++
++void
++gst_v4l2_buffer_pool_set_new_fmt (GstBufferPool * bpool, guint8 flag)
++{
++  GstV4l2BufferPool *pool = GST_V4L2_BUFFER_POOL (bpool);
++  GstV4l2Object *obj = pool->obj;
++
++  // In order to set new fmt to v4l2 driver flush buffer pool first.
++  // V4l2 stream would off here and stream on when process next buf.
++  gst_v4l2_buffer_pool_flush_start (bpool);
++  gst_v4l2_buffer_pool_flush_stop (bpool);
++
++  struct v4l2_format format;
++  memset (&format, 0x00, sizeof (struct v4l2_format));
++  format.type = V4L2_BUF_TYPE_VIDEO_OUTPUT;
++
++  if (v4l2_ioctl (pool->video_fd, VIDIOC_G_FMT, &format) < 0) {
++    GST_WARNING_OBJECT (pool, "VIDIOC_G_FMT failed");
++  }
++
++  if (flag)
++    format.fmt.pix.pixelformat = V4L2_PIX_FMT_NJ12;
++  else format.fmt.pix.pixelformat = V4L2_PIX_FMT_NV12;
++
++  if (v4l2_ioctl (pool->video_fd, VIDIOC_S_FMT, &format) < 0) {
++    GST_WARNING_OBJECT (pool, "VIDIOC_S_FMT failed");
++  }
++
++}
+diff --git a/sys/v4l2/gstv4l2bufferpool.h b/sys/v4l2/gstv4l2bufferpool.h
+index 922a4ce..3e8fef4 100644
+--- a/sys/v4l2/gstv4l2bufferpool.h
++++ b/sys/v4l2/gstv4l2bufferpool.h
+@@ -110,6 +110,13 @@ void                gst_v4l2_buffer_pool_set_other_pool (GstV4l2BufferPool * poo
+ void                gst_v4l2_buffer_pool_copy_at_threshold (GstV4l2BufferPool * pool,
+                                                             gboolean copy);
+ 
++/* For video full range feature, this will set a new fmt NJ12 to v4l2 driver.
++ * NJ12 indicates J420 format which with a full range (0-255) luma (Y).
++ * flag : 1 (full range a.k.a NJ12)
++ *        0 (limited range a.k.a NV12) */
++void                gst_v4l2_buffer_pool_set_new_fmt (GstBufferPool * bpool,
++                                                      guint8 flag);
++
+ G_END_DECLS
+ 
+ #endif /*__GST_V4L2_BUFFER_POOL_H__ */
+diff --git a/sys/v4l2/gstv4l2sink.c b/sys/v4l2/gstv4l2sink.c
+index abae784..1227641 100644
+--- a/sys/v4l2/gstv4l2sink.c
++++ b/sys/v4l2/gstv4l2sink.c
+@@ -73,6 +73,9 @@ GST_DEBUG_CATEGORY (v4l2sink_debug);
+ 
+ #define DEFAULT_PROP_DEVICE   "/dev/video1"
+ 
++#define QTIL_VIDEO_LIMITED_RANGE (1 << 23)
++#define QTIL_VIDEO_FULL_RANGE    (1 << 24)
++
+ enum
+ {
+   PROP_0,
+@@ -330,6 +333,16 @@ gst_v4l2sink_force_aspect_ratio (GstV4l2Sink * v4l2sink)
+ }
+ 
+ static void
++gst_v4l2sink_set_video_full_range (GstV4l2Sink * v4l2sink, guint8 flag)
++{
++    GstV4l2Object *obj           = v4l2sink->v4l2object;
++    GstBufferPool *bpool         = obj->pool;
++
++    gst_v4l2_buffer_pool_set_new_fmt (bpool, flag);
++    return;
++}
++
++static void
+ gst_v4l2sink_sync_overlay_fields (GstV4l2Sink * v4l2sink)
+ {
+   if (!v4l2sink->overlay_fields_set)
+@@ -668,6 +681,13 @@ gst_v4l2sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
+   return TRUE;
+ }
+ 
++static gboolean
++gst_v4l2sink_event (GstBaseSink * bsink, GstEvent * event)
++{
++  GstBaseSinkClass *bclass = GST_BASE_SINK_GET_CLASS (bsink);
++  return TRUE;
++}
++
+ /* called after A/V sync to render frame */
+ static GstFlowReturn
+ gst_v4l2sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
+@@ -700,6 +720,12 @@ gst_v4l2sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
+   ret = gst_v4l2_buffer_pool_process (GST_V4L2_BUFFER_POOL_CAST (obj->pool),
+       &buf);
+ 
++  if (GST_BUFFER_FLAG_IS_SET(buf, QTIL_VIDEO_FULL_RANGE)) {
++    gst_v4l2sink_set_video_full_range(v4l2sink, 1);
++  } else if (GST_BUFFER_FLAG_IS_SET (buf, QTIL_VIDEO_LIMITED_RANGE)) {
++    gst_v4l2sink_set_video_full_range(v4l2sink, 0);
++  }
++
+   return ret;
+ 
+   /* ERRORS */
+-- 
+1.9.1
+

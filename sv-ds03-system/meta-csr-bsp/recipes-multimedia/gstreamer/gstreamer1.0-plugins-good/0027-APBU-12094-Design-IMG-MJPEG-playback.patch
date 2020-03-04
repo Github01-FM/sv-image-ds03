@@ -1,0 +1,64 @@
+From 48230d50bea4f1298f5a3eab79025d9710641a26 Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Fri, 3 Jun 2016 15:57:11 +0800
+Subject: [PATCH 27/31] APBU-12094 Design IMG MJPEG playback
+
+Add a new video format Q420 for IMG MJPEG
+
+Change-Id: I4dee984fc751e83f141fbaa9a685701fb9db1d20
+Signed-off-by: Xiaofeng Fei <xfei@codeaurora.org>
+---
+ sys/v4l2/ext/videodev2.h |  1 +
+ sys/v4l2/gstv4l2object.c | 10 +++++++++-
+ 2 files changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/sys/v4l2/ext/videodev2.h b/sys/v4l2/ext/videodev2.h
+index 68e82be..c97a9dd 100644
+--- a/sys/v4l2/ext/videodev2.h
++++ b/sys/v4l2/ext/videodev2.h
+@@ -529,6 +529,7 @@ struct v4l2_pix_format {
+ /* three non contiguous planes - Y, Cb, Cr */
+ #define V4L2_PIX_FMT_YUV420M v4l2_fourcc('Y', 'M', '1', '2') /* 12  YUV420 planar */
+ #define V4L2_PIX_FMT_YVU420M v4l2_fourcc('Y', 'M', '2', '1') /* 12  YVU420 planar */
++#define V4L2_PIX_FMT_Q420    v4l2_fourcc('Q', '4', '2', '0') /* 12  YUV 4:2:0     */
+ 
+ /* Bayer formats - see http://www.siliconimaging.com/RGB%20Bayer.htm */
+ #define V4L2_PIX_FMT_SBGGR8  v4l2_fourcc('B', 'A', '8', '1') /*  8  BGBG.. GRGR.. */
+diff --git a/sys/v4l2/gstv4l2object.c b/sys/v4l2/gstv4l2object.c
+index 8a23f43..ffa76f8 100644
+--- a/sys/v4l2/gstv4l2object.c
++++ b/sys/v4l2/gstv4l2object.c
+@@ -1203,6 +1203,9 @@ gst_v4l2_object_v4l2fourcc_to_video_format (guint32 fourcc)
+     case V4L2_PIX_FMT_YVYU:
+       format = GST_VIDEO_FORMAT_YVYU;
+       break;
++    case V4L2_PIX_FMT_Q420:
++      format = GST_VIDEO_FORMAT_Q420;
++      break;
+     default:
+       format = GST_VIDEO_FORMAT_UNKNOWN;
+       break;
+@@ -1279,7 +1282,9 @@ gst_v4l2_object_v4l2fourcc_to_bare_struct (guint32 fourcc)
+ #endif
+     case V4L2_PIX_FMT_YUV422P:
+     case V4L2_PIX_FMT_YVYU:
+-    case V4L2_PIX_FMT_YUV411P:{
++    case V4L2_PIX_FMT_YUV411P:
++    case V4L2_PIX_FMT_Q420:
++    {
+       GstVideoFormat format;
+       format = gst_v4l2_object_v4l2fourcc_to_video_format (fourcc);
+       if (format != GST_VIDEO_FORMAT_UNKNOWN)
+@@ -1520,6 +1525,9 @@ gst_v4l2_object_get_caps_info (GstV4l2Object * v4l2object, GstCaps * caps,
+         break;
+       case GST_VIDEO_FORMAT_GRAY8:
+         fourcc = V4L2_PIX_FMT_GREY;
++      case GST_VIDEO_FORMAT_Q420:
++        fourcc = V4L2_PIX_FMT_Q420;
++        break;
+       default:
+         break;
+     }
+-- 
+1.9.1
+

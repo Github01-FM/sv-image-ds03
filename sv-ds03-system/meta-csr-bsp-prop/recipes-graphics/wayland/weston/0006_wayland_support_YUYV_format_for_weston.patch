@@ -1,0 +1,55 @@
+commit 21e6e0d147ed625e11f58a60ae2045faf389d04e
+Author: Flame Chen <Flame.Chen@csr.com>
+Date:   Mon Jun 1 10:45:04 2015 +0800
+
+    wayland support YUYV format for weston
+    
+    Signed-off-by: Flame Chen <Flame.Chen@csr.com>
+
+diff --git a/src/gl-renderer.c b/src/gl-renderer.c
+index d8cae73..ef8f363 100644
+--- a/src/gl-renderer.c
++++ b/src/gl-renderer.c
+@@ -1253,6 +1253,13 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer,
+ 		egl_format = EGL_TEXTURE_NV12_VXD;
+ 		gl_pixel_type = GL_UNSIGNED_BYTE;
+ 		break;
++	case WL_SHM_FORMAT_YUYV:
++		gs->shader = &gr->texture_shader_egl_external;
++		pitch =  egl_stride / 2;
++		gl_format = GL_RGB;
++		egl_format = EGL_TEXTURE_YUYV;
++		gl_pixel_type = GL_UNSIGNED_BYTE;
++		break;
+ 	default:
+ 		weston_log("warning: unknown shm buffer format: %08x\n",
+ 			   wl_shm_buffer_get_format(shm_buffer));
+@@ -1269,7 +1276,9 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer,
+ 	    gs->buffer_type != BUFFER_TYPE_SHM) {
+ 		gs->pitch = pitch;
+ 		gs->height = buffer->height;
+-		gs->target = (egl_format == EGL_TEXTURE_NV12_VXD)? GL_TEXTURE_EXTERNAL_OES:GL_TEXTURE_2D;
++		gs->target = ((egl_format == EGL_TEXTURE_NV12_VXD)
++			|| (egl_format == EGL_TEXTURE_YUYV))
++			? GL_TEXTURE_EXTERNAL_OES:GL_TEXTURE_2D;
+ 		gs->gl_format = gl_format;
+ 		gs->gl_pixel_type = gl_pixel_type;
+ 		gs->needs_full_upload = 1;
+@@ -2110,6 +2119,7 @@ gl_renderer_create(struct weston_compositor *ec, EGLNativeDisplayType display,
+ 
+ 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_RGB565);
+ 	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_NV12_VXD);
++	wl_display_add_shm_format(ec->wl_display, WL_SHM_FORMAT_YUYV);
+ 
+ 	wl_signal_init(&gr->destroy_signal);
+ 
+diff --git a/src/weston-egl-ext.h b/src/weston-egl-ext.h
+index 1ab3749..72b122e 100644
+--- a/src/weston-egl-ext.h
++++ b/src/weston-egl-ext.h
+@@ -103,4 +103,5 @@ typedef struct wl_buffer * (EGLAPIENTRYP PFNEGLCREATEWAYLANDBUFFERFROMIMAGEWL) (
+ #endif
+ 
+ #define EGL_TEXTURE_NV12_VXD		0x3060
++#define EGL_TEXTURE_YUYV		0x3061
+ #endif

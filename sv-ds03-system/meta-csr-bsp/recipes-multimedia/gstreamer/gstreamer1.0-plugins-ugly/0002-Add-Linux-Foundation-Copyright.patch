@@ -1,0 +1,29 @@
+From 76746f2f7c56baaee2259397609be2c871a0343d Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Wed, 9 Mar 2016 11:22:00 +0800
+Subject: [PATCH 2/2] Add Linux Foundation Copyright
+
+Change-Id: I1fadd8e881098e43cdeca6e1fa4e4b875859edad
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ gst/realmedia/rmdemux.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/gst/realmedia/rmdemux.c b/gst/realmedia/rmdemux.c
+index 8b9d605..fc12f6a 100644
+--- a/gst/realmedia/rmdemux.c
++++ b/gst/realmedia/rmdemux.c
+@@ -24,6 +24,10 @@
+  * Boston, MA 02110-1301, USA.
+  */
+ 
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
++
+ #ifdef HAVE_CONFIG_H
+ #  include "config.h"
+ #endif
+-- 
+1.9.1
+

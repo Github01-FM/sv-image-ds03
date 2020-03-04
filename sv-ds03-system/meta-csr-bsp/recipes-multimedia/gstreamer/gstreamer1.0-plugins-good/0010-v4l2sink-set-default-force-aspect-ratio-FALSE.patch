@@ -1,0 +1,38 @@
+From 6a61692d4203623991a153bb3bc6995b6153eb9f Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Mon, 23 Nov 2015 16:59:29 +0800
+Subject: [PATCH 10/31] v4l2sink: set default force-aspect-ratio=FALSE
+
+Then v4l2sink could accept caps with PAR!=1/1
+
+Change-Id: If9dc73e70c9172cd03b35d2a86b8cfa366520e03
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ sys/v4l2/gstv4l2object.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2object.c b/sys/v4l2/gstv4l2object.c
+index 018f912..14d17ec 100644
+--- a/sys/v4l2/gstv4l2object.c
++++ b/sys/v4l2/gstv4l2object.c
+@@ -370,7 +370,7 @@ gst_v4l2_object_install_properties_helper (GObjectClass * gobject_class,
+    */
+   g_object_class_install_property (gobject_class, PROP_FORCE_ASPECT_RATIO,
+       g_param_spec_boolean ("force-aspect-ratio", "Force aspect ratio",
+-          "When enabled, the pixel aspect ratio will be enforced", TRUE,
++          "When enabled, the pixel aspect ratio will be enforced", FALSE,
+           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+ 
+ }
+@@ -443,7 +443,7 @@ gst_v4l2_object_new (GstElement * element,
+ 
+   v4l2object->xwindow_id = 0;
+ 
+-  v4l2object->keep_aspect = TRUE;
++  v4l2object->keep_aspect = FALSE;
+ 
+   v4l2object->n_v4l2_planes = 0;
+ 
+-- 
+1.9.1
+

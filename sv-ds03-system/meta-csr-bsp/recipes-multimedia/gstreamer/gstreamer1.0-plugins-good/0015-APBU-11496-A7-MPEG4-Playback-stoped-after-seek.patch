@@ -1,0 +1,30 @@
+From 210141521b1cf118aa6aed78cde98a2ed51fa631 Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Tue, 1 Mar 2016 19:24:51 +0800
+Subject: [PATCH 15/31] APBU-11496 [A7 MPEG4]Playback stoped after seek
+
+csr plugins do not support dts only, we disable it now.
+
+Change-Id: Ie06bcb005043fa92b07a2de6f75939a96bdb7b16
+Signed-off-by: Xiaofeng Fei <xfei@codeaurora.org>
+---
+ gst/matroska/matroska-demux.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/gst/matroska/matroska-demux.c b/gst/matroska/matroska-demux.c
+index 2fb4928..d3b7db0 100644
+--- a/gst/matroska/matroska-demux.c
++++ b/gst/matroska/matroska-demux.c
+@@ -4922,7 +4922,8 @@ gst_matroska_demux_video_caps (GstMatroskaTrackVideoContext *
+         memcpy (vids, data, size);
+       }
+ 
+-      context->dts_only = TRUE; /* VFW files only store DTS */
++      //csr plugins do not support dts only, so we disable it now.
++      //context->dts_only = TRUE; /* VFW files only store DTS */
+ 
+       /* little-endian -> byte-order */
+       vids->size = GUINT32_FROM_LE (vids->size);
+-- 
+1.9.1
+

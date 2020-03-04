@@ -1,0 +1,28 @@
+From 0deb0933ff0edb5d30a2862b7a6eeb288e1a921c Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Thu, 12 Mar 2015 16:29:54 +0800
+Subject: [PATCH 1/8] v4l2 buf type V4L2_BUF_TYPE_VIDEO_OUTPUT_OVERLAY when
+ setting overlay position
+
+Change-Id: I8fab427c3ff0e173c63670cd2429e2716c42b6b4
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ sys/v4l2/gstv4l2sink.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sys/v4l2/gstv4l2sink.c b/sys/v4l2/gstv4l2sink.c
+index 5ea374b..bf868d9 100644
+--- a/sys/v4l2/gstv4l2sink.c
++++ b/sys/v4l2/gstv4l2sink.c
+@@ -250,7 +250,7 @@ gst_v4l2sink_sync_overlay_fields (GstV4l2Sink * v4l2sink)
+     struct v4l2_format format;
+ 
+     memset (&format, 0x00, sizeof (struct v4l2_format));
+-    format.type = V4L2_BUF_TYPE_VIDEO_OVERLAY;
++    format.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_OVERLAY;
+ 
+     if (v4l2_ioctl (fd, VIDIOC_G_FMT, &format) < 0) {
+       GST_WARNING_OBJECT (v4l2sink, "VIDIOC_G_FMT failed");
+-- 
+1.9.1
+

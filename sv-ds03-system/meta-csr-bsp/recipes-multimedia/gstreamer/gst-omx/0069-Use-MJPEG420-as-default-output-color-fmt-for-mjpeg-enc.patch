@@ -1,0 +1,27 @@
+From 9fd5b20ef071723ffd29d87900f03b7e66da238c Mon Sep 17 00:00:00 2001
+From: Alan Wang <wbo@codeaurora.org>
+Date: Tue, 18 Oct 2016 17:11:41 +0800
+Subject: [PATCH] Use MJPEG420 as default output color fmt for mjpeg encoder.
+
+Change-Id: I512e160b31d7a863610943a93aa0ffac903304a8
+Signed-off-by: Alan Wang <wbo@codeaurora.org>
+---
+ omx/gstomxmjpegvideoenc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/omx/gstomxmjpegvideoenc.c b/omx/gstomxmjpegvideoenc.c
+index 43c1cb5..506e953 100644
+--- a/omx/gstomxmjpegvideoenc.c
++++ b/omx/gstomxmjpegvideoenc.c
+@@ -62,7 +62,7 @@ enum
+   PROP_OUTMIMETYPE
+ };
+ 
+-#define GST_OMX_MJPEG_OUTMIMETYPE "MJPEG422"
++#define GST_OMX_MJPEG_OUTMIMETYPE "MJPEG420"
+ /* class initialization */
+ 
+ #define DEBUG_INIT \
+-- 
+1.9.1
+

@@ -1,0 +1,270 @@
+From 40b79c5db00b1dc8dae3680b9726cdb0c51466ac Mon Sep 17 00:00:00 2001
+From: "Nancy.Zou" <Nancy.Zou@csr.com>
+Date: Fri, 13 May 2016 13:47:55 +0800
+Subject: [PATCH] limit to support one yuv overlay pipe
+
+a. Only the topper validated yuv view can use pipe
+b. Adjust overlap logic that both opaque region and opaque view can affect
+   overlap
+c. Refine corresponding clear fb logic
+
+Signed-off-by: Nancy.Zou <Nancy.Zou@csr.com>
+---
+ src/compositor-fbdev.c | 110 ++++++++++++++++++++++++++++++++++++++-----------
+ src/gl-renderer.c      |  15 +++----
+ 2 files changed, 92 insertions(+), 33 deletions(-)
+
+diff --git a/src/compositor-fbdev.c b/src/compositor-fbdev.c
+index bae15c0..078f451 100644
+--- a/src/compositor-fbdev.c
++++ b/src/compositor-fbdev.c
+@@ -134,6 +134,7 @@ struct fbdev_output {
+ #ifdef SUPPORT_VDSSCOMP
+ 	uint32_t type;/*primary device or second device*/
+ 	bool has_GPU_layer;/*true if view need to be rendered by GPU*/
++	struct weston_view *yuv_view;/*record the last yuv view using pipe*/
+ 	bool is_enable;
+ 	struct weston_plane ovl_plane;/*overlay view is rearragned to it*/
+ 	int32_t ovl_cnt;
+@@ -313,6 +314,21 @@ static bool is_interlaced(int fmt)
+ 	}
+ }
+ 
++static bool is_transparent(int fmt)
++{
++	switch(fmt)
++	{
++		case WL_SHM_FORMAT_ARGB8888:
++		case WL_SHM_FORMAT_ABGR8888:
++		case WL_SHM_FORMAT_RGBA8888:
++		case WL_SHM_FORMAT_BGRA8888:
++			return true;
++		/*Shall we add more cases such as a555, a444, a101010?*/
++		default:
++			return false;
++	}
++}
++
+ /*TODO: add more format */
+ static bool is_support_fmt(int fmt)
+ {
+@@ -424,10 +440,13 @@ static bool
+ fbdev_output_check_overlay_assignment(struct fbdev_output *output,
+ 				struct weston_view *ev)
+ {
++	struct fbdev_compositor *fbc = output->compositor;
+ 	struct weston_buffer *buffer = ev->surface->buffer_ref.buffer;
+ 	struct weston_buffer_viewport *viewport = &ev->surface->buffer_viewport;
+ 	pixman_box32_t src, dst;
++	PVR2DMEMINFO *meminfo[1] = {};
+ 	uint32_t fmt;
++	int32_t fd;
+ 
+ 	/*TODO: need to check these conditions */
+ 	if (buffer == NULL ||
+@@ -445,6 +464,15 @@ fbdev_output_check_overlay_assignment(struct fbdev_output *output,
+ 	if(!is_support_fmt(fmt))
+ 		return false;
+ 
++	/* get meminfo for overlay view, just ignore it if its meminfo
++	 * is not found and it will not be shown by hw later */
++	fd = wl_shm_buffer_get_fd(buffer->shm_buffer);
++	if (PVR2DFindMemInfo(fbc->pvr2d_context,
++				fd,
++				&meminfo[0])) {
++		return false;
++	}
++
+ 	/* Skip surface with 1x1 buffer */
+ 	if (wl_shm_buffer_get_width(buffer->shm_buffer) == 1 &&
+ 		wl_shm_buffer_get_height(buffer->shm_buffer) == 1)
+@@ -466,22 +494,50 @@ fbdev_output_check_overlay_assignment(struct fbdev_output *output,
+ 	if (output->ovl_cnt >= MAX_OVERLAY_PIPE)
+ 		return false;
+ 
++	/* Only support the top yuv view as overlay */
++	if (is_YUV(fmt)) {
++		if (output->yuv_view)
++			return false;
++		else
++			output->yuv_view = ev;
++	}
++
+ 	return true;
+ }
+ 
++/* This is an optimation for overlay, if overlay is covered by an opaque view,
++ * it should not be shown on screen. */
++static void
++accumulate_opaque(struct weston_view *ev, pixman_region32_t *opaque)
++{
++	/* How to handle a transparant subsurface with opaque region? */
++	if (pixman_region32_not_empty(&ev->transform.opaque)) {
++		pixman_region32_union(opaque, opaque, &ev->transform.opaque);
++	} else {
++		struct weston_buffer *buf = ev->surface->buffer_ref.buffer;
++		/* Just add bounding region for opaque surface.
++		 * TODO:How to handle surface without buffer case? */
++		if (buf && buf->shm_buffer) {
++			uint32_t fmt =
++				wl_shm_buffer_get_format(buf->shm_buffer);
++			if (!is_transparent(fmt))
++				pixman_region32_union(opaque, opaque,
++					&ev->transform.boundingbox);
++		}
++	}
++}
++
+ static bool
+ is_overlap(struct weston_view *ev, pixman_region32_t *opaque)
+ {
+ 	pixman_region32_t overlap;
+ 	bool ret = false;
+ 
+-	/* This may have problem to use sub surface's opaque directly while
+-	 * it is scaled, however, weston does not update transform opaque
+-	 * region for it unless we set the scaled opaque region after creating
+-	 * it. */
++	/* Shall we further limit with sissor and damage region? */
+ 	pixman_region32_init(&overlap);
+-	pixman_region32_intersect(&overlap, opaque, &ev->surface->opaque);
+-	if(pixman_region32_equal(&overlap, &ev->surface->opaque))
++	pixman_region32_intersect(&overlap, opaque, &ev->transform.boundingbox);
++	if (pixman_region32_not_empty(&overlap) &&
++		pixman_region32_equal(&overlap, &ev->transform.boundingbox))
+ 		ret = true;
+ 	pixman_region32_fini(&overlap);
+ 
+@@ -493,7 +549,7 @@ fbdev_assign_planes(struct weston_output *base)
+ {
+ 	struct fbdev_output *output = to_fbdev_output(base);
+ 	struct fbdev_backend *c = output->backend;
+-	struct weston_view *ev, *next, *last_ov = NULL;
++	struct weston_view *ev, *next, *last_ov = NULL, *last_yuv_view = NULL;
+ 	struct weston_plane *primary = &c->base.primary_plane;
+ 	struct weston_plane *ovl_plane = &output->ovl_plane;
+ 	bool has_GPU_layer = false;
+@@ -501,6 +557,7 @@ fbdev_assign_planes(struct weston_output *base)
+ 
+ 	pixman_region32_init(&opaque);
+ 	output->ovl_cnt = 0;
++	output->yuv_view = NULL;
+ 
+ 	/* overlay view need to meet three conditions:
+ 	 * 1. env variable which not disable hw overlay feature.
+@@ -511,26 +568,26 @@ fbdev_assign_planes(struct weston_output *base)
+ 		if (c->hw_overlay_enable &&
+ 			!is_overlap(ev, &opaque) &&
+ 			fbdev_output_check_overlay_assignment(output, ev)) {
+-			weston_view_move_to_plane(ev, ovl_plane);
+-			last_ov = ev;
+-			output->ovl_cnt++;
+-			/* All other planes are a direct scanout of a
+-			 * single client buffer.
+-			 */
+-			ev->psf_flags =
+-				PRESENTATION_FEEDBACK_KIND_ZERO_COPY;
+-			es->keep_buffer = true;
++				weston_view_move_to_plane(ev, ovl_plane);
++				/* All other planes are a direct scanout of a
++				 * single client buffer.
++				 */
++				ev->psf_flags =
++					PRESENTATION_FEEDBACK_KIND_ZERO_COPY;
++				es->keep_buffer = true;
++
++				last_ov = ev;
++				output->ovl_cnt++;
+ 		} else {
+ 			weston_view_move_to_plane(ev, primary);
+-			/* compute all opaque area for views that are on top
+-			 * of overlay view. */
+-			pixman_region32_union(&opaque, &opaque,
+-						&ev->surface->opaque);
+-			has_GPU_layer = true;
+-			/* cursor plane involves a copy */
+ 			ev->psf_flags = 0;
+ 			es->keep_buffer = false;
++
++			has_GPU_layer = true;
+ 		}
++		/* compute all opaque area for views that are on top
++		 * of overlay view. */
++		accumulate_opaque(ev, &opaque);
+ 	}
+ 
+ 	pixman_region32_fini(&opaque);
+@@ -541,6 +598,13 @@ fbdev_assign_planes(struct weston_output *base)
+ 	if (has_GPU_layer) {
+ 		if (output->ovl_cnt == MAX_OVERLAY_PIPE && last_ov) {
+ 			struct weston_surface *es = last_ov->surface;
++			struct weston_buffer *buf = es->buffer_ref.buffer;
++			uint32_t fmt;
++
++			fmt = wl_shm_buffer_get_format(buf->shm_buffer);
++			if (is_YUV(fmt))
++				output->yuv_view = NULL;
++
+ 			weston_view_move_to_plane(last_ov, primary);
+ 			ev->psf_flags = 0;
+ 			es->keep_buffer = false;
+@@ -704,8 +768,6 @@ fbdev_output_process_overlay(struct fbdev_output *output,
+ 		if (ev->plane != &output->ovl_plane)
+ 			continue;
+ 
+-		/* get meminfo for overlay view, just ignore it if its meminfo
+-		 * is not found and it will not be shown by hw later */
+ 		fd = wl_shm_buffer_get_fd(buf->shm_buffer);
+ 		if (PVR2DFindMemInfo(fbc->pvr2d_context,
+ 					fd,
+diff --git a/src/gl-renderer.c b/src/gl-renderer.c
+index c66c13a..5130e17 100644
+--- a/src/gl-renderer.c
++++ b/src/gl-renderer.c
+@@ -806,9 +806,9 @@ clear_region(struct weston_view *ev, pixman_region32_t *region,
+ 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof *v, &v[0]);
+ 	glEnableVertexAttribArray(0);
+ 	glUniform4fv(gr->solid_shader.color_uniform, 1, color);
++	glUniform1f(gr->solid_shader.alpha_uniform, 1.0);
+ 
+ 	for (i = 0, first = 0; i < nfans; i++) {
+-		glUniform1f(gr->solid_shader.alpha_uniform, 1.0);
+ 		glDrawArrays(GL_TRIANGLE_FAN, first, vtxcnt[i]);
+ 		first += vtxcnt[i];
+ 	}
+@@ -830,7 +830,6 @@ overlay_view_clearfb(struct weston_view *ev, struct weston_output *output,
+ 	pixman_region32_t repaint;
+ 	/* opaque region in surface coordinates: */
+ 	pixman_region32_t surface_opaque;
+-	int cw, ch;
+ 
+ 	/* In case of a runtime switch of renderers, we may not have received
+ 	 * an attach for this surface since the switch. In that case we don't
+@@ -848,19 +847,17 @@ overlay_view_clearfb(struct weston_view *ev, struct weston_output *output,
+ 
+ 	glDisable(GL_BLEND);
+ 
+-	gr->base.surface_get_content_size(ev->surface, &cw, &ch);
+-
+ 	use_shader(gr, &gr->solid_shader);
+ 	shader_uniforms(&gr->solid_shader, ev, output);
+ 
+-	/* XXX: Should we be using ev->transform.opaque here? */
+-	pixman_region32_init(&surface_opaque);
++	/* Only support non-transparent view for overlay, so clear all surface
++	 * region whether opaque region is set or not */
++	pixman_region32_init_rect(&surface_opaque, 0, 0,
++				ev->surface->width, ev->surface->height);
+ 	if (ev->geometry.scissor_enabled)
+ 		pixman_region32_intersect(&surface_opaque,
+-					  &ev->surface->opaque,
++					  &surface_opaque,
+ 					  &ev->geometry.scissor);
+-	else
+-		pixman_region32_copy(&surface_opaque, &ev->surface->opaque);
+ 
+ 	if (pixman_region32_not_empty(&surface_opaque)) {
+ 		clear_region(ev, &repaint, &surface_opaque,
+-- 
+1.9.1
+

@@ -1,0 +1,138 @@
+From 8b8dbb0c58967cf4d12f0bc82714193609a6b68e Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Mon, 28 Sep 2015 16:29:30 +0800
+Subject: [PATCH 7/8] APBU-10867 [A7DA][csrplayer]Csrplayer always on pause
+ status if do play/pause repeatedly
+
+Root cause: rendering when changing state from playing to paused.
+Occasionaly it will trying to gst_v4l2_buffer_pool_dqbuf between
+flushing start and flushing stop. Then error occurs and hang.
+
+Solution: avoid show_frame when changing state from playing to paused.
+
+Change-Id: I1a0224fc97a743f313d926ead64dd1fc0809189e
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ sys/v4l2/gstv4l2object.c |  5 +++++
+ sys/v4l2/gstv4l2object.h |  6 ++++++
+ sys/v4l2/gstv4l2sink.c   | 23 +++++++++++++++++++++--
+ sys/v4l2/gstv4l2sink.h   |  1 +
+ 4 files changed, 33 insertions(+), 2 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2object.c b/sys/v4l2/gstv4l2object.c
+index 17847e6..6699517 100644
+--- a/sys/v4l2/gstv4l2object.c
++++ b/sys/v4l2/gstv4l2object.c
+@@ -449,6 +449,9 @@ gst_v4l2_object_new (GstElement * element,
+ 
+   v4l2object->no_initial_format = FALSE;
+ 
++  g_mutex_init(&v4l2object->lock);
++  g_cond_init(&v4l2object->cond);
++
+   return v4l2object;
+ }
+ 
+@@ -474,6 +477,8 @@ gst_v4l2_object_destroy (GstV4l2Object * v4l2object)
+     gst_caps_unref (v4l2object->probed_caps);
+   }
+ 
++  g_mutex_clear(&v4l2object->lock);
++  g_cond_clear(&v4l2object->cond);
+   g_free (v4l2object);
+ }
+ 
+diff --git a/sys/v4l2/gstv4l2object.h b/sys/v4l2/gstv4l2object.h
+index 177a86b..9a79ef5 100644
+--- a/sys/v4l2/gstv4l2object.h
++++ b/sys/v4l2/gstv4l2object.h
+@@ -49,6 +49,9 @@ G_BEGIN_DECLS
+ GType gst_v4l2_io_mode_get_type (void);
+ 
+ #define GST_V4L2_OBJECT(obj) (GstV4l2Object *)(obj)
++#define GST_V4L2_OBJECT_LOCK(obj)   (g_mutex_lock(&obj->lock))
++#define GST_V4L2_OBJECT_TRYLOCK(obj)   (g_mutex_trylock(&obj->lock))
++#define GST_V4L2_OBJECT_UNLOCK(obj) (g_mutex_unlock(&obj->lock))
+ 
+ typedef enum {
+   GST_V4L2_IO_AUTO          = 0,
+@@ -171,6 +174,9 @@ struct _GstV4l2Object {
+   /* Allow to skip reading initial format through G_FMT. Some devices
+    * just fails if you don't call S_FMT first. (ex: M2M decoders) */
+   gboolean no_initial_format;
++
++  GMutex lock;
++  GCond cond;
+ };
+ 
+ struct _GstV4l2ObjectClassHelper {
+diff --git a/sys/v4l2/gstv4l2sink.c b/sys/v4l2/gstv4l2sink.c
+index d750546..e860e5e 100644
+--- a/sys/v4l2/gstv4l2sink.c
++++ b/sys/v4l2/gstv4l2sink.c
+@@ -222,6 +222,7 @@ gst_v4l2sink_init (GstV4l2Sink * v4l2sink)
+   v4l2sink->overlay_fields_set = 0;
+   v4l2sink->crop_fields_set = 0;
+   v4l2sink->have_render_rect = FALSE;
++  v4l2sink->to_paused = 0;
+ }
+ 
+ 
+@@ -453,6 +454,11 @@ gst_v4l2sink_change_state (GstElement * element, GstStateChange transition)
+       if (!gst_v4l2_object_open (v4l2sink->v4l2object))
+         return GST_STATE_CHANGE_FAILURE;
+       break;
++	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
++	  g_atomic_int_set(&v4l2sink->to_paused, 1);
++	  if (!GST_V4L2_OBJECT_TRYLOCK(v4l2sink->v4l2object))
++		  g_cond_wait(&v4l2sink->v4l2object->cond, &v4l2sink->v4l2object->lock);
++	  break;
+     default:
+       break;
+   }
+@@ -460,6 +466,11 @@ gst_v4l2sink_change_state (GstElement * element, GstStateChange transition)
+   ret = GST_ELEMENT_CLASS (parent_class)->change_state (element, transition);
+ 
+   switch (transition) {
++	case GST_STATE_CHANGE_PLAYING_TO_PAUSED:
++	  g_atomic_int_set(&v4l2sink->to_paused, 0);
++	  GST_V4L2_OBJECT_UNLOCK(v4l2sink->v4l2object);
++	  g_cond_signal(&v4l2sink->v4l2object->cond);
++	  break;
+     case GST_STATE_CHANGE_PAUSED_TO_READY:
+       if (!gst_v4l2_object_stop (v4l2sink->v4l2object))
+         return GST_STATE_CHANGE_FAILURE;
+@@ -606,8 +617,16 @@ gst_v4l2sink_show_frame (GstVideoSink * vsink, GstBuffer * buf)
+       goto activate_failed;
+   }
+ 
+-  ret = gst_v4l2_buffer_pool_process (GST_V4L2_BUFFER_POOL_CAST (obj->pool),
+-      &buf);
++  if (g_atomic_int_get(&v4l2sink->to_paused) == 0)
++  {
++	  if (!GST_V4L2_OBJECT_TRYLOCK(obj))
++		  g_cond_wait(&obj->cond, &obj->lock);
++
++	  ret = gst_v4l2_buffer_pool_process (GST_V4L2_BUFFER_POOL_CAST (obj->pool), &buf);
++
++	  GST_V4L2_OBJECT_UNLOCK(obj);
++	  g_cond_signal(&obj->cond);
++  }
+ 
+   return ret;
+ 
+diff --git a/sys/v4l2/gstv4l2sink.h b/sys/v4l2/gstv4l2sink.h
+index 4da9f54..515fbfa 100644
+--- a/sys/v4l2/gstv4l2sink.h
++++ b/sys/v4l2/gstv4l2sink.h
+@@ -71,6 +71,7 @@ struct _GstV4l2Sink {
+ 
+   gboolean have_render_rect;
+   GstVideoRectangle render_rect;
++  gint to_paused;
+ };
+ 
+ struct _GstV4l2SinkClass {
+-- 
+1.9.1
+

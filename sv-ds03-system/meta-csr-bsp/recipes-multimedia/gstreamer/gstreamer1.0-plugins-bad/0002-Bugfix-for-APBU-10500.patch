@@ -1,0 +1,69 @@
+From 21041bb50ae01cff1ca280a55a4aa1c10886ef37 Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Wed, 17 Jun 2015 16:25:25 +0800
+Subject: [PATCH 2/2] Bugfix for APBU-10500
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Sometimes when pts < first pcr, tsdemux will return incorrect timestamp.
+This patch handle such issue.
+
+This issue could also be reproduced with A7 kitkat. With this patch,
+we can play these ts streams both on A7 Linux and A7 kitkat.
+
+KNOWN ISSUE:
+For 封装TS-后窗惊魂试机片段.ts
+1. When doing accurate seek to some specific time, gstreamer might hang
+2. A7 kitkat use accurate seek but A7 Linux not.
+3. We can quit and play other streams on A7 kitkat after such hang.
+4. Such hang can be reproduced on PC.
+5. GStreamer 1.4.4 or 1.4.5 + this patch might result in such hang but
+   not for 1.5.1. We need recheck this problem after next upgrade.
+
+Conflicts:
+    gst/mpegtsdemux/tsdemux.c
+
+Change-Id: Ib02adcde06e8af963cd5898b2e49ebf13b4b84c5
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ gst/mpegtsdemux/mpegtspacketizer.c | 16 +++++++---------
+ 1 file changed, 7 insertions(+), 9 deletions(-)
+
+diff --git a/gst/mpegtsdemux/mpegtspacketizer.c b/gst/mpegtsdemux/mpegtspacketizer.c
+index 1cdb9e9..a1a16b2 100644
+--- a/gst/mpegtsdemux/mpegtspacketizer.c
++++ b/gst/mpegtsdemux/mpegtspacketizer.c
+@@ -2240,13 +2240,6 @@ mpegts_packetizer_pts_to_ts (MpegTSPacketizer2 * packetizer,
+       refpcr = group->first_pcr;
+       refpcroffset = group->pcr_offset;
+       if (pts < PCRTIME_TO_GSTTIME (refpcr)) {
+-        /* Only apply wrapover if we're certain it is, and avoid
+-         * returning bogus values if it's a PTS/DTS which is *just*
+-         * before the start of the current group
+-         */
+-        if (PCRTIME_TO_GSTTIME (refpcr) - pts > GST_SECOND) {
+-          pts += PCR_GST_MAX_VALUE;
+-        } else
+           refpcr = G_MAXINT64;
+       }
+     } else {
+@@ -2285,8 +2278,13 @@ mpegts_packetizer_pts_to_ts (MpegTSPacketizer2 * packetizer,
+         GST_DEBUG ("Using group !");
+         refpcr = group->first_pcr;
+         refpcroffset = group->pcr_offset;
+-        if (pts < refpcr)
+-          refpcr -= PCR_MAX_VALUE;
++        if (pts < PCRTIME_TO_GSTTIME(refpcr))
++		{
++			if (refpcr > PCR_MAX_VALUE)
++			    refpcr -= PCR_MAX_VALUE;
++			else
++			    refpcr = G_MAXINT64;
++		}
+       }
+     }
+     if (refpcr != G_MAXINT64)
+-- 
+1.9.1
+

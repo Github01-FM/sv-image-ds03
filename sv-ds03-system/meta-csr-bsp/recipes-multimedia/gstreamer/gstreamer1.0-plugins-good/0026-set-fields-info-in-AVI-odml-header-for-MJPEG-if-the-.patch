@@ -1,0 +1,102 @@
+From 7364cc25065abb3098bba6753c694bd27eb17369 Mon Sep 17 00:00:00 2001
+From: Jie Zhou <zhojie@codeaurora.org>
+Date: Fri, 27 May 2016 11:42:08 +0800
+Subject: [PATCH 26/31] set fields info in AVI odml header for MJPEG if the
+ stram is interlaced
+
+Change-Id: Iac777d430f624573e3f34fb2f3a9e0187b294f67
+Signed-off-by: Jie Zhou <zhojie@codeaurora.org>
+---
+ gst/avi/gstavidemux.c | 31 ++++++++++++++++++++-----------
+ gst/avi/gstavimux.c   | 26 +++++++++++++++++++++++++-
+ 2 files changed, 45 insertions(+), 12 deletions(-)
+
+diff --git a/gst/avi/gstavidemux.c b/gst/avi/gstavidemux.c
+index 58f53a8..e006099 100644
+--- a/gst/avi/gstavidemux.c
++++ b/gst/avi/gstavidemux.c
+@@ -2295,17 +2295,26 @@ gst_avi_demux_parse_stream (GstAviDemux * avi, GstBuffer * buf)
+           caps = gst_caps_new_simple ("video/x-avi-unknown", "fourcc",
+               G_TYPE_INT, fourcc, NULL);
+         } else if (got_vprp && vprp) {
+-          guint32 aspect_n, aspect_d;
+-          gint n, d;
+-
+-          aspect_n = vprp->aspect >> 16;
+-          aspect_d = vprp->aspect & 0xffff;
+-          /* calculate the pixel aspect ratio using w/h and aspect ratio */
+-          n = aspect_n * stream->strf.vids->height;
+-          d = aspect_d * stream->strf.vids->width;
+-          if (n && d)
+-            gst_caps_set_simple (caps, "pixel-aspect-ratio", GST_TYPE_FRACTION,
+-                n, d, NULL);
++          if (vprp->aspect) {
++            guint32 aspect_n, aspect_d;
++            gint n, d;
++
++            aspect_n = vprp->aspect >> 16;
++            aspect_d = vprp->aspect & 0xffff;
++            /* calculate the pixel aspect ratio using w/h and aspect ratio */
++            n = aspect_n * stream->strf.vids->height;
++            d = aspect_d * stream->strf.vids->width;
++            if (n && d)
++              gst_caps_set_simple (caps, "pixel-aspect-ratio", GST_TYPE_FRACTION,
++                  n, d, NULL);
++          }
++
++          /* for mjpeg, check the fields to see if the stream is interlaced */
++          GstStructure *s;
++          s = gst_caps_get_structure(caps, 0);
++          if (gst_structure_has_name(s, "image/jpeg") && vprp->fields == 2)
++            gst_caps_set_simple (caps, "interlace-mode", G_TYPE_STRING, "interleaved", NULL);
++
+           /* very local, not needed elsewhere */
+           g_free (vprp);
+           vprp = NULL;
+diff --git a/gst/avi/gstavimux.c b/gst/avi/gstavimux.c
+index 2ef3d3e..bae9447 100644
+--- a/gst/avi/gstavimux.c
++++ b/gst/avi/gstavimux.c
+@@ -467,6 +467,30 @@ gst_avi_mux_vidsink_set_caps (GstPad * pad, GstCaps * vscaps)
+     avipad->vprp.field_info[0].valid_bm_width = width;
+   }
+ 
++  const gchar *imode;
++  if (gst_structure_has_name(structure, "image/jpeg")) {
++    imode = gst_structure_get_string (structure, "interlace-mode");
++    if (imode && (g_str_equal (imode, "interleaved"))) {
++
++      /* set vprp->fields to 2 for mjpeg interlace mode */
++      avipad->vprp.hor_t_total = width;
++      avipad->vprp.vert_lines = height;
++      avipad->vprp.width = width;
++      avipad->vprp.height = height;
++      avipad->vprp.fields = 2;
++      avipad->vprp.field_info[0].compressed_bm_height = height/2;
++      avipad->vprp.field_info[0].compressed_bm_width = width;
++      avipad->vprp.field_info[0].valid_bm_height = height/2;
++      avipad->vprp.field_info[0].valid_bm_width = width;
++      avipad->vprp.field_info[0].video_y_start = 0;
++      avipad->vprp.field_info[1].compressed_bm_height = height/2;
++      avipad->vprp.field_info[1].compressed_bm_width = width;
++      avipad->vprp.field_info[1].valid_bm_height = height/2;
++      avipad->vprp.field_info[1].valid_bm_width = width;
++      avipad->vprp.field_info[1].video_y_start = 1;
++    }
++  }
++
+   if (!strcmp (mimetype, "video/x-raw")) {
+     const gchar *format;
+     GstVideoFormat fmt;
+@@ -1271,7 +1295,7 @@ gst_avi_mux_riff_get_avi_header (GstAviMux * avimux)
+       gst_avi_mux_end_chunk (&bw, strf);
+ 
+       /* add video property data, mainly for aspect ratio, if any */
+-      if (vidpad->vprp.aspect) {
++      if (vidpad->vprp.aspect || vidpad->vprp.fields == 2) {
+         gint f;
+         guint vprp;
+ 
+-- 
+1.9.1
+

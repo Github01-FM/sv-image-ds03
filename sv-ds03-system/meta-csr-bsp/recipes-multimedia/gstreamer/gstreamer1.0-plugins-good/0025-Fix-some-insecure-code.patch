@@ -1,0 +1,35 @@
+From f6bd374bffdf17c2ca70d104d09e45c89d0fcfac Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Fri, 6 May 2016 10:49:46 +0800
+Subject: [PATCH 25/31] Fix some insecure code
+
+Change-Id: I3b062be616b128493e6599c0e78e8b76edcd3834
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ sys/v4l2/gstv4l2sink.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2sink.c b/sys/v4l2/gstv4l2sink.c
+index 85e9ef5..a6c9da3 100644
+--- a/sys/v4l2/gstv4l2sink.c
++++ b/sys/v4l2/gstv4l2sink.c
+@@ -284,12 +284,13 @@ gst_v4l2sink_force_aspect_ratio (GstV4l2Sink * v4l2sink)
+ 	if (v4l2sink->disp_aspect_ratio && v4l2sink->video_width > 0 && v4l2sink->video_height > 0)
+ 	{
+ 		float toleration;
+-
+-		toleration = (format.fmt.win.w.width * 1.0 / format.fmt.win.w.height) - (v4l2sink->video_width * 1.0 / v4l2sink->video_height);
+ 		int x, y, w, h;
+ 
++		x = y = w = h = 0;
++		toleration = ((float)format.fmt.win.w.width / (float)format.fmt.win.w.height) - ((float)v4l2sink->video_width / (float)v4l2sink->video_height);
++
+ 		GST_DEBUG_OBJECT (v4l2sink, "toleration: %f", toleration);
+-		if (toleration > -0.01 && toleration < 0.01)
++		if (toleration >= -0.01 && toleration <= 0.01)
+ 			return;
+ 
+ 		if (toleration > 0.01)
+-- 
+1.9.1
+

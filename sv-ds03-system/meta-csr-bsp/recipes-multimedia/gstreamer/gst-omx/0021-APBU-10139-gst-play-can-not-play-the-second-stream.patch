@@ -1,0 +1,105 @@
+From 287e65ac31cadfa49c110344d703ba8d2de68b13 Mon Sep 17 00:00:00 2001
+From: xf02 <xfei@codeaurora.org>
+Date: Tue, 10 Mar 2015 19:52:16 +0800
+Subject: [PATCH 21/67] APBU-10139: gst-play can not play the second stream
+
+v4l2 driver can not be successfully closed because some rendering
+buffer is not freed.
+
+Fix it by unref the output buffer(rendering buffer) in
+gst_omx_video_dec_close()
+
+Change-Id: I62c27f7c25f71a6722852cad17cdbb4b39856ac6
+Signed-off-by: xf02 <xfei@codeaurora.org>
+---
+ omx/gstomxvideodec.c | 32 ++++++++++++++++++++++++++------
+ 1 file changed, 26 insertions(+), 6 deletions(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 437a895..507f49e 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -501,6 +501,17 @@ gst_omx_video_dec_shutdown (GstOMXVideoDec * self)
+ 
+   return TRUE;
+ }
++#ifdef _USE_V4L2_BUFFER_
++static void
++gst_omx_buffer_map_unref(gpointer key, gpointer value, gpointer user_data)
++{
++  GstBuffer *buffer = (GstBuffer*)value;
++
++  if (buffer) {
++    gst_buffer_unref(buffer);
++  }
++}
++#endif
+ 
+ static gboolean
+ gst_omx_video_dec_close (GstVideoDecoder * decoder)
+@@ -518,7 +529,10 @@ gst_omx_video_dec_close (GstVideoDecoder * decoder)
+     gst_omx_component_free (self->dec);
+   self->dec = NULL;
+ #ifdef _USE_V4L2_BUFFER_
+-  g_hash_table_destroy (self->omx_buffer_map);
++  if (self->omx_buffer_map) {
++    g_hash_table_destroy (self->omx_buffer_map);
++    self->omx_buffer_map = NULL;
++  }
+ #endif
+ 
+ #if defined (USE_OMX_TARGET_RPI) && defined (HAVE_GST_GL)
+@@ -794,7 +808,7 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
+ #endif
+ 
+   pool = gst_video_decoder_get_buffer_pool (GST_VIDEO_DECODER (self));
+-  if (pool) {
++  if (FALSE && pool) {
+     GstAllocator *allocator;
+ 
+     config = gst_buffer_pool_get_config (pool);
+@@ -853,9 +867,6 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
+   }
+ #endif
+ 
+-  // TODO.
+-  gst_caps_replace (&caps, NULL);
+-
+   if (caps)
+     self->out_port_pool =
+         gst_omx_buffer_pool_new (GST_ELEMENT_CAST (self), self->dec, port);
+@@ -1054,6 +1065,10 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
+ 
+ 		g_list_free_full (buffers, (GDestroyNotify) gst_buffer_unref);
+ 		buffers = NULL;
++
++        g_hash_table_destroy (self->omx_buffer_map);
++        self->omx_buffer_map = NULL;
++
+ 		err = OMX_ErrorResourcesLost;
+ 		goto done;
+ 	
+@@ -1255,6 +1270,12 @@ gst_omx_video_dec_deallocate_output_buffers (GstOMXVideoDec * self)
+   err = gst_omx_port_deallocate_buffers (self->dec_out_port);
+ #endif
+ 
++#ifdef _USE_V4L2_BUFFER_
++  if (self->omx_buffer_map) {
++    g_hash_table_foreach_remove(self->omx_buffer_map, gst_omx_buffer_map_unref, NULL);
++  }
++#endif
++
+   return err;
+ }
+ 
+@@ -1943,7 +1964,6 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+ #endif
+ 			if(frame->output_buffer)		
+ 			{
+-				frame->output_buffer->pool = gst_video_decoder_get_buffer_pool (GST_VIDEO_DECODER (self));
+ 				GST_BUFFER_PTS (frame->output_buffer) =
+ 				gst_util_uint64_scale (buf->omx_buf->nTimeStamp, GST_SECOND,
+ 				OMX_TICKS_PER_SECOND);
+-- 
+1.9.1
+

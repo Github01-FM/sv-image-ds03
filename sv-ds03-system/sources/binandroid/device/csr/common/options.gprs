@@ -1,0 +1,17 @@
+
+/dev/ttyUSB0
+460800
+mru 1280
+mtu 1280 
+nodetach
+debug 
+dump
+defaultroute
+usepeerdns
+novj 
+novjccomp 
+noipdefault
+ipcp-accept-local
+ipcp-accept-remote
+user "card" 
+password "card"

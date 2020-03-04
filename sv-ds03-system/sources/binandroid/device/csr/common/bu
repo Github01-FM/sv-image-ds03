@@ -1,0 +1,66 @@
+#!/system/bin/sh
+
+if [ `id -u` != "0" ]
+then
+echo -e "\033[33m Becoming root \033[0m"
+su -c bu
+exit 1
+fi
+
+echo -e "\033[33m Setting some stuff up..\033[0m "
+
+export bin=/system/bin
+export mnt=/data/local/ubuntu
+export PATH=$bin:/usr/bin:/usr/sbin:/bin:$PATH
+export TERM=linux
+export HOME=/root
+
+if [ ! -d $mnt ]
+then
+mkdir $mnt
+fi
+
+echo -e "\033[33m Mounting the Linux Image \033[0m"
+
+#replace /dev/block/mmcblk1p2 by the partition Ubuntu image is replaced
+#it might be a loop image
+busybox mount -t ext4 -o noatime,nodiratime /dev/block/mmcblk1p2 $mnt
+busybox mount -t devpts devpts $mnt/dev/pts
+busybox mount -t proc proc $mnt/proc
+busybox mount -t sysfs sysfs $mnt/sys
+
+echo -e "\033[33m Setting Up Networking\033[0m"
+
+sysctl -w net.ipv4.ip_forward=1
+echo "nameserver 8.8.8.8" >> $mnt/etc/resolv.conf
+echo "nameserver 8.8.4.4" >> $mnt/etc/resolv.conf
+echo "127.0.0.1 localhost" > $mnt/etc/hosts
+
+echo -e "\033[33m Mounting sdcard in /mnt/sdcard\033[0m"
+if [ ! -d $mnt/mnt/sdcard ]
+then
+mkdir $mnt/mnt/sdcard
+fi
+
+busybox mount --bind /mnt/sdcard/ $mnt/mnt/sdcard
+
+echo -e "\033[33m Entering CHROOT \033[0m"
+echo " "
+
+chroot $mnt /bin/bash
+
+echo " "
+echo -e "\033[33m Shutting down CHROOT\033[0m"
+echo -e "\033[33m umount $mnt/mnt/sdcard\033[0m"
+busybox umount $mnt/mnt/sdcard
+sysctl -w net.ipv4.ip_forward=0
+echo -e "\033[33m umount $mnt/dev/pts\033[0m"
+busybox umount $mnt/dev/pts
+echo -e "\033[33m umount $mnt/proc\033[0m"
+busybox umount $mnt/proc
+echo -e "\033[33m umount $mnt/sys\033[0m"
+busybox umount $mnt/sys
+
+echo -e "\033[33m umount $mnt\033[0m"
+busybox fuser -k $mnt
+busybox umount $mnt

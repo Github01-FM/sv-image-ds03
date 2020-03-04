@@ -1,0 +1,21 @@
+# LAYER_CONF_VERSION is increased each time build/conf/bblayers.conf
+# changes incompatibly
+LCONF_VERSION = "6"
+
+BBPATH = "${TOPDIR}"
+BBFILES ?= ""
+
+BBLAYERS ?= " \
+  ##OEROOT##/meta \
+  ##OEROOT##/meta-yocto \
+  ##OEROOT##/meta-sv \
+  ##OEROOT##/meta-csr-bsp  \
+  ##OEROOT##/meta-csr-bsp-prop  \
+  ##OEROOT##/meta-qt5  \
+  ##OEROOT##/meta-openembedded/meta-oe \
+  ##OEROOT##/meta-linaro/meta-linaro-toolchain \
+  "
+BBLAYERS_NON_REMOVABLE ?= " \
+  ##OEROOT##/meta \
+  ##OEROOT##/meta-yocto \
+  "

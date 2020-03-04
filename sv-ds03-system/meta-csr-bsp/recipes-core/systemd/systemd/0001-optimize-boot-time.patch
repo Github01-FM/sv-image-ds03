@@ -1,0 +1,54 @@
+diff -Nur git/units/systemd-journald.service.in git_mod/units/systemd-journald.service.in
+--- git/units/systemd-journald.service.in	2015-08-24 16:54:59.334757529 +0800
++++ git_mod/units/systemd-journald.service.in	2015-08-24 17:05:48.886761102 +0800
+@@ -9,12 +9,13 @@
+ Description=Journal Service
+ Documentation=man:systemd-journald.service(8) man:journald.conf(5)
+ DefaultDependencies=no
+-Requires=systemd-journald.socket
+-After=systemd-journald.socket systemd-journald-dev-log.socket syslog.socket
++Requires=systemd-journald.socket launcher.service
++After=launcher.service systemd-journald.socket systemd-journald-dev-log.socket syslog.socket
+ Before=sysinit.target
+ 
+ [Service]
+ Sockets=systemd-journald.socket systemd-journald-dev-log.socket
++ExecStartPre=/bin/sleep 5
+ ExecStart=@rootlibexecdir@/systemd-journald
+ Restart=always
+ RestartSec=0
+diff -Nur git/units/systemd-udevd.service.in git_mod/units/systemd-udevd.service.in
+--- git/units/systemd-udevd.service.in	2015-08-24 16:54:59.334757529 +0800
++++ git_mod/units/systemd-udevd.service.in	2015-08-24 17:05:48.886761102 +0800
+@@ -11,7 +11,7 @@
+ DefaultDependencies=no
+ Wants=systemd-udevd-control.socket systemd-udevd-kernel.socket
+ After=systemd-udevd-control.socket systemd-udevd-kernel.socket systemd-udev-hwdb-update.service systemd-sysusers.service
+-Before=sysinit.target
++Before=multi-user.target
+ ConditionPathIsReadWrite=/sys
+ 
+ [Service]
+@@ -20,5 +20,6 @@
+ Sockets=systemd-udevd-control.socket systemd-udevd-kernel.socket
+ Restart=always
+ RestartSec=0
++ExecStartPre=/bin/sleep 5
+ ExecStart=@rootlibexecdir@/systemd-udevd
+ MountFlags=slave
+diff -Nur git/units/systemd-udev-trigger.service.in git_mod/units/systemd-udev-trigger.service.in
+--- git/units/systemd-udev-trigger.service.in	2015-08-24 16:54:59.334757529 +0800
++++ git_mod/units/systemd-udev-trigger.service.in	2015-08-24 17:05:48.886761102 +0800
+@@ -11,10 +11,11 @@
+ DefaultDependencies=no
+ Wants=systemd-udevd.service
+ After=systemd-udevd-kernel.socket systemd-udevd-control.socket
+-Before=sysinit.target
++Before=multi-user.target
+ ConditionPathIsReadWrite=/sys
+ 
+ [Service]
+ Type=oneshot
+ RemainAfterExit=yes
++ExecStartPre=/bin/sleep 5
+ ExecStart=@rootbindir@/udevadm trigger --type=subsystems --action=add ; @rootbindir@/udevadm trigger --type=devices --action=add

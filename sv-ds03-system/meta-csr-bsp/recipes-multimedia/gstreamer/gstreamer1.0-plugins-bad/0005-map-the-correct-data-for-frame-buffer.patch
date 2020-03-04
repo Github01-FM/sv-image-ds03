@@ -1,0 +1,28 @@
+From 23169629d613c5dc5bfa1db1a3c6d8a780fcd478 Mon Sep 17 00:00:00 2001
+From: Laisheng Hu <laisheng@codeaurora.org>
+Date: Tue, 15 Dec 2015 15:00:12 +0800
+Subject: [PATCH 05/10] map the correct data for frame buffer
+
+Change-Id: I059b9a31b33f77ef789f0ed1cf70b81ed3520664
+Signed-off-by: Laisheng Hu <laisheng@codeaurora.org>
+---
+ ext/wayland/wlshmallocator.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/ext/wayland/wlshmallocator.c b/ext/wayland/wlshmallocator.c
+index c118ec0..63aa2a8 100644
+--- a/ext/wayland/wlshmallocator.c
++++ b/ext/wayland/wlshmallocator.c
+@@ -149,7 +149,8 @@ gst_wl_shm_allocator_free (GstAllocator * allocator, GstMemory * memory)
+ static gpointer
+ gst_wl_shm_mem_map (GstMemory * mem, gsize maxsize, GstMapFlags flags)
+ {
+-  return ((GstWlShmMemory *) mem)->data;
++   struct ion_fd_data *pFdData  = ((GstWlShmMemory *) mem)->data;
++   return pFdData->handle;
+ }
+ 
+ static void
+-- 
+1.9.1
+

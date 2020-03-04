@@ -1,0 +1,39 @@
+From 0b59a6d52002775b31fa88f615386bd868960d40 Mon Sep 17 00:00:00 2001
+From: Nancy Zou <Nancy.Zou@csr.com>
+Date: Wed, 3 Dec 2014 16:02:55 +0800
+Subject: [PATCH] weston-test: disable egl in weston-test.
+
+our gpu don't support eglQueryWaylandBufferWL.
+
+Signed-off-by: Nancy Zou <Nancy.Zou@csr.com>
+---
+ tests/weston-test.c |    6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/tests/weston-test.c b/tests/weston-test.c
+index 35ccaa4..702ed19 100644
+--- a/tests/weston-test.c
++++ b/tests/weston-test.c
+@@ -194,7 +194,8 @@ send_key(struct wl_client *client, struct wl_resource *resource,
+ 	notify_key(seat, 100, key, state, STATE_UPDATE_AUTOMATIC);
+ }
+ 
+-#ifdef ENABLE_EGL
++//#ifdef ENABLE_EGL
++#if 0
+ static int
+ is_egl_buffer(struct wl_resource *resource)
+ {
+@@ -217,7 +218,8 @@ get_n_buffers(struct wl_client *client, struct wl_resource *resource)
+ {
+ 	int n_buffers = 0;
+ 
+-#ifdef ENABLE_EGL
++//#ifdef ENABLE_EGL
++#if 0
+ 	struct wl_resource *buffer_resource;
+ 	int i;
+ 
+-- 
+1.7.9.5
+

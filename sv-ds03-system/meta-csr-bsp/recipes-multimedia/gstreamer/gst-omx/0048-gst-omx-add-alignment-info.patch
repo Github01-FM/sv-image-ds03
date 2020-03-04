@@ -1,0 +1,95 @@
+From bcdc6567a4a66d0def6dd9b214299a2ca1dfe6a0 Mon Sep 17 00:00:00 2001
+From: Yiming Cao <cyiming@codeaurora.org>
+Date: Thu, 17 Sep 2015 16:37:59 +0800
+Subject: [PATCH 48/67] gst-omx: add alignment info
+
+For now, the alignment of memory for HW decoder is ensured by driver.
+while On Android, video sink cannot get the actual alignment info from
+driver, so we have to add alignement info here to make sure the size
+of gstbuffer is correct. Otherwise, the size check of allocated buffer
+will fail on Android.
+
+Change-Id: I24ccae62740a66dc99a92d02492f7944fa0214a7
+Signed-off-by: Yiming Cao <cyiming@codeaurora.org>
+---
+ omx/gstomxvideodec.c | 52 ++++++++++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 46 insertions(+), 6 deletions(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 723cf52..d29a12b 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -82,6 +82,10 @@ typedef struct _OMX_IMG_METADATA {
+ }OMX_IMG_METADATA;
+ 
+ #define GST_OMX_MIN_RENDERING_LATENCY 2
++#define VXD_NV12_WIDTH_ALIGNMENT 64
++#define VXD_NV12_HEIGHT_ALIGNMENT 16
++#define VXD_NV12_ITRL_HEIGHT_ALIGNMENT 32
++#define ALIGN(a, b) (((a)+(b)-1)&~((b)-1))
+ 
+ // as of now this is present in pPlatformPrivate.
+ #define GST_OMX_EXTRADATA(psBuffhdr) (((OMX_IMG_METADATA*)(psBuffhdr->pPlatformPrivate))->pui8ExtraData)
+@@ -3492,17 +3496,53 @@ gst_omx_video_dec_decide_allocation (GstVideoDecoder * bdec, GstQuery * query)
+ 
+   GST_DEBUG_OBJECT (self, "min =%d max=%d", min, max);
+ 
+-  if (caps)
+-    gst_buffer_pool_config_set_params (config, caps,
+-        size, min, max);
+-
+   if (gst_query_find_allocation_meta (query, GST_VIDEO_META_API_TYPE, NULL)) {
+     gst_buffer_pool_config_add_option (config,
+         GST_BUFFER_POOL_OPTION_VIDEO_META);
+-    /* TODO: we should set alignment here.
+-     * Now the alignment is ensured by allocator of driver
++    /* we should set alignment here for android to make sure the size of gstbuffer
++     * is correct. Now the alignment is ensured by allocator of driver.
+      */
++    if (gst_buffer_pool_has_option (pool,
++          GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT)) {
++      GstVideoInfo info;
++      if (caps && gst_video_info_from_caps (&info, caps)) {
++        gint i;
++        GstVideoAlignment align;
++        gint width, height, aligned_width, aligned_height;
++
++        width = GST_VIDEO_INFO_WIDTH (&info);
++        height = GST_VIDEO_INFO_HEIGHT (&info);
++        aligned_width = ALIGN (width, VXD_NV12_WIDTH_ALIGNMENT);
++        aligned_height = ALIGN (height,
++            self->dec->interlaced ? VXD_NV12_ITRL_HEIGHT_ALIGNMENT : VXD_NV12_HEIGHT_ALIGNMENT);
++
++        align.padding_top = 0;
++        align.padding_left = 0;
++        align.padding_right = aligned_width - width;
++        align.padding_bottom = aligned_height - height;
++        // just for NV12
++        for (i = 0; i < GST_VIDEO_MAX_PLANES; i++)
++          align.stride_align[i] = i < 2 ? VXD_NV12_WIDTH_ALIGNMENT - 1 : 0;
++
++        GST_DEBUG_OBJECT (self, "alignment dimension %dx%d -> %dx%d "
++            "padding t:%u l:%u r:%u b:%u, stride_align %d:%d:%d:%d",
++            width, height, aligned_width, aligned_height,
++            align.padding_top, align.padding_left, align.padding_right,
++            align.padding_bottom, align.stride_align[0], align.stride_align[1],
++            align.stride_align[2], align.stride_align[3]);
++
++        gst_buffer_pool_config_add_option (config,
++            GST_BUFFER_POOL_OPTION_VIDEO_ALIGNMENT);
++        gst_buffer_pool_config_set_video_alignment (config, &align);
++        size = aligned_width * aligned_height / 2 * 3;
++      }
++    }
+   }
++
++  if (caps)
++    gst_buffer_pool_config_set_params (config, caps,
++        size, min, max);
++
+   gst_buffer_pool_set_config (pool, config);
+   gst_object_unref (pool);
+ 
+-- 
+1.9.1
+

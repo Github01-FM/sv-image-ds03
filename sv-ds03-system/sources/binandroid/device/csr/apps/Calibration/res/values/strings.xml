@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<resources>
+    <string name="Start">Start</string>
+    <string name="Help"> Help </string>
+    <string name="TextView">TextView</string>
+    <string name="hello">Hello World, I2CTool!</string>
+    <string name="app_name">Calibration</string>
+</resources>

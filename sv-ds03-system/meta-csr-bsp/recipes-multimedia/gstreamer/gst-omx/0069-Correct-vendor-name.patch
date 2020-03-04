@@ -1,0 +1,72 @@
+From b9ddd02b3098eddbdbfe7593bc0a3d48104685f3 Mon Sep 17 00:00:00 2001
+From: Alan Wang <wbo@codeaurora.org>
+Date: Mon, 17 Oct 2016 16:37:05 +0800
+Subject: [PATCH] Correct vendor name.
+
+Change-Id: I45180745ccae5885cce7f965ed239ff0d2be3d42
+Signed-off-by: Alan Wang <wbo@codeaurora.org>
+---
+ omx/gstomxvideodec.c | 20 ++++++++++----------
+ 1 file changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index c453a90..3ed34aa 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -97,8 +97,8 @@ typedef struct _OMX_IMG_METADATA {
+ /* IMG Vendor specific code ends*/
+ 
+ /* QTIL Vendor specific code begins */
+-#define QC_VIDEO_LIMITED_RANGE (1 << 23)
+-#define QC_VIDEO_FULL_RANGE    (1 << 24)
++#define QTIL_VIDEO_LIMITED_RANGE (1 << 23)
++#define QTIL_VIDEO_FULL_RANGE    (1 << 24)
+ 
+ typedef guint8 (* IS_Video_Full_Range) (guint8 * input, guint32 len);
+ IS_Video_Full_Range is_video_full_range = NULL;
+@@ -435,10 +435,10 @@ gst_omx_video_dec_init (GstOMXVideoDec * self)
+     GST_ERROR_OBJECT (self, "load externel LIBRARY failed");
+   }
+ 
+-  if (!g_module_symbol (module, "QC_IS_FullRangeVideo",
++  if (!g_module_symbol (module, "QTIL_IS_FullRangeVideo",
+               (gpointer *)&is_video_full_range) ||
+                 is_video_full_range == NULL) {
+-    GST_WARNING_OBJECT (self, "Symbol QC_IS_FullRangeVideo is not found !");
++    GST_WARNING_OBJECT (self, "Symbol QTIL_IS_FullRangeVideo is not found !");
+     g_module_close (module);
+     module = NULL;
+   }
+@@ -2295,11 +2295,11 @@ gst_omx_video_dec_loop (GstOMXVideoDec * self)
+ 
+         /* QTIL vendor specific code begins */
+         if (GST_BUFFER_FLAG_IS_SET (frame->input_buffer,
+-                    QC_VIDEO_FULL_RANGE)) {
+-            GST_BUFFER_FLAG_SET (frame->output_buffer, QC_VIDEO_FULL_RANGE);
++                    QTIL_VIDEO_FULL_RANGE)) {
++            GST_BUFFER_FLAG_SET (frame->output_buffer, QTIL_VIDEO_FULL_RANGE);
+         } else if (GST_BUFFER_FLAG_IS_SET (frame->input_buffer,
+-                    QC_VIDEO_LIMITED_RANGE)) {
+-            GST_BUFFER_FLAG_SET (frame->output_buffer, QC_VIDEO_LIMITED_RANGE);
++                    QTIL_VIDEO_LIMITED_RANGE)) {
++            GST_BUFFER_FLAG_SET (frame->output_buffer, QTIL_VIDEO_LIMITED_RANGE);
+         }
+         /* QTIL vendor specific code ends */
+ 
+@@ -3431,11 +3431,11 @@ gst_omx_video_dec_handle_frame (GstVideoDecoder * decoder,
+       if (videoFullRangeFlag == 1) {
+         GST_DEBUG_OBJECT (self,
+               "Setting video_full_range flag");
+-        GST_BUFFER_FLAG_SET(frame->input_buffer, QC_VIDEO_FULL_RANGE);
++        GST_BUFFER_FLAG_SET(frame->input_buffer, QTIL_VIDEO_FULL_RANGE);
+       } else if (videoFullRangeFlag == 0) {
+         GST_DEBUG_OBJECT (self,
+               "Setting video_limited_range flag");
+-        GST_BUFFER_FLAG_SET(frame->input_buffer, QC_VIDEO_LIMITED_RANGE);
++        GST_BUFFER_FLAG_SET(frame->input_buffer, QTIL_VIDEO_LIMITED_RANGE);
+       }
+     }
+     /* QTIL vendor specific code ends */
+-- 
+1.9.1
+

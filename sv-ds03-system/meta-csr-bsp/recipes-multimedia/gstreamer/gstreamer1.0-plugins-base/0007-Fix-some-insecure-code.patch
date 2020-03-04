@@ -1,0 +1,34 @@
+From 72c2408cc49ba93ca7623bbb36b1c8de2a798b7d Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Wed, 15 Jun 2016 10:48:47 +0800
+Subject: [PATCH 7/8] Fix some insecure code
+
+Change-Id: I097f4890074732d0ec24e39d451da1a1cace0091
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ tools/gst-play.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/tools/gst-play.c b/tools/gst-play.c
+index 53fb96f..c21ff16 100644
+--- a/tools/gst-play.c
++++ b/tools/gst-play.c
+@@ -320,7 +320,6 @@ play_set_overlay (GstPlay * play, guint mode)
+   rect.height = 600;
+ 
+   g_object_get (play->playbin, "video-sink", &sink, NULL);
+-  g_print ("video sink %s\n", gst_element_get_name (sink));
+   g_object_get (G_OBJECT (sink), "overlay-top", &rect.top, NULL);
+   g_object_get (G_OBJECT (sink), "overlay-left", &rect.left, NULL);
+   g_object_get (G_OBJECT (sink), "overlay-width", &rect.width, NULL);
+@@ -642,7 +641,6 @@ play_uri (GstPlay * play, const gchar * next_uri)
+     else
+       g_warning ("Couldn't create v4l2 video sink");
+ 
+-    g_print ("video sink %s\n", gst_element_get_name (sink));
+     rect = play->rect;
+     g_print
+         ("(x, y, w, h) is (%d, %d, %d, %d), force display aspect ratio: %s\n",
+-- 
+1.9.1
+

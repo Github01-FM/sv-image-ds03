@@ -1,0 +1,284 @@
+From d1b208d46ae1a6caeb642cc43ea40830d853309e Mon Sep 17 00:00:00 2001
+From: "Nancy.Zou" <Nancy.Zou@csr.com>
+Date: Thu, 17 Dec 2015 11:48:15 +0800
+Subject: [PATCH] wayland support zero_copy for weston.
+
+Signed-off-by: Nancy.Zou <Nancy.Zou@csr.com>
+---
+ src/compositor.c     |   4 ++
+ src/compositor.h     |  10 +++++
+ src/gl-renderer.c    | 104 ++++++++++++++++++++++++++++++++++++++++++++++++---
+ src/weston-egl-ext.h |   1 +
+ 4 files changed, 114 insertions(+), 5 deletions(-)
+
+diff --git a/src/compositor.c b/src/compositor.c
+index cbef4dc..9c038dc 100644
+--- a/src/compositor.c
++++ b/src/compositor.c
+@@ -1871,6 +1871,10 @@ weston_buffer_destroy_handler(struct wl_listener *listener, void *data)
+ 		container_of(listener, struct weston_buffer, destroy_listener);
+ 
+ 	wl_signal_emit(&buffer->destroy_signal, buffer);
++
++	if (buffer->image.pfn)
++		buffer->image.pfn(&buffer->image);
++
+ 	free(buffer);
+ }
+ 
+diff --git a/src/compositor.h b/src/compositor.h
+index c4c81f0..49b1946 100644
+--- a/src/compositor.h
++++ b/src/compositor.h
+@@ -703,6 +703,15 @@ struct weston_compositor {
+ 	void (*exit)(struct weston_compositor *c);
+ };
+ 
++struct egl_image;
++typedef void (*PFNFREEIMAGE)(struct egl_image *image);
++struct egl_image {
++       PFNFREEIMAGE pfn;
++       void *display;
++       void *image;
++       unsigned tex;
++};
++
+ struct weston_buffer {
+ 	struct wl_resource *resource;
+ 	struct wl_signal destroy_signal;
+@@ -715,6 +724,7 @@ struct weston_buffer {
+ 	int32_t width, height;
+ 	uint32_t busy_count;
+ 	int y_inverted;
++	struct egl_image image;
+ };
+ 
+ struct weston_buffer_reference {
+diff --git a/src/gl-renderer.c b/src/gl-renderer.c
+index d7231f4..cc41346 100644
+--- a/src/gl-renderer.c
++++ b/src/gl-renderer.c
+@@ -37,6 +37,11 @@
+ #include <assert.h>
+ #include <linux/input.h>
+ #include <drm_fourcc.h>
++#include <../src/kernel/drivers/staging/android/uapi/ion.h>
++#include <sys/ioctl.h>
++#include <fcntl.h>
++#include <sys/time.h>
++#include <stdio.h>
+ 
+ #include "gl-renderer.h"
+ #include "vertex-clipping.h"
+@@ -45,6 +50,9 @@
+ 
+ #include "shared/helpers.h"
+ #include "weston-egl-ext.h"
++#include "license-csr.h"
++
++static int fb_fd = -1;
+ 
+ struct gl_shader {
+ 	GLuint program;
+@@ -90,7 +98,8 @@ enum buffer_type {
+ 	BUFFER_TYPE_NULL,
+ 	BUFFER_TYPE_SOLID, /* internal solid color surfaces without a buffer */
+ 	BUFFER_TYPE_SHM,
+-	BUFFER_TYPE_EGL
++	BUFFER_TYPE_EGL,
++	BUFFER_TYPE_DMA
+ };
+ 
+ struct gl_renderer;
+@@ -136,6 +145,8 @@ struct gl_surface_state {
+ 	struct wl_listener renderer_destroy_listener;
+ };
+ 
++static PFNEGLDESTROYIMAGEKHRPROC egl_destroy_image;
++
+ struct gl_renderer {
+ 	struct weston_renderer base;
+ 	int fragment_shader_debug;
+@@ -1187,6 +1198,10 @@ gl_renderer_flush_damage(struct weston_surface *surface)
+ 	if (!buffer)
+ 		return;
+ 
++	if (gs->buffer_type != BUFFER_TYPE_SHM) {
++		return;
++	}
++
+ 	/* Avoid upload, if the texture won't be used this time.
+ 	 * We still accumulate the damage in texture_damage, and
+ 	 * hold the reference to the buffer, in case the surface
+@@ -1258,6 +1273,20 @@ done:
+ 	weston_buffer_reference(&gs->buffer_ref, NULL);
+ }
+ 
++static int
++is_dma_buf(int fd)
++{
++	struct ion_fd_data sFdData = {};
++	int err;
++
++	sFdData.fd = fd;
++
++	err = ioctl(fb_fd, ION_IOC_IMPORT, &sFdData);
++	if(err)
++		return 0;
++	return 1;
++}
++
+ static void
+ ensure_textures(struct gl_surface_state *gs, int num_textures)
+ {
+@@ -1278,6 +1307,14 @@ ensure_textures(struct gl_surface_state *gs, int num_textures)
+ 	glBindTexture(gs->target, 0);
+ }
+ 
++static void free_image(struct egl_image *image)
++{
++       if (!image)
++               return;
++
++       egl_destroy_image(image->display, image->image);
++}
++
+ static void
+ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer,
+ 		       struct wl_shm_buffer *shm_buffer)
+@@ -1287,28 +1324,39 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer,
+ 	struct gl_surface_state *gs = get_surface_state(es);
+ 	GLenum gl_format, gl_pixel_type;
+ 	int pitch;
++	EGLint attribs[13], dmabuf;
++	EGLint egl_format, egl_stride, egl_offset;
++
++	if (buffer->shm_buffer) {
++               return;
++	}
+ 
+ 	buffer->shm_buffer = shm_buffer;
+ 	buffer->width = wl_shm_buffer_get_width(shm_buffer);
+ 	buffer->height = wl_shm_buffer_get_height(shm_buffer);
+ 
++	egl_stride = wl_shm_buffer_get_stride(shm_buffer);
++
+ 	switch (wl_shm_buffer_get_format(shm_buffer)) {
+ 	case WL_SHM_FORMAT_XRGB8888:
+ 		gs->shader = &gr->texture_shader_rgbx;
+-		pitch = wl_shm_buffer_get_stride(shm_buffer) / 4;
++		pitch =  egl_stride / 4;
+ 		gl_format = GL_BGRA_EXT;
++		egl_format = EGL_TEXTURE_RGBA;
+ 		gl_pixel_type = GL_UNSIGNED_BYTE;
+ 		break;
+ 	case WL_SHM_FORMAT_ARGB8888:
+ 		gs->shader = &gr->texture_shader_rgba;
+-		pitch = wl_shm_buffer_get_stride(shm_buffer) / 4;
++		pitch =  egl_stride / 4;
+ 		gl_format = GL_BGRA_EXT;
++		egl_format = EGL_TEXTURE_RGBA;
+ 		gl_pixel_type = GL_UNSIGNED_BYTE;
+ 		break;
+ 	case WL_SHM_FORMAT_RGB565:
+ 		gs->shader = &gr->texture_shader_rgbx;
+-		pitch = wl_shm_buffer_get_stride(shm_buffer) / 2;
++		pitch =  egl_stride / 2;
+ 		gl_format = GL_RGB;
++		egl_format = EGL_TEXTURE_RGB;
+ 		gl_pixel_type = GL_UNSIGNED_SHORT_5_6_5;
+ 		break;
+ 	default:
+@@ -1330,13 +1378,53 @@ gl_renderer_attach_shm(struct weston_surface *es, struct weston_buffer *buffer,
+ 		gs->target = GL_TEXTURE_2D;
+ 		gs->gl_format = gl_format;
+ 		gs->gl_pixel_type = gl_pixel_type;
+-		gs->buffer_type = BUFFER_TYPE_SHM;
+ 		gs->needs_full_upload = 1;
+ 		gs->y_inverted = 1;
+ 
+ 		gs->surface = es;
+ 
+ 		ensure_textures(gs, 1);
++
++		if (!buffer->image.image) {
++			dmabuf = wl_shm_buffer_get_fd(buffer->shm_buffer);
++			if (!is_dma_buf(dmabuf)) {
++				gs->buffer_type = BUFFER_TYPE_SHM;
++				return;
++			}
++
++			egl_offset = wl_shm_buffer_get_offset(shm_buffer);
++
++			attribs[0] = EGL_WIDTH;
++			attribs[1] = buffer->width;
++			attribs[2] = EGL_HEIGHT;
++			attribs[3] = buffer->height;
++			attribs[4] = EGL_TEXTURE_FORMAT;
++			attribs[5] = egl_format;
++			attribs[6] = EGL_DMA_BUF_PLANE0_FD_EXT;
++			attribs[7] = dmabuf;
++			attribs[8] = EGL_DMA_BUF_PLANE0_OFFSET_EXT;
++			attribs[9] = egl_offset;
++			attribs[10] = EGL_DMA_BUF_PLANE0_PITCH_EXT;
++			attribs[11] = egl_stride;
++			attribs[12] = EGL_NONE;
++
++			buffer->image.image = gr->create_image(gr->egl_display,
++					NULL, EGL_LINUX_DMA_BUF_EXT, NULL, attribs);
++
++			if (!buffer->image.image) {
++					gs->buffer_type = BUFFER_TYPE_SHM;
++					return;
++			}
++
++			buffer->image.display = gr->egl_display;
++			buffer->image.pfn = free_image;
++		}
++
++		glActiveTexture(GL_TEXTURE0);
++		glBindTexture(gs->target, gs->textures[0]);
++		gr->image_target_texture_2d(gs->target, (EGLImageKHR)buffer->image.image);
++		buffer->image.tex = gs->textures[0];
++		gs->buffer_type = BUFFER_TYPE_DMA;
+ 	}
+ }
+ 
+@@ -2438,6 +2526,8 @@ gl_renderer_setup_egl_extensions(struct weston_compositor *ec)
+ 	gr->query_buffer =
+ 		(void *) eglGetProcAddress("eglQueryWaylandBufferWL");
+ 
++	egl_destroy_image = gr->destroy_image;
++
+ 	extensions =
+ 		(const char *) eglQueryString(gr->egl_display, EGL_EXTENSIONS);
+ 	if (!extensions) {
+@@ -2764,9 +2854,13 @@ gl_renderer_setup(struct weston_compositor *ec, EGLSurface egl_surface)
+ 
+ 	static const EGLint context_attribs[] = {
+ 		EGL_CONTEXT_CLIENT_VERSION, 2,
++		EGL_CONTEXT_PRIORITY_LEVEL_IMG, EGL_CONTEXT_PRIORITY_HIGH_IMG,
+ 		EGL_NONE
+ 	};
+ 
++	if (fb_fd < 0)
++		fb_fd = open("/dev/ion", O_RDWR);
++
+ 	if (!eglBindAPI(EGL_OPENGL_ES_API)) {
+ 		weston_log("failed to bind EGL_OPENGL_ES_API\n");
+ 		gl_renderer_print_egl_error_state();
+diff --git a/src/weston-egl-ext.h b/src/weston-egl-ext.h
+index 32f6108..feca13c 100644
+--- a/src/weston-egl-ext.h
++++ b/src/weston-egl-ext.h
+@@ -24,6 +24,7 @@
+  * SOFTWARE.
+  */
+ /* Extensions used by Weston, copied from Mesa's eglmesaext.h, */
++#include "license-csr.h"
+ 
+ #ifndef WESTON_EGL_EXT_H
+ #define WESTON_EGL_EXT_H
+-- 
+1.9.1
+

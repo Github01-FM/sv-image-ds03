@@ -1,0 +1,53 @@
+From 1898f93fc4f244bf362a4c51735ebc145b8a0f60 Mon Sep 17 00:00:00 2001
+From: Flame Chen <Flame.Chen@csr.com>
+Date: Fri, 18 Dec 2015 17:53:59 +0800
+Subject: [PATCH] rename fb_fd to ion_fd
+
+Change-Id: I74fde332a14137f2dad1230deacb94de0ecfc02c
+Signed-off-by: Flame Chen <Flame.Chen@csr.com>
+---
+ src/gl-renderer.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/src/gl-renderer.c b/src/gl-renderer.c
+index c4162ee..6889dd6 100644
+--- a/src/gl-renderer.c
++++ b/src/gl-renderer.c
+@@ -45,7 +45,7 @@
+ 
+ #include "weston-egl-ext.h"
+ 
+-static int fb_fd = -1;
++static int ion_fd = -1;
+ 
+ struct gl_shader {
+ 	GLuint program;
+@@ -1315,12 +1315,12 @@ is_dma_buf(int fd)
+ 	int err;
+ 
+ 	sFdData.fd = fd;
+-	err = ioctl(fb_fd, ION_IOC_IMPORT, &sFdData);
++	err = ioctl(ion_fd, ION_IOC_IMPORT, &sFdData);
+ 	if(err)
+ 		return 0;
+ 
+ 	sHandleData.handle = sFdData.handle;
+-	ioctl(fb_fd, ION_IOC_FREE, &sHandleData);
++	ioctl(ion_fd, ION_IOC_FREE, &sHandleData);
+ 	return 1;
+ }
+ 
+@@ -2684,8 +2684,8 @@ gl_renderer_setup(struct weston_compositor *ec, EGLSurface egl_surface)
+ 		EGL_NONE
+ 	};
+ 
+-	if (fb_fd < 0)
+-		fb_fd = open("/dev/ion", O_RDWR);
++	if (ion_fd < 0)
++		ion_fd = open("/dev/ion", O_RDWR);
+ 
+ 	if (!eglBindAPI(EGL_OPENGL_ES_API)) {
+ 		weston_log("failed to bind EGL_OPENGL_ES_API\n");
+-- 
+1.9.1
+

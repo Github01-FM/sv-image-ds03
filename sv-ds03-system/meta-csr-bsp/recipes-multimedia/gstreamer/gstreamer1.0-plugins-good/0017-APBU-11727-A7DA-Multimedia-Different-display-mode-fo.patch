@@ -1,0 +1,161 @@
+From 20accf22b61001db3b3dfa4f2ae0bf110f83a1bf Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Thu, 10 Mar 2016 16:15:52 +0800
+Subject: [PATCH 17/31] APBU-11727 [A7DA][Multimedia]Different display mode for
+ video
+
+Add property of keep aspect ratio or strech to the display area for V4L2 sink plugin.
+
+Change-Id: If98d95fbb24a779cb127321c5dad4b679a62861b
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ sys/v4l2/gstv4l2sink.c | 55 ++++++++++++++++++++++++++++++++++++++++++++++----
+ sys/v4l2/gstv4l2sink.h |  3 +++
+ 2 files changed, 54 insertions(+), 4 deletions(-)
+
+diff --git a/sys/v4l2/gstv4l2sink.c b/sys/v4l2/gstv4l2sink.c
+index 180516b..ff76b2e 100644
+--- a/sys/v4l2/gstv4l2sink.c
++++ b/sys/v4l2/gstv4l2sink.c
+@@ -77,6 +77,7 @@ enum
+ {
+   PROP_0,
+   V4L2_STD_OBJECT_PROPS,
++  PROP_DISPLAY_ASPECT_RATIO,
+   PROP_OVERLAY_TOP,
+   PROP_OVERLAY_LEFT,
+   PROP_OVERLAY_WIDTH,
+@@ -152,6 +153,10 @@ gst_v4l2sink_class_init (GstV4l2SinkClass * klass)
+   gst_v4l2_object_install_properties_helper (gobject_class,
+       DEFAULT_PROP_DEVICE);
+ 
++  g_object_class_install_property (gobject_class, PROP_DISPLAY_ASPECT_RATIO,
++      g_param_spec_boolean ("display-aspect-ratio", "Display aspect ratio",
++          "When enabled, keep width/height as display aspect ratio", TRUE,
++          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+   g_object_class_install_property (gobject_class, PROP_OVERLAY_TOP,
+       g_param_spec_int ("overlay-top", "Overlay top",
+           "The topmost (y) coordinate of the video overlay; top left corner of screen is 0,0",
+@@ -227,6 +232,7 @@ gst_v4l2sink_init (GstV4l2Sink * v4l2sink)
+   v4l2sink->crop_fields_set = 0;
+   v4l2sink->have_render_rect = FALSE;
+   v4l2sink->to_paused = 0;
++  v4l2sink->disp_aspect_ratio = TRUE;
+ }
+ 
+ 
+@@ -254,7 +260,7 @@ enum
+ static void
+ gst_v4l2sink_sync_overlay_fields (GstV4l2Sink * v4l2sink)
+ {
+-  if (!v4l2sink->overlay_fields_set)
++  if (!v4l2sink->overlay_fields_set && !v4l2sink->disp_aspect_ratio)
+     return;
+ 
+   if (GST_V4L2_IS_OPEN (v4l2sink->v4l2object)) {
+@@ -276,6 +282,11 @@ gst_v4l2sink_sync_overlay_fields (GstV4l2Sink * v4l2sink)
+         v4l2sink->overlay.top, v4l2sink->overlay.left,
+         v4l2sink->overlay.width, v4l2sink->overlay.height);
+ 
++    GST_DEBUG_OBJECT (v4l2sink,
++        "getting format: top=%d, left=%d, width=%d, height=%d",
++        format.fmt.win.w.top, format.fmt.win.w.left,
++        format.fmt.win.w.width, format.fmt.win.w.height);
++
+     if (v4l2sink->overlay_fields_set & RECT_TOP_SET)
+       format.fmt.win.w.top = v4l2sink->overlay.top;
+     if (v4l2sink->overlay_fields_set & RECT_LEFT_SET)
+@@ -285,6 +296,35 @@ gst_v4l2sink_sync_overlay_fields (GstV4l2Sink * v4l2sink)
+     if (v4l2sink->overlay_fields_set & RECT_HEIGHT_SET)
+       format.fmt.win.w.height = v4l2sink->overlay.height;
+ 
++	if (v4l2sink->disp_aspect_ratio && v4l2sink->video_width > 0 && v4l2sink->video_height > 0)
++	{
++		int x, y, w, h;
++		if (format.fmt.win.w.width * v4l2sink->video_height > format.fmt.win.w.height * v4l2sink->video_width)
++		{
++			w = format.fmt.win.w.height * v4l2sink->video_width / v4l2sink->video_height;
++			h = format.fmt.win.w.height;
++			x = format.fmt.win.w.top;
++			y = format.fmt.win.w.left + format.fmt.win.w.width / 2 - w / 2;
++		}
++		else
++		{
++			w = format.fmt.win.w.width;
++			h = format.fmt.win.w.width * v4l2sink->video_height / v4l2sink->video_width;
++			y = format.fmt.win.w.left;
++			x = format.fmt.win.w.top + format.fmt.win.w.height / 2 - h / 2;
++		}
++
++		format.fmt.win.w.top 	= x;
++		format.fmt.win.w.left 	= y;
++		format.fmt.win.w.width 	= w;
++		format.fmt.win.w.height = h;
++
++		GST_DEBUG_OBJECT (v4l2sink,
++			"setting format: top=%d, left=%d, width=%d, height=%d",
++			format.fmt.win.w.top, format.fmt.win.w.left,
++			format.fmt.win.w.width, format.fmt.win.w.height);
++	}
++
+     if (v4l2_ioctl (fd, VIDIOC_S_FMT, &format) < 0) {
+       GST_WARNING_OBJECT (v4l2sink, "VIDIOC_S_FMT failed");
+       return;
+@@ -354,6 +394,10 @@ gst_v4l2sink_set_property (GObject * object,
+   if (!gst_v4l2_object_set_property_helper (v4l2sink->v4l2object,
+           prop_id, value, pspec)) {
+     switch (prop_id) {
++	  case PROP_DISPLAY_ASPECT_RATIO:
++	    v4l2sink->disp_aspect_ratio = g_value_get_boolean (value);
++		gst_v4l2sink_sync_overlay_fields (v4l2sink);
++		break;
+       case PROP_OVERLAY_TOP:
+         v4l2sink->overlay.top = g_value_get_int (value);
+         v4l2sink->overlay_fields_set |= RECT_TOP_SET;
+@@ -411,6 +455,9 @@ gst_v4l2sink_get_property (GObject * object,
+   if (!gst_v4l2_object_get_property_helper (v4l2sink->v4l2object,
+           prop_id, value, pspec)) {
+     switch (prop_id) {
++	  case PROP_DISPLAY_ASPECT_RATIO:
++        g_value_set_boolean (value, v4l2sink->disp_aspect_ratio);
++		break;
+       case PROP_OVERLAY_TOP:
+         g_value_set_int (value, v4l2sink->overlay.top);
+         break;
+@@ -533,9 +580,6 @@ gst_v4l2sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
+   if (!gst_v4l2_object_set_format (obj, caps))
+     goto invalid_format;
+ 
+-  gst_v4l2sink_sync_overlay_fields (v4l2sink);
+-  gst_v4l2sink_sync_crop_fields (v4l2sink);
+-
+   GST_INFO_OBJECT (v4l2sink, "outputting buffers via mode %u", obj->mode);
+ 
+   v4l2sink->video_width = GST_V4L2_WIDTH (obj);
+@@ -547,6 +591,9 @@ gst_v4l2sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
+   GST_VIDEO_SINK_WIDTH (v4l2sink) = v4l2sink->video_width;
+   GST_VIDEO_SINK_HEIGHT (v4l2sink) = v4l2sink->video_height;
+ 
++  gst_v4l2sink_sync_overlay_fields (v4l2sink);
++  gst_v4l2sink_sync_crop_fields (v4l2sink);
++
+   return TRUE;
+ 
+   /* ERRORS */
+diff --git a/sys/v4l2/gstv4l2sink.h b/sys/v4l2/gstv4l2sink.h
+index 74aab1b..b3c9242 100644
+--- a/sys/v4l2/gstv4l2sink.h
++++ b/sys/v4l2/gstv4l2sink.h
+@@ -76,6 +76,9 @@ struct _GstV4l2Sink {
+   gboolean have_render_rect;
+   GstVideoRectangle render_rect;
+   gint to_paused;
++
++  /* display aspect ratio of video image */
++  gboolean disp_aspect_ratio;
+ };
+ 
+ struct _GstV4l2SinkClass {
+-- 
+1.9.1
+

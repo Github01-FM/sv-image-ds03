@@ -1,0 +1,58 @@
+From bc124fe984fec30fafde3fbebdff3bccdf9a1a7f Mon Sep 17 00:00:00 2001
+From: Alan Wang <wbo@codeaurora.org>
+Date: Mon, 28 Mar 2016 18:22:47 +0800
+Subject: [PATCH 58/67] Handle Encoding from FileSrc case.
+
+1, Avoid NULL string exception, when encoding from FileSrc.
+2, Add bIsEncodingFromFileSrc flag, notify OMX-MJPEG Encoder component when
+dealing with FileSrc case.
+
+Change-Id: Ica1c7ec1997bca6bedc5573bf18be0b5c74bbc32
+Signed-off-by: Alan Wang <wbo@codeaurora.org>
+---
+ omx/gstomxmjpegvideoenc.c  | 8 +++++---
+ omx/openmax/OMX_IVCommon.h | 1 +
+ 2 files changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/omx/gstomxmjpegvideoenc.c b/omx/gstomxmjpegvideoenc.c
+index 826341e..c30cc84 100644
+--- a/omx/gstomxmjpegvideoenc.c
++++ b/omx/gstomxmjpegvideoenc.c
+@@ -135,6 +135,7 @@ gst_omx_mjpeg_video_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
+   // Extract the caps see if it's interleaved content
+   GST_OMX_INIT_STRUCT (&config);
+   config.bEnable = OMX_FALSE;
++  config.bEncodingFromFileSrc = OMX_FALSE;
+ 
+   codecCaps = state->caps;
+   if (codecCaps) {
+@@ -147,10 +148,11 @@ gst_omx_mjpeg_video_enc_set_format (GstOMXVideoEnc * enc, GstOMXPort * port,
+ 
+     s = gst_caps_get_structure (codecCaps, 0);
+     interlacemod_string = gst_structure_get_string (s , "interlace-mode");
+-    if (g_str_equal(interlacemod_string, "interleaved")) {
++    if ((interlacemod_string) &&
++            g_str_equal(interlacemod_string, "interleaved")) {
+       config.bEnable = OMX_TRUE;
+-    } else {
+-      config.bEnable = OMX_FALSE;
++    } else if (interlacemod_string == NULL) {
++      config.bEncodingFromFileSrc = OMX_TRUE;
+     }
+ 
+     gst_caps_unref (codecCaps);
+diff --git a/omx/openmax/OMX_IVCommon.h b/omx/openmax/OMX_IVCommon.h
+index d93d3c1..6050c55 100644
+--- a/omx/openmax/OMX_IVCommon.h
++++ b/omx/openmax/OMX_IVCommon.h
+@@ -608,6 +608,7 @@ typedef struct OMX_CONFIG_FIELDBLEND {
+     OMX_U32 nSize;
+     OMX_VERSIONTYPE nVersion;
+     OMX_BOOL bEnable;
++    OMX_BOOL bEncodingFromFileSrc;
+ } OMX_CONFIG_FIELDBLEND;
+ 
+ #define OMX_InterlaceFrameProgressive                   0x00000001
+-- 
+1.9.1
+

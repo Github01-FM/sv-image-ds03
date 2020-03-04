@@ -1,0 +1,408 @@
+From d9b558062c0418f6a67bdd22bd7b5a707e01e306 Mon Sep 17 00:00:00 2001
+From: xf02 <xfei@codeaurora.org>
+Date: Thu, 7 May 2015 17:24:59 +0800
+Subject: [PATCH 36/67] APBU-10260: Build error for gst-omx
+
+Modify configure.ac & Makefile.am base on gst-omx 1.2.0
+
+Change-Id: Ib822ad2514e34c86dea0b088a56bc0cf2589b614
+Signed-off-by: xf02 <xfei@codeaurora.org>
+---
+ Makefile.am  |   6 +-
+ configure.ac | 247 ++++++++++++++++++++---------------------------------------
+ 2 files changed, 88 insertions(+), 165 deletions(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index fef88de..2239640 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -1,5 +1,7 @@
++SUBDIRS = common omx
+ 
+-AUTOMAKE_OPTIONS=foreign
+-SUBDIRS =omx
++ACLOCAL_AMFLAGS = -I m4 -I common/m4
+ 
++DISTCLEANFILES = _stdint.h
+ 
++EXTRA_DIST = autogen.sh gst-omx.doap RELEASE
+diff --git a/configure.ac b/configure.ac
+index be519c5..6d5d492 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -1,18 +1,18 @@
+-AC_PREREQ([2.68])
++AC_PREREQ(2.62)
+ 
+ dnl please read gstreamer/docs/random/autotools before changing this file
+ 
+ dnl initialize autoconf
+ dnl releases only do -Wall, git and prerelease does -Werror too
+-dnl use a three digit version number for releases, and four for git/pre
+-AC_INIT(GStreamer CSR Plug-ins, 1.2.0,
+-        http://www.csr.com,
+-        gst-omx)
++dnl use a three digit version number for releases, and four for git/prerelease
++AC_INIT(GStreamer OpenMAX Plug-ins, 1.2.0,
++    http://bugzilla.gnome.org/enter_bug.cgi?product=GStreamer,
++    gst-omx)
+ 
+ AG_GST_INIT
+ 
+ dnl initialize automake
+-AM_INIT_AUTOMAKE([-Wno-portability 1.11 no-dist-gzip dist-xz tar-ustar subdir-objects])
++AM_INIT_AUTOMAKE([-Wno-portability 1.11 no-dist-gzip dist-xz tar-ustar])
+ 
+ dnl define PACKAGE_VERSION_* variables
+ AS_VERSION
+@@ -25,13 +25,6 @@ AC_CONFIG_SRCDIR([omx/gstomx.c])
+ 
+ dnl define the output header for config
+ AC_CONFIG_HEADERS([config.h])
+-dnl Check for pkgconfig first
+-AC_CHECK_PROG(HAVE_PKGCONFIG, pkg-config, yes, no)
+-
+-dnl Give error and exit if we don't have pkgconfig
+-if test "x$HAVE_PKGCONFIG" = "xno"; then
+-  AC_MSG_ERROR(you need to have pkgconfig installed !)
+-fi
+ 
+ dnl AM_MAINTAINER_MODE only provides the option to configure to enable it
+ AM_MAINTAINER_MODE([enable])
+@@ -65,11 +58,6 @@ AS_AUTOTOOLS_ALTERNATE
+ dnl Add parameters for aclocal
+ AC_SUBST(ACLOCAL_AMFLAGS, "-I m4 -I common/m4")
+ 
+-dnl set up gettext
+-dnl the version check needs to stay here because autopoint greps for it
+-AM_GNU_GETTEXT_VERSION([0.17])
+-AG_GST_GETTEXT([gst-omx-$GST_API_VERSION])
+-
+ dnl *** check for arguments to configure ***
+ 
+ AG_GST_ARG_DISABLE_FATAL_WARNINGS
+@@ -99,8 +87,9 @@ dnl common/m4/gst-arch.m4
+ dnl check CPU type
+ AG_GST_ARCH
+ 
+-dnl Determine endianness
+-AC_C_BIGENDIAN
++dnl check for large file support
++dnl affected plugins must include config.h
++AC_SYS_LARGEFILE
+ 
+ dnl *** checks for programs ***
+ 
+@@ -130,58 +119,28 @@ dnl *** checks for header files ***
+ dnl check if we have ANSI C header files
+ AC_HEADER_STDC
+ 
+-dnl *** checks for types/defines ***
++AX_CREATE_STDINT_H
+ 
+-dnl Check for FIONREAD ioctl declaration.  This check is needed
+-dnl for the UDP plugin to build on Solaris
+-GST_CHECK_FIONREAD
++dnl *** checks for functions ***
++
++dnl *** checks for types/defines ***
+ 
+ dnl *** checks for structures ***
+ 
+ dnl *** checks for compiler characteristics ***
+ 
+-dnl check if we have GCC inline-asm
+-AS_GCC_INLINE_ASSEMBLY([HAVE_GCC_ASM=yes], [HAVE_GCC_ASM=no])
+-if test x$HAVE_GCC_ASM = xyes ; then
+-  AC_DEFINE(HAVE_GCC_ASM, 1,
+-    [Define if compiler supports gcc inline assembly])
+-fi
+-AM_CONDITIONAL(HAVE_GCC_ASM, test "x$HAVE_GCC_ASM" = "xyes")
+-
+ dnl *** checks for library functions ***
+ 
+-LIBS_SAVE=$LIBS
+-LIBS="$LIBS $LIBM"
+-AC_CHECK_FUNCS(rint sinh cosh asinh fpclass)
+-LIBS=$LIBS_SAVE
+-
+-dnl Check whether isinf() is defined by math.h
+-AC_CACHE_CHECK([for isinf], ac_cv_have_isinf,
+-    AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <math.h>]], [[float f = 0.0; int i=isinf(f)]])],[ac_cv_have_isinf="yes"],[ac_cv_have_isinf="no"]))
+-if test "$ac_cv_have_isinf" = "yes"
+-then
+-    AC_DEFINE(HAVE_ISINF, 1, [Define to 1 if you have the `isinf' function.])
+-fi
+-
+-dnl Check for mmap (needed by electricfence plugin)
+-AC_FUNC_MMAP
+-AM_CONDITIONAL(GST_HAVE_MMAP, test "x$ac_cv_func_mmap_fixed_mapped" = "xyes")
+-
+-dnl Check for mmap (needed by electricfence plugin)
+-
+-AC_CHECK_TYPE([struct ip_mreqn], [
+-              AC_DEFINE(HAVE_IP_MREQN,, [Define if we have struct ip_mreqn])],,
+-              [#include <netinet/in.h>])
++dnl Check for a way to display the function name in debug output
++AG_GST_CHECK_FUNCTION
+ 
+ dnl *** checks for dependency libraries ***
+ 
++dnl GLib is required
++AG_GST_GLIB_CHECK([2.32])
+ 
+-dnl GLib
+-GLIB_REQ=2.32.0
+-AG_GST_GLIB_CHECK([$GLIB_REQ])
+-
+-dnl Orc
+-ORC_CHECK([0.4.17])
++dnl Needed by plugins that use g_module_*() API
++PKG_CHECK_MODULES(GMODULE_NO_EXPORT, gmodule-no-export-2.0)
+ 
+ dnl checks for gstreamer
+ dnl uninstalled is selected preferentially -- see pkg-config(1)
+@@ -190,16 +149,6 @@ AG_GST_CHECK_GST_BASE($GST_API_VERSION, [$GST_REQ], yes)
+ AG_GST_CHECK_GST_CONTROLLER($GST_API_VERSION, [$GST_REQ], yes)
+ AG_GST_CHECK_GST_CHECK($GST_API_VERSION, [$GST_REQ], no)
+ AG_GST_CHECK_GST_PLUGINS_BASE($GST_API_VERSION, [$GST_REQ], yes)
+-
+-GST_TOOLS_DIR=`$PKG_CONFIG --variable=toolsdir gstreamer-$GST_API_VERSION`
+-if test -z $GST_TOOLS_DIR; then
+-  AC_MSG_ERROR([no tools dir defined in GStreamer pkg-config file; core upgrade needed.])
+-fi
+-AC_SUBST(GST_TOOLS_DIR)
+-
+-AC_MSG_NOTICE(Using GStreamer Core Plugins in $GST_PLUGINS_DIR)
+-AC_MSG_NOTICE(Using GStreamer Base Plugins in $GSTPB_PLUGINS_DIR)
+-
+ AM_CONDITIONAL(HAVE_GST_CHECK, test "x$HAVE_GST_CHECK" = "xyes")
+ PKG_CHECK_MODULES([GST_GL], [gstreamer-gl-1.0 >= 1.4.0], [
+   AC_DEFINE(HAVE_GST_GL, 1, [Have gstreamer-gl])
+@@ -210,10 +159,8 @@ AM_CONDITIONAL(HAVE_GST_GL, test "x$GST_GL" = "xyes")
+ dnl Check for documentation xrefs
+ GLIB_PREFIX="`$PKG_CONFIG --variable=prefix glib-2.0`"
+ GST_PREFIX="`$PKG_CONFIG --variable=prefix gstreamer-$GST_API_VERSION`"
+-GSTPB_PREFIX="`$PKG_CONFIG --variable=prefix gstreamer-plugins-base-$GST_API_VERSION`"
+ AC_SUBST(GLIB_PREFIX)
+ AC_SUBST(GST_PREFIX)
+-AC_SUBST(GSTPB_PREFIX)
+ 
+ AC_ARG_WITH([omx-header-path],
+             AS_HELP_STRING([--with-omx-header-path],[path of external OpenMAX IL header files]),
+@@ -273,6 +220,45 @@ AC_ARG_ENABLE(Bsymbolic,
+                            enable_Bsymbolic=no)
+                LDFLAGS="${SAVED_LDFLAGS}"])
+ 
++AC_ARG_WITH([omx-target],
++        AS_HELP_STRING([--with-omx-target],[Use this OpenMAX IL target (generic, bellagio, rpi)]),
++        [ac_cv_omx_target="$withval"], [ac_cv_omx_target="generic"])
++
++ac_cv_omx_target_struct_packing="none"
++AC_MSG_NOTICE([Using $ac_cv_omx_target as OpenMAX IL target])
++case "${ac_cv_omx_target}" in
++  generic)
++    AC_DEFINE(USE_OMX_TARGET_GENERIC, 1, [Use generic OpenMAX IL target])
++    ;;
++  rpi)
++    AC_DEFINE(USE_OMX_TARGET_RPI, 1, [Use RPi OpenMAX IL target])
++    ac_cv_omx_target_struct_packing=4
++    ;;
++  bellagio)
++    AC_DEFINE(USE_OMX_TARGET_BELLAGIO, 1, [Use Bellagio OpenMAX IL target])
++    ;;
++  none|*)
++    AC_ERROR([invalid OpenMAX IL target, you must specify one of --with-omx-target={generic,rpi,bellagio}])
++    ;;
++esac
++AM_CONDITIONAL(USE_OMX_TARGET_GENERIC, test "x$ac_cv_omx_target" = "xgeneric")
++AM_CONDITIONAL(USE_OMX_TARGET_BELLAGIO, test "x$ac_cv_omx_target" = "xbellagio")
++AM_CONDITIONAL(USE_OMX_TARGET_RPI, test "x$ac_cv_omx_target" = "xrpi")
++
++AC_ARG_WITH([omx-struct-packing],
++        AS_HELP_STRING([--with-omx-struct-packing],[Force OpenMAX struct packing, (default is none)]),
++        [ac_cv_omx_struct_packing="$withval"], [ac_cv_omx_struct_packing="none"])
++
++if test x"$ac_cv_omx_struct_packing" != x"none"; then
++  AC_MSG_NOTICE([Using $ac_cv_omx_struct_packing as OpenMAX struct packing])
++  AC_DEFINE_UNQUOTED(GST_OMX_STRUCT_PACKING, $ac_cv_omx_struct_packing, [The struct packing used for OpenMAX structures])
++elif test x"$ac_cv_omx_target_struct_packing" != x"none"; then
++  AC_MSG_NOTICE([Using $ac_cv_omx_target_struct_packing as OpenMAX struct packing])
++  AC_DEFINE_UNQUOTED(GST_OMX_STRUCT_PACKING, $ac_cv_omx_target_struct_packing, [The struct packing used for OpenMAX structures])
++fi
++
++dnl *** set variables based on configure arguments ***
++
+ dnl set license and copyright notice
+ GST_LICENSE="LGPL"
+ AC_DEFINE_UNQUOTED(GST_LICENSE, "$GST_LICENSE", [GStreamer license])
+@@ -308,32 +294,12 @@ fi
+ AC_SUBST(GST_PLUGIN_LIBTOOLFLAGS)
+ AM_CONDITIONAL(GST_PLUGIN_BUILD_STATIC, test "x$enable_static_plugins" = "xyes")
+ 
+-# set by AG_GST_PARSE_SUBSYSTEM_DISABLES above
+-dnl make sure it doesn't complain about unused variables if debugging is disabled
+-NO_WARNINGS=""
+-AG_GST_CHECK_GST_DEBUG_DISABLED([NO_WARNINGS="-Wno-unused"], [NO_WARNINGS=""])
+-
+ dnl define an ERROR_CFLAGS Makefile variable
+-dnl -Wundef: too many broken headers
+ AG_GST_SET_ERROR_CFLAGS($FATAL_WARNINGS, [
+-      -Wmissing-declarations -Wmissing-prototypes -Wredundant-decls
+-      -Wwrite-strings -Wold-style-definition -Waggregate-return
+-      -Winit-self -Wmissing-include-dirs -Waddress -Wno-multichar
+-      -Wnested-externs $NO_WARNINGS])
+-
+-dnl define an ERROR_CXXFLAGS Makefile variable
+-AG_GST_SET_ERROR_CXXFLAGS($FATAL_WARNINGS, [
+-        -Wmissing-declarations -Wredundant-decls
+-        -Wwrite-strings
+-        -Winit-self -Wmissing-include-dirs -Waddress -Wno-multichar
+-        $NO_WARNINGS])
+-
+-dnl define an ERROR_OBJCFLAGS Makefile variable
+-AG_GST_SET_ERROR_OBJCFLAGS($FATAL_WARNINGS, [
+-      -Wmissing-declarations -Wmissing-prototypes -Wredundant-decls
+-      -Wwrite-strings -Wold-style-definition
+-      -Winit-self -Wmissing-include-dirs -Wno-multichar
+-      -Wnested-externs $NO_WARNINGS])
++    -Wmissing-declarations -Wmissing-prototypes -Wredundant-decls -Wundef
++    -Wwrite-strings -Wformat-nonliteral -Wformat-security -Wformat-nonliteral
++    -Winit-self -Wmissing-include-dirs -Waddress -Waggregate-return
++    -Wno-multichar -Wnested-externs ])
+ 
+ dnl define correct level for debugging messages
+ AG_GST_SET_LEVEL_DEFAULT($GST_GIT)
+@@ -346,19 +312,21 @@ dnl *** plug-ins to include ***
+ dnl these are all the gst plug-ins, compilable without additional libs
+ AG_GST_CHECK_PLUGIN(omx)
+ 
+-if test "x$HAVE_IOS" = "xyes"; then
+-  AC_DEFINE(HAVE_IOS, 1, [building for iOS platofrm])
+-fi
+-AM_CONDITIONAL(HAVE_IOS, test "x$HAVE_IOS" = "xyes")
+-
++dnl check for gstreamer core features (subsystems)
++dnl FIXME: this assumes srcdir == builddir for uninstalled setups
++GST_CONFIGPATH=`$PKG_CONFIG --variable=includedir gstreamer-$GST_API_VERSION`"/gst/gstconfig.h"
++AG_GST_PARSE_SUBSYSTEM_DISABLES($GST_CONFIGPATH)
++dnl AM_CONDITIONAL(USE_FOO, test $GST_DISABLE_FOO != "1")
+ 
+ dnl *** finalize CFLAGS, LDFLAGS, LIBS
+ 
+ dnl Overview:
+ dnl GST_OPTION_CFLAGS:  common flags for profiling, debugging, errors, ...
+-dnl GST_*:              flags shared by all built objects
++dnl GST_*:              flags shared by built objects to link against GStreamer
++dnl GST_PLUGINS_BASE_CFLAGS: to link internally against the plugins base libs
++dnl                          (compare to other modules) or for i18n
+ dnl GST_ALL_LDFLAGS:    linker flags shared by all
+-dnl GST_LIB_LDFLAGS:    not needed, we don't install libraries
++dnl GST_LIB_LDFLAGS:    additional linker flags for all libaries
+ dnl GST_LT_LDFLAGS:     library versioning of our libraries
+ dnl GST_PLUGIN_LDFLAGS: flags to be used for all plugins
+ 
+@@ -369,36 +337,30 @@ fi
+ AC_SUBST(PROFILE_CFLAGS)
+ 
+ if test "x$PACKAGE_VERSION_NANO" = "x1"; then
+-  dnl Define _only_ for git (not pre-releases or releases)
++  dnl Define _only_ when compiling a git version (not pre-releases or releases)
+   DEPRECATED_CFLAGS="-DGST_DISABLE_DEPRECATED"
+ else
+   DEPRECATED_CFLAGS=""
+ fi
+ AC_SUBST(DEPRECATED_CFLAGS)
+ 
+-dnl every flag in GST_OPTION_CFLAGS, GST_OPTION_CXXFLAGS and GST_OPTION_OBJCFLAGS can be overridden
++dnl every flag in GST_OPTION_CFLAGS and GST_OPTION_CXXFLAGS can be overridden
+ dnl at make time with e.g. make ERROR_CFLAGS=""
+ GST_OPTION_CFLAGS="\$(WARNING_CFLAGS) \$(ERROR_CFLAGS) \$(DEBUG_CFLAGS) \$(PROFILE_CFLAGS) \$(GCOV_CFLAGS) \$(OPT_CFLAGS) \$(DEPRECATED_CFLAGS)"
+-GST_OPTION_CXXFLAGS="\$(WARNING_CXXFLAGS) \$(ERROR_CXXFLAGS) \$(DEBUG_CFLAGS) \$(PROFILE_CFLAGS) \$(GCOV_CFLAGS) \$(OPT_CFLAGS) \$(DEPRECATED_CFLAGS)"
+-GST_OPTION_OBJCFLAGS="\$(WARNING_OBJCFLAGS) \$(ERROR_OBJCFLAGS) \$(DEBUG_CFLAGS) \$(PROFILE_CFLAGS) \$(GCOV_CFLAGS) \$(OPT_CFLAGS) \$(DEPRECATED_CFLAGS)"
+ AC_SUBST(GST_OPTION_CFLAGS)
+-AC_SUBST(GST_OPTION_CXXFLAGS)
+-AC_SUBST(GST_OPTION_OBJCFLAGS)
+-
+-dnl our libraries need to be versioned correctly
+-AC_SUBST(GST_LT_LDFLAGS)
+ 
+-dnl FIXME: do we want to rename to GST_ALL_* ?
++dnl GST_PLUGINS_BASE_CFLAGS
+ dnl prefer internal headers to already installed ones
+ dnl also add builddir include for enumtypes and marshal
+-dnl add ERROR_CFLAGS, but overridable
+-GST_CFLAGS="$GST_CFLAGS -DGST_USE_UNSTABLE_API"
+-GST_CXXFLAGS="-I\$(top_srcdir)/gst-libs $GST_CFLAGS $GLIB_EXTRA_CFLAGS \$(GST_OPTION_CXXFLAGS)"
+-GST_OBJCFLAGS="-I\$(top_srcdir)/gst-libs $GST_CFLAGS $GLIB_EXTRA_CFLAGS \$(GST_OPTION_OBJCFLAGS)"
+-GST_CFLAGS="-I\$(top_srcdir)/gst-libs $GST_CFLAGS $GLIB_EXTRA_CFLAGS \$(GST_OPTION_CFLAGS)"
++GST_OMX_CFLAGS=""
++AC_SUBST(GST_OMX_CFLAGS)
++
++dnl FIXME: do we want to rename to GST_ALL_* ?
++dnl add GST_OPTION_CFLAGS, but overridable
++GST_CFLAGS="$GST_CFLAGS $GLIB_EXTRA_CFLAGS \$(GST_OPTION_CFLAGS)"
+ AC_SUBST(GST_CFLAGS)
+-AC_SUBST(GST_CXXFLAGS)
+-AC_SUBST(GST_OBJCFLAGS)
++dnl add GCOV libs because libtool strips -fprofile-arcs -ftest-coverage
++GST_LIBS="$GST_LIBS \$(GCOV_LIBS)"
+ AC_SUBST(GST_LIBS)
+ 
+ dnl LDFLAGS really should only contain flags, not libs - they get added before
+@@ -419,50 +381,9 @@ dnl *** output files ***
+ AC_CONFIG_FILES(
+ Makefile
+ omx/Makefile
++common/Makefile
++common/m4/Makefile
+ )
+ 
+-dnl Create the config.h file for Visual Studio builds
+-dnl Beware of spaces and /'s in some of the shell variable contents.
+-sed \
+-    -e 's/.*config.h.in.*autoheader.*/\/* Autogenerated config.h created for win32 Visual Studio builds *\/\n\n\/* PREFIX -- specifically added for Windows for easier moving *\/\n#define PREFIX "C:\\\\gstreamer"\n\n#define GST_INSTALL_PLUGINS_HELPER PREFIX "\\\\libexec\\\\gst-install-plugins-helper.exe"/' \
+-    -e 's/.* GETTEXT_PACKAGE$/#define GETTEXT_PACKAGE "'$GETTEXT_PACKAGE'"/' \
+-    -e 's/.* GST_DATADIR$/#define GST_DATADIR PREFIX "\\\\share"/' \
+-    -e 's/.* GST_LEVEL_DEFAULT$/#define GST_LEVEL_DEFAULT GST_LEVEL_ERROR/' \
+-    -e 's/.* GST_LICENSE$/#define GST_LICENSE "'$GST_LICENSE'"/' \
+-    -e 's/.* GST_API_VERSION$/#define GST_API_VERSION "'$GST_API_VERSION'"/' \
+-    -e "s,.* GST_PACKAGE_NAME$,#define GST_PACKAGE_NAME \"${GST_PACKAGE_NAME}\"," \
+-    -e 's/.* GST_PACKAGE_ORIGIN$/#define GST_PACKAGE_ORIGIN "Unknown package origin"/' \
+-    -e "s,.* GST_PACKAGE_RELEASE_DATETIME$,#define GST_PACKAGE_RELEASE_DATETIME \"${GST_PACKAGE_RELEASE_DATETIME}\"," \
+-    -e 's/.* HAVE_CPU_I386$/#define HAVE_CPU_I386 1/' \
+-    -e 's/.* HAVE_FGETPOS$/#define HAVE_FGETPOS 1/' \
+-    -e 's/.* HAVE_FSETPOS$/#define HAVE_FSETPOS 1/' \
+-    -e 's/.* HAVE_LIBXML2$/#define HAVE_LIBXML2 1/' \
+-    -e 's/.* HAVE_PROCESS_H$/#define HAVE_PROCESS_H 1/' \
+-    -e 's/.* HAVE_STDLIB_H$/#define HAVE_STDLIB_H 1/' \
+-    -e 's/.* HAVE_STRING_H$/#define HAVE_STRING_H 1/' \
+-    -e 's/.* HAVE_SYS_STAT_H$/#define HAVE_SYS_STAT_H 1/' \
+-    -e 's/.* HAVE_SYS_TYPES_H$/#define HAVE_SYS_TYPES_H 1/' \
+-    -e 's/.* HAVE_WIN32$/#define HAVE_WIN32 1/' \
+-    -e 's/.* HOST_CPU$/#define HOST_CPU "i686"/' \
+-    -e 's/.* LIBDIR$/#ifdef _DEBUG\n#  define LIBDIR PREFIX "\\\\debug\\\\lib"\n#else\n#  define LIBDIR PREFIX "\\\\lib"\n#endif/' \
+-    -e 's/.* LOCALEDIR$/#define LOCALEDIR PREFIX "\\\\share\\\\locale"/' \
+-    -e "s/.* PACKAGE$/#define PACKAGE \"$PACKAGE\"/" \
+-    -e 's/.* PACKAGE_BUGREPORT$/#define PACKAGE_BUGREPORT "http:\/\/bugzilla.gnome.org\/enter_bug.cgi?product=GStreamer"/' \
+-    -e "s/.* PACKAGE_NAME$/#define PACKAGE_NAME \"$PACKAGE_NAME\"/" \
+-    -e "s/.* PACKAGE_STRING$/#define PACKAGE_STRING \"$PACKAGE_STRING\"/" \
+-    -e 's/.* PACKAGE_TARNAME$/#define PACKAGE_TARNAME "'$PACKAGE_TARNAME'"/' \
+-    -e 's/.* PACKAGE_VERSION$/#define PACKAGE_VERSION "'$PACKAGE_VERSION'"/' \
+-    -e 's/.* PLUGINDIR$/#ifdef _DEBUG\n#  define PLUGINDIR PREFIX "\\\\debug\\\\lib\\\\gstreamer-0.11"\n#else\n#  define PLUGINDIR PREFIX "\\\\lib\\\\gstreamer-0.11"\n#endif/' \
+-    -e 's/.* USE_BINARY_REGISTRY$/#define USE_BINARY_REGISTRY/' \
+-    -e 's/.* VERSION$/#define VERSION "'$VERSION'"/' \
+-    -e "s/.* DEFAULT_AUDIOSINK$/#define DEFAULT_AUDIOSINK \"directsoundsink\"/" \
+-    -e "s/.* DEFAULT_AUDIOSRC$/#define DEFAULT_AUDIOSRC \"audiotestsrc\"/" \
+-    -e "s/.* DEFAULT_VIDEOSRC$/#define DEFAULT_VIDEOSRC \"videotestsrc\"/" \
+-    -e "s/.* DEFAULT_VISUALIZER$/#define DEFAULT_VISUALIZER \"goom\"/" \
+-    config.h.in >win32/common/config.h-new
+-
+ AC_OUTPUT
+ 
+-AG_GST_OUTPUT_PLUGINS
+-ORC_OUTPUT
+-
+-- 
+1.9.1
+

@@ -1,0 +1,31 @@
+From 6f176a34eecc84a0e8aeaebdecfb93aa7462a278 Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Tue, 12 Jan 2016 17:33:33 +0800
+Subject: [PATCH 2/4] APBU-11157 [A7DA][MM]Not smooth,Show green block and high
+ cpu loading when play 1080P video
+
+Remove the memory writeable check, because gst-omx will always keep the allocated buffer,
+it just push the copied buffer to v4l2sink, so this check should be failure.
+
+Change-Id: Id8b19a70012d098de8c51e94e89e9ae9d08cc8a2
+Signed-off-by: Xiaofeng Fei <xfei@codeaurora.org>
+---
+ gst/gstmemory.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/gst/gstmemory.c b/gst/gstmemory.c
+index 09c429f..89c07bf 100644
+--- a/gst/gstmemory.c
++++ b/gst/gstmemory.c
+@@ -198,7 +198,7 @@ void
+ gst_memory_resize (GstMemory * mem, gssize offset, gsize size)
+ {
+   g_return_if_fail (mem != NULL);
+-  g_return_if_fail (gst_memory_is_writable (mem));
++  //g_return_if_fail (gst_memory_is_writable (mem));
+   g_return_if_fail (offset >= 0 || mem->offset >= -offset);
+   g_return_if_fail (size + mem->offset + offset <= mem->maxsize);
+ 
+-- 
+1.9.1
+

@@ -1,0 +1,50 @@
+From e6f8558e786935bb3612de5e7cdd089014950909 Mon Sep 17 00:00:00 2001
+From: xf02 <xfei@codeaurora.org>
+Date: Wed, 29 Apr 2015 18:15:36 +0800
+Subject: [PATCH 35/67] APBU-9939 [A7DA] Garbage screen occurred when playing
+ some videos
+
+1. gst-omx should not call gst_pad_pause_task during the flushing,
+   otherwise it will let gstreamer enter deadlock.
+
+2. IMG omx component might not acknowledge a drain, so we can not
+   wait this event forever, add a timeout for it.
+
+Change-Id: Ied64759da909f6635f4b54ff03d913708b698948
+Signed-off-by: xf02 <xfei@codeaurora.org>
+---
+ omx/gstomx.c         | 2 ++
+ omx/gstomxvideodec.c | 4 +++-
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/omx/gstomx.c b/omx/gstomx.c
+index eab69bf..6f9ae64 100644
+--- a/omx/gstomx.c
++++ b/omx/gstomx.c
+@@ -2720,6 +2720,8 @@ _class_init (gpointer g_class, gpointer data)
+ 
+     class_data->hacks = gst_omx_parse_hacks (hacks);
+   }
++  /* IMG omx component might not acknowledge a drain, so we hack it. */
++  class_data->hacks |= GST_OMX_HACK_DRAIN_MAY_NOT_RETURN;
+ }
+ 
+ static gboolean
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 50e3795..67b48a3 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -2150,7 +2150,9 @@ flow_error:
+       self->started = FALSE;
+     } else if (flow_ret == GST_FLOW_FLUSHING) {
+       GST_DEBUG_OBJECT (self, "Flushing -- stopping task");
+-      gst_pad_pause_task (GST_VIDEO_DECODER_SRC_PAD (self));
++      /* It should not call pause task here, otherwise it will let multiqueue
++         enter deadlock. */
++      /* gst_pad_pause_task (GST_VIDEO_DECODER_SRC_PAD (self)); */
+       self->started = FALSE;
+     }
+     GST_VIDEO_DECODER_STREAM_UNLOCK (self);
+-- 
+1.9.1
+

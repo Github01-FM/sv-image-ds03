@@ -1,0 +1,58 @@
+From a669a86075091c36294e902d8e570a56eb28b075 Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Wed, 20 Apr 2016 15:07:18 +0800
+Subject: [PATCH 4/8] Add mute/unmute in gst-play-1.0
+
+Change-Id: I634ef3b0a7d452f54136c597817058fb8e8f42ee
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ tools/gst-play.c | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
+
+diff --git a/tools/gst-play.c b/tools/gst-play.c
+index 2bd5724..d6dbc7e 100644
+--- a/tools/gst-play.c
++++ b/tools/gst-play.c
+@@ -283,6 +283,21 @@ play_set_relative_volume (GstPlay * play, gdouble volume_step)
+   g_print ("                  \n");
+ }
+ 
++static void
++play_set_mute (GstPlay * play)
++{
++  gboolean mute;
++
++  mute = gst_stream_volume_get_mute (GST_STREAM_VOLUME (play->playbin));
++  g_print (_("Mute: %s"), mute?"True":"False");
++  g_print ("                  \n");
++
++  gst_stream_volume_set_mute (GST_STREAM_VOLUME (play->playbin), !mute);
++  g_print (_("Set mute: %s"), !mute?"True":"False");
++  g_print ("                  \n");
++}
++
++/* returns TRUE if something was installed and we should restart playback */
+ /* returns TRUE if something was installed and we should restart playback */
+ static gboolean
+ play_install_missing_plugins (GstPlay * play)
+@@ -1025,6 +1040,7 @@ print_keyboard_help (void)
+     "a", N_("change audio track")}, {
+     "v", N_("change video track")}, {
+     "s", N_("change subtitle track")}, {
++    "m", N_("mute/unmute")}, {
+   "k", N_("show keyboard shortcuts")},};
+   guint i, chars_to_pad, desc_len, max_desc_len = 0;
+ 
+@@ -1115,6 +1131,9 @@ keyboard_cb (const gchar * key_input, gpointer user_data)
+     case 's':
+       play_cycle_track_selection (play, GST_PLAY_TRACK_TYPE_SUBTITLE);
+       break;
++    case 'm':
++      play_set_mute (play);
++      break;
+       /* fall through */
+     default:
+       if (strcmp (key_input, GST_PLAY_KB_ARROW_RIGHT) == 0) {
+-- 
+1.9.1
+

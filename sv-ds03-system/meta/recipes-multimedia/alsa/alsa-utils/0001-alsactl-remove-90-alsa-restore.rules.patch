@@ -1,0 +1,49 @@
+From 551c0b1b40389564e82c7dc0ba7974816a12ee0f Mon Sep 17 00:00:00 2001
+From: Xu Zhiwen <XuZhiwen@desay-svautomotive.com>
+Date: Tue, 27 Dec 2016 13:23:39 +0800
+Subject: [PATCH] alsactl: remove 90-alsa-restore.rules
+
+---
+ alsactl/Makefile.am |   11 +++--------
+ 1 file changed, 3 insertions(+), 8 deletions(-)
+
+diff --git a/alsactl/Makefile.am b/alsactl/Makefile.am
+index b728c06..f1eda2c 100644
+--- a/alsactl/Makefile.am
++++ b/alsactl/Makefile.am
+@@ -18,8 +18,7 @@ alsactl_CFLAGS=$(AM_CFLAGS) -D__USE_GNU \
+ noinst_HEADERS=alsactl.h list.h init_sysdeps.c init_utils_string.c \
+                init_utils_run.c init_sysfs.c
+ 
+-udevrules_DATA = \
+-	90-alsa-restore.rules
++udevrules_DATA = 
+ 
+ if HAVE_SYSTEMD
+ 
+@@ -58,20 +57,16 @@ alsa-restore.service: alsa-restore.service.in
+ alsa-store.service: alsa-store.service.in
+ 	$(edit)
+ 
+-90-alsa-restore.rules: 90-alsa-restore.rules.in
+-	$(edit)
+ 
+ EXTRA_DIST += \
+ 	alsa-state.service.in \
+ 	alsa-restore.service.in \
+-	alsa-store.service.in \
+-	90-alsa-restore.rules.in
++	alsa-store.service.in
+ 
+ CLEANFILES = \
+ 	alsa-state.service \
+ 	alsa-restore.service \
+-	alsa-store.service \
+-	90-alsa-restore.rules
++	alsa-store.service
+ 
+ %.7: %.xml
+ 	xmlto man $?
+-- 
+1.7.9.5
+

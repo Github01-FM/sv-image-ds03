@@ -1,0 +1,45 @@
+From d7570d03ec67145756131fd1d39454a7c0694526 Mon Sep 17 00:00:00 2001
+From: Jingtao Chen <jingtaoc@codeaurora.org>
+Date: Wed, 9 Mar 2016 10:31:17 +0800
+Subject: [PATCH 3/4] Add Linux Foundation Copyright
+
+Change-Id: I5cdfb887d088332d8891eb702058a85931325df4
+Signed-off-by: Jingtao Chen <jingtaoc@codeaurora.org>
+---
+ gst/gstallocator.c | 4 ++++
+ gst/gstmemory.c    | 4 ++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/gst/gstallocator.c b/gst/gstallocator.c
+index 2939104..9160b2b 100644
+--- a/gst/gstallocator.c
++++ b/gst/gstallocator.c
+@@ -19,6 +19,10 @@
+  * Boston, MA 02110-1301, USA.
+  */
+ 
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
++
+ /**
+  * SECTION:gstallocator
+  * @short_description: allocate memory blocks
+diff --git a/gst/gstmemory.c b/gst/gstmemory.c
+index 89c07bf..c13578a 100644
+--- a/gst/gstmemory.c
++++ b/gst/gstmemory.c
+@@ -19,6 +19,10 @@
+  * Boston, MA 02110-1301, USA.
+  */
+ 
++/*
++ * Copyright (c) [2015-2016], The Linux Foundation. All rights reserved.
++ */
++
+ /**
+  * SECTION:gstmemory
+  * @short_description: refcounted wrapper for memory blocks
+-- 
+1.9.1
+

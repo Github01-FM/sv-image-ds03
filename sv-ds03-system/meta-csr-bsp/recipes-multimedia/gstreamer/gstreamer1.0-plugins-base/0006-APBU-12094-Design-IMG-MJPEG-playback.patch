@@ -1,0 +1,51 @@
+From 16a7ac7106462449a600c8d1425ace9bf39fc8f8 Mon Sep 17 00:00:00 2001
+From: Xiaofeng Fei <xfei@codeaurora.org>
+Date: Fri, 3 Jun 2016 15:52:35 +0800
+Subject: [PATCH 6/8] APBU-12094 Design IMG MJPEG playback
+
+Add a new video format Q420 for IMG MJPEG
+
+Change-Id: I4960953fdc6d2c5848f6677ce58dcb468cf0a006
+Signed-off-by: Xiaofeng Fei <xfei@codeaurora.org>
+---
+ gst-libs/gst/video/video-format.c | 2 ++
+ gst-libs/gst/video/video-format.h | 3 ++-
+ 2 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/gst-libs/gst/video/video-format.c b/gst-libs/gst/video/video-format.c
+index cff8189..17cf1f5 100644
+--- a/gst-libs/gst/video/video-format.c
++++ b/gst-libs/gst/video/video-format.c
+@@ -3574,6 +3574,8 @@ static const VideoFormat formats[] = {
+       PSTR2222, PLANE0123, OFFS0, SUB4444, PACK_A444_10LE),
+   MAKE_YUV_FORMAT (NV61, "raw video", GST_MAKE_FOURCC ('N', 'V', '6', '1'),
+       DPTH888, PSTR122, PLANE011, OFFS010, SUB422, PACK_NV61),
++  MAKE_YUV_FORMAT (Q420, "raw video", GST_MAKE_FOURCC ('Q', '4', '2', '0'),
++      DPTH888, PSTR111, PLANE012, OFFS0, SUB420, PACK_420),
+ };
+ 
+ static GstVideoFormat
+diff --git a/gst-libs/gst/video/video-format.h b/gst-libs/gst/video/video-format.h
+index e2a7d78..5f91853 100644
+--- a/gst-libs/gst/video/video-format.h
++++ b/gst-libs/gst/video/video-format.h
+@@ -158,6 +158,7 @@ typedef enum {
+   GST_VIDEO_FORMAT_A444_10BE,
+   GST_VIDEO_FORMAT_A444_10LE,
+   GST_VIDEO_FORMAT_NV61,
++  GST_VIDEO_FORMAT_Q420,
+ } GstVideoFormat;
+ 
+ #define GST_VIDEO_MAX_PLANES 4
+@@ -487,7 +488,7 @@ gconstpointer  gst_video_format_get_palette          (GstVideoFormat format, gsi
+     "GRAY16_LE, v308, RGB16, BGR16, RGB15, BGR15, UYVP, A420, RGB8P, YUV9, YVU9, " \
+     "IYU1, ARGB64, AYUV64, r210, I420_10LE, I420_10BE, I422_10LE, I422_10BE, " \
+     " Y444_10LE, Y444_10BE, GBR, GBR_10LE, GBR_10BE, NV12_64Z32, A420_10LE, "\
+-    " A420_10BE, A422_10LE, A422_10BE, A444_10LE, A444_10BE }"
++    " A420_10BE, A422_10LE, A422_10BE, A444_10LE, A444_10BE, Q420 }"
+ 
+ /**
+  * GST_VIDEO_CAPS_MAKE:
+-- 
+1.9.1
+

@@ -1,0 +1,96 @@
+From 70b7561d7e7afcd88aaa23d61ddbc1827c2cb9a8 Mon Sep 17 00:00:00 2001
+From: Laisheng Hu <laisheng@codeaurora.org>
+Date: Thu, 2 Jul 2015 11:27:01 +0800
+Subject: [PATCH 41/67]  support waylandsink allocator
+
+Change-Id: I3aef505362a525774f5580d0d09cc6d2ca0e6d09
+Signed-off-by: Laisheng Hu <laisheng@codeaurora.org>
+---
+ omx/gstomxvideodec.c    | 23 ++++++++++++++++++++++-
+ omx/gstomxvideodec.h    |  1 +
+ omx/openmax/OMX_Video.h | 16 ++++++++++++++++
+ 3 files changed, 39 insertions(+), 1 deletion(-)
+
+diff --git a/omx/gstomxvideodec.c b/omx/gstomxvideodec.c
+index 8b1f38b..858d699 100644
+--- a/omx/gstomxvideodec.c
++++ b/omx/gstomxvideodec.c
+@@ -1090,7 +1090,7 @@ gst_omx_video_dec_allocate_output_buffers (GstOMXVideoDec * self)
+       {
+         GstMapInfo info;
+         gst_buffer_map (buffer, &info, GST_MAP_READ);
+-        if ((guint32) (info.data) & 0xFFF) {
++        if (!self->wl_ion_buffer && ((guint32) (info.data) & 0xFFF)) {
+           gst_buffer_unmap (buffer, &info);
+ 
+           g_list_free_full (buffers, (GDestroyNotify) gst_buffer_unref);
+@@ -3391,6 +3391,27 @@ gst_omx_video_dec_decide_allocation (GstVideoDecoder * bdec, GstQuery * query)
+     return FALSE;
+   }
+ 
++#ifdef _USE_V4L2_BUFFER_
++  {
++    OMX_INDEXTYPE index;
++    GstAllocator *allocator;
++    gst_query_parse_nth_allocation_param (query, 0, &allocator, NULL);
++    OMX_EXT_PARAM_ENABLEWLIONBUFFERTYPE enable_wlionbuf;
++    GST_DEBUG_OBJECT (self, "TEST gstomx pool allocator name %s %s", GST_OBJECT_NAME (pool),GST_OBJECT_NAME (allocator));
++    if ((allocator != NULL) && g_str_has_prefix (GST_OBJECT_NAME (allocator), "wlshmallocator"))
++    {
++      GST_OMX_INIT_STRUCT (&enable_wlionbuf);
++      enable_wlionbuf.enable = 1;
++      enable_wlionbuf.nPortIndex = 1;
++      gst_omx_get_extension_index(self->dec, "OMX.wayland.linux.index.enableWaylandIonBuffers", &index);
++      gst_omx_component_set_parameter(self->dec, index, &enable_wlionbuf);
++      self->wl_ion_buffer = TRUE;
++    }
++    else
++      GST_DEBUG_OBJECT (self,"we use default v4l2 sink !");
++  }
++#endif
++
+   /* Need at least 2 buffers for anything meaningful */
+   min = MAX (MAX (min, port->port_def.nBufferCountMin +
+                  GST_OMX_MIN_RENDERING_LATENCY), 4);
+diff --git a/omx/gstomxvideodec.h b/omx/gstomxvideodec.h
+index 32d32e7..d91fb14 100644
+--- a/omx/gstomxvideodec.h
++++ b/omx/gstomxvideodec.h
+@@ -89,6 +89,7 @@ struct _GstOMXVideoDec
+ #endif
+ #ifdef _USE_V4L2_BUFFER_
+   GHashTable *omx_buffer_map;
++  gboolean wl_ion_buffer;
+ #endif
+ #ifdef _OMX_ASYNC_FILL_BUFFER_
+   GQuark omx_outbuf_quark;
+diff --git a/omx/openmax/OMX_Video.h b/omx/openmax/OMX_Video.h
+index baecca5..f1f29eb 100644
+--- a/omx/openmax/OMX_Video.h
++++ b/omx/openmax/OMX_Video.h
+@@ -732,6 +732,22 @@ typedef struct EnableAndroidMultiViewDecoding {
+ }OMX_EXT_PARAM_ENABLEMULTIVIEWDECODINGTYPE;
+ /* Vendor Specific Code - IMG ends */
+ 
++/* for waylandsink  */
++/*!
++  ******************************************************************************
++
++  Used with 'OMX.wayland.linux.index.enableWaylandIonBuffers'.
++  The corresponding IMG index is OMX_IndexImgEnableWaylandIonBuffers
++
++  *****************************************************************************/
++
++typedef struct EnableWaylandIonBuffersParams {
++    OMX_U32 nSize;
++    OMX_VERSIONTYPE nVersion;
++    OMX_U32 nPortIndex;
++    OMX_BOOL enable;
++}OMX_EXT_PARAM_ENABLEWLIONBUFFERTYPE;
++
+ #ifdef __cplusplus
+ }
+ #endif /* __cplusplus */
+-- 
+1.9.1
+
